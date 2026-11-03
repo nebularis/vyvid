@@ -15,7 +15,7 @@
 | VYD-1 | configuration, binding and `vyd context` | built 2026-11-03, building 2026-11-03 | |
 | VYD-2 | the index core extracted from LATTICE | built 2026-11-03, building 2026-11-03 | |
 | VYD-2b | LATTICE switches to `vyvid` | planned | VYD-2 |
-| VYD-3 | domains, their graph and register types | planned | VYD-0b, VYD-2 |
+| VYD-3 | domains, their graph and register types | building 2026-11-03 | |
 | VYD-4 | managed assets and git policy | planned | VYD-1 |
 | VYD-5 | the store across scopes | planned | VYD-0, VYD-3 |
 | VYD-6 | recipes and contracts | planned | VYD-5 |
