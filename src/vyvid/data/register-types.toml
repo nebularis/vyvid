@@ -140,3 +140,14 @@ class = "PendingDecision"
 
 [types.backlog]
 class = "Backlog"
+
+# Types whose entries are not table rows. A decision is a file, a discovery a heading and a question
+# a bold lead or a row of a plan or sketch, each read by its family's rule.
+[types.decision]
+class = "Decision"
+
+[types.discovery]
+class = "Discovery"
+
+[types.question]
+class = "Question"

@@ -8,6 +8,9 @@
     the canonical ``scope:LOCAL`` an identifier names, written in that folder's project
 ``vyd config``
     where the configuration is read from, and whether it is sound
+``vyd build [folder] [--all] [--no-embed]``
+    build the knowledge index for the folder's project stack, or for every scope, and print what it
+    found and every problem
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from pathlib import Path
 
 from . import __version__
 from .config import ConfigError, config_path, load
+from .facets import RegisterError
+from .registers import DeclarationError
 from .resolve import Unresolved, bind, layers, resolve
 
 
@@ -53,6 +58,24 @@ def context(folder: Path, as_json: bool) -> int:
     return 0
 
 
+def build_index(folder: Path, everything: bool, embed: bool) -> int:
+    from .build import build, store_dir
+
+    config = load()
+    project = bind(config, folder)
+    if not everything and project is None:
+        print("no project claims this folder, so the general scope alone is built. Use --all for every scope")
+    out = build(config, None if everything else project, embed=embed, scopes=None if everything or project else [config.general])
+    for key in sorted(out.counts):
+        print(f"  {key:<28} {out.counts[key]}")
+    for problem in out.problems:
+        print(f"NOTE: {problem}")
+    for finding in out.findings:
+        print(f"FINDING: {finding}")
+    print(f"knowledge index built at {store_dir(config) / 'store'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vyd", description="Вивід: the contract and knowledge for the folder an agent is in")
     parser.add_argument("--version", action="version", version=f"Вивід (vyvid) {__version__}")
@@ -63,6 +86,10 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("resolve", help="the canonical scope:LOCAL an identifier names")
     r.add_argument("identifier")
     r.add_argument("--in", dest="folder", default=".")
+    b = sub.add_parser("build", help="build the knowledge index for a folder's project, or for every scope")
+    b.add_argument("folder", nargs="?", default=".")
+    b.add_argument("--all", action="store_true", help="every configured scope, not the folder's stack")
+    b.add_argument("--no-embed", action="store_true", help="build the store and write no vectors")
     sub.add_parser("config", help="where the configuration is read from, and whether it is sound")
     arguments = parser.parse_args(argv)
     try:
@@ -73,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
             scope = bind(config, Path(arguments.folder)) or config.general
             print(resolve(config, arguments.identifier, scope))
             return 0
+        if arguments.command == "build":
+            return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
         config = load()
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
         print(f"domains: {', '.join(config.domains) or 'none'}")
@@ -80,6 +109,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except ConfigError as error:
         print(f"the configuration at {config_path()} cannot be used:", file=sys.stderr)
+        for problem in error.problems:
+            print(f"  {problem}", file=sys.stderr)
+        return 2
+    except (RegisterError, DeclarationError) as error:
+        print("the registers cannot be read:", file=sys.stderr)
         for problem in error.problems:
             print(f"  {problem}", file=sys.stderr)
         return 2

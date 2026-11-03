@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 
 from .config import Config, Scope
+from .model import normalise
 
 QUALIFIED_RE = re.compile(r"^(?P<scope>[a-z][a-z0-9-]*):(?P<local>.+)$")
 
@@ -113,3 +114,42 @@ def _within(config: Config, local: str, scope: Scope, seen: set[str]) -> str:
     if delegated:
         return _within(config, local, delegated[0], seen)
     raise Unresolved(f"'{local}' matches no family of '{scope.name}'")
+
+
+def visible_families(config: Config, scope: Scope) -> list:
+    """The families a bare mention in ``scope`` can mean: its own and the ones it delegates."""
+    out = list(scope.families.values())
+    for family, target in scope.delegates.items():
+        other = config.scope(target)
+        if other is not None and family in other.families:
+            out.append(other.families[family])
+    return out
+
+
+def mentions(config: Config, text: str, scope: Scope) -> list[str]:
+    """Every identifier written in ``text``, as canonical ``scope:LOCAL``, once each, in order.
+
+    A qualified mention names a configured scope, ``other:STD-1``, and a bare one matches a family
+    ``scope`` declares or delegates. A mention that resolves to nothing, or to more than one thing,
+    is skipped here, never raised, since a cell of prose may hold text that only looks like one.
+    Two spellings of one identifier count once, under the first."""
+    found: list[tuple[int, int, str]] = []
+    qualified: list[tuple[int, int]] = []
+    for target in [config.general, *config.domains.values(), *config.projects.values()]:
+        for family in visible_families(config, target):
+            for m in re.finditer(rf"(?<![\w-]){re.escape(target.name)}:(?:{family.pattern.pattern})(?![\w-])", text):
+                found.append((m.start(), m.end(), m.group(0)))
+                qualified.append((m.start(), m.end()))
+    for family in visible_families(config, scope):
+        for m in re.finditer(rf"(?<![\w-])(?:{family.pattern.pattern})(?![\w-])", text):
+            if not any(a <= m.start() and m.end() <= b for a, b in qualified):
+                found.append((m.start(), m.end(), m.group(0)))
+    out: dict[tuple[str, str], str] = {}
+    for _, _, mention in sorted(found):
+        try:
+            canonical = resolve(config, mention, scope)
+        except Unresolved:
+            continue
+        name, local = canonical.split(":", 1)
+        out.setdefault((name, normalise(local)), canonical)
+    return list(out.values())

@@ -223,23 +223,23 @@ def types_for(stack) -> RegisterTypes:
 
 
 def read_scope(scope, types: RegisterTypes, taggable: dict[str, set[str]]) -> tuple[list[Row], list[str]]:
-    """Every row of every register a scope's families are defined in, and every problem found. A
+    """Every row of every register a scope's table families are defined in, and every problem found. A
     family with no register type, or whose register is missing, is reported."""
     root = scope.code or scope.path or Path.cwd()
     rows: list[Row] = []
     problems: list[str] = []
     for family in scope.families.values():
-        if family.defined is None or family.type is None:
+        if family.defined is None or family.type is None or family.rule != "table":
             continue
-        if not family.defined.is_file():
-            problems.append(f"{scope.name}: family {family.name} is defined in {family.defined}, which is not a file")
+        if not (files := family.paths()):
+            problems.append(f"{scope.name}: family {family.name} is defined in {family.defined}, which matches no file")
             continue
-        try:
-            name = family.defined.resolve().relative_to(root.resolve()).as_posix()
-        except ValueError:
-            name = family.defined.as_posix()
-        found, trouble = read(family.defined, name, family.pattern, family.type, types, taggable, root)
-        rows += found
-        problems += trouble
+        for path in files:
+            try:
+                name = path.resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                name = path.as_posix()
+            found, trouble = read(path, name, family.pattern, family.type, types, taggable, root)
+            rows += found
+            problems += trouble
     return rows, problems
-

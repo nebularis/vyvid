@@ -10,6 +10,7 @@ whose domains form a cycle, is refused with every problem listed, never loaded i
 
 from __future__ import annotations
 
+import glob
 import os
 import re
 import tomllib
@@ -22,6 +23,10 @@ from .embed import ModelSpec
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
+# How a family's identifiers are defined: a table row of a register, a file named by the identifier,
+# a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
+RULES = ("table", "file", "heading", "question")
+EXTRACTORS = ("owl-terms",)
 
 
 class ConfigError(Exception):
@@ -38,8 +43,26 @@ class Family:
 
     name: str
     pattern: re.Pattern[str]
-    defined: Path | None = None
+    defined: Path | None = None  # a file, a folder of Markdown files, or a glob
     type: str | None = None  # the register type of the register that defines it
+    rule: str = "table"  # one of RULES
+    also: tuple[Path, ...] = ()  # more places it is defined, after ``defined``
+
+    def paths(self) -> list[Path]:
+        """The files that define this family, in the order they were named. A glob is expanded and a
+        folder stands for its Markdown files, each sorted, so a plan's definition comes before a sketch's."""
+        found: list[Path] = []
+        for place in [self.defined, *self.also]:
+            if place is None:
+                continue
+            if glob.has_magic(str(place)):
+                names = sorted(glob.glob(str(place), recursive=True), key=Path)
+            elif place.is_dir():
+                names = sorted(map(str, place.glob("*.md")), key=Path)
+            else:
+                names = [str(place)]
+            found += [p for n in names if (p := Path(n)).is_file() and p not in found]
+        return found
 
 
 @dataclass
@@ -56,6 +79,7 @@ class Scope:
     delegates: dict[str, str] = field(default_factory=dict)
     parents: list[str] = field(default_factory=list)  # domains only
     path: Path | None = None
+    extractors: list[dict] = field(default_factory=list)  # each a kind and the paths (globs) it reads
     # projects only
     code: Path | None = None
     docs: Path | None = None
@@ -72,6 +96,7 @@ class Config:
     domains: dict[str, Scope]
     projects: dict[str, Scope]
     embedding: ModelSpec = field(default_factory=ModelSpec)
+    store: Path | None = None  # where the index is built, else the platform's data folder
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -104,9 +129,13 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
             problems.append(f"{where}: family '{name}' is not a family name")
             continue
         pattern = spec.get("pattern", rf"{re.escape(name)}-\d+[a-z]?")
+        rule = spec.get("rule", "table")
+        if rule not in RULES:
+            problems.append(f"{where}: family '{name}' has the rule '{rule}', not one of {', '.join(RULES)}")
+            continue
         try:
-            defined = _expand(spec["defined"], bases or {}, where, problems) if "defined" in spec else None
-            out[name] = Family(name, re.compile(pattern), defined, spec.get("type"))
+            places = _paths(spec.get("defined"), bases or {}, where, problems)
+            out[name] = Family(name, re.compile(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]))
         except re.error as error:
             problems.append(f"{where}: family '{name}' has a pattern that does not compile: {error}")
     return out
@@ -115,6 +144,16 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
 def _paths(values, bases, where, problems) -> list[Path]:
     values = [values] if isinstance(values, str) else (values or [])
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
+
+
+def _extractors(raw, bases, where, problems) -> list[dict]:
+    out = []
+    for item in raw or []:
+        if item.get("kind") not in EXTRACTORS:
+            problems.append(f"{where}: an extractor needs a kind of {', '.join(EXTRACTORS)}, not '{item.get('kind')}'")
+        else:
+            out.append({"kind": item["kind"], "paths": _paths(item.get("paths"), bases, where, problems)})
+    return out
 
 
 def load(path: Path | None = None) -> Config:
@@ -153,6 +192,7 @@ def load(path: Path | None = None) -> Config:
             register_types=_paths(d.get("register_types", "self:register-types.toml"), bases, where, problems),
             families=_families(d.get("families"), where, problems, bases),
             delegates=dict(d.get("delegates", {})),
+            extractors=_extractors(d.get("extractors"), bases, where, problems),
         )
 
     projects: dict[str, Scope] = {}
@@ -180,11 +220,13 @@ def load(path: Path | None = None) -> Config:
             register_types=_paths(p.get("register_types"), bases, where, problems),
             families=_families(p.get("families"), where, problems, bases),
             delegates=dict(p.get("delegates", {})),
+            extractors=_extractors(p.get("extractors"), bases, where, problems),
             specialises={k: v for k, s in p.get("specialises", {}).items()
                          if (v := _expand(s, bases, where, problems)) is not None},
         )
 
-    config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems))
+    config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
+                    Path(framework["store"]).expanduser() if "store" in framework else None)
     problems += _check(config)
     if problems:
         raise ConfigError(problems)

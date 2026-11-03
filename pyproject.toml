@@ -5,7 +5,7 @@ description = "Вивід: what a coding agent needs to know before it acts, sco
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-dependencies = ["platformdirs>=4,<5", "numpy>=1.24,<3", "onnxruntime>=1.20,<2", "tokenizers>=0.20,<1"]
+dependencies = ["platformdirs>=4,<5", "numpy>=1.24,<3", "onnxruntime>=1.20,<2", "tokenizers>=0.20,<1", "pyoxigraph==0.5.13"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
