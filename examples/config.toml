@@ -34,11 +34,11 @@ domains = ["owl", "triple-stores", "tools"]
 specialises = { tools = "docs:developer/tools.md" }
 
 [projects.families]
-STD = { defined = "docs:developer/standards.md" }
-PRI = { defined = "docs:developer/principles.md" }
-CAP = { defined = "docs:developer/capabilities.md" }
-TD = { defined = "docs:developer/technical-debt.md" }
-PDD = { defined = "docs:developer/pending-design-decisions.md" }
+STD = { defined = "docs:developer/standards.md", type = "standard" }
+PRI = { defined = "docs:developer/principles.md", type = "principle" }
+CAP = { defined = "docs:developer/capabilities.md", type = "capability" }
+TD = { defined = "docs:developer/technical-debt.md", type = "debt" }
+PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-decision" }
 TSD = { pattern = 'TSD-\d+[a-z]?', defined = "docs:architecture/triple-store-discovery.md" }
 ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architecture/decisions/" }
 
@@ -51,5 +51,7 @@ domains = ["software-engineering", "tools"]
 facets = ["docs:developer/facets.md"]
 
 [projects.families]
-STD = { defined = "docs:developer/standards.md" }
+STD = { defined = "docs:developer/standards.md", type = "standard" }
+PRI = { defined = "docs:developer/principles.md", type = "principle" }
+CAP = { defined = "docs:developer/capabilities.md", type = "capability" }
 ADR = { pattern = 'ADR-\d{3}', defined = "docs:architecture/decisions/" }

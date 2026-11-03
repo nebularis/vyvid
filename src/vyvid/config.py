@@ -38,7 +38,8 @@ class Family:
 
     name: str
     pattern: re.Pattern[str]
-    defined: str | None = None
+    defined: Path | None = None
+    type: str | None = None  # the register type of the register that defines it
 
 
 @dataclass
@@ -50,6 +51,7 @@ class Scope:
     rules: list[Path] = field(default_factory=list)
     skills: list[Path] = field(default_factory=list)
     facets: list[Path] = field(default_factory=list)
+    register_types: list[Path] = field(default_factory=list)
     families: dict[str, Family] = field(default_factory=dict)
     delegates: dict[str, str] = field(default_factory=dict)
     parents: list[str] = field(default_factory=list)  # domains only
@@ -94,7 +96,7 @@ def _expand(value: str, bases: dict[str, Path | None], where: str, problems: lis
     return Path(value).expanduser()
 
 
-def _families(raw: dict, where: str, problems: list[str]) -> dict[str, Family]:
+def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path | None] | None = None) -> dict[str, Family]:
     out = {}
     for name, spec in (raw or {}).items():
         spec = spec if isinstance(spec, dict) else {}
@@ -103,7 +105,8 @@ def _families(raw: dict, where: str, problems: list[str]) -> dict[str, Family]:
             continue
         pattern = spec.get("pattern", rf"{re.escape(name)}-\d+[a-z]?")
         try:
-            out[name] = Family(name, re.compile(pattern), spec.get("defined"))
+            defined = _expand(spec["defined"], bases or {}, where, problems) if "defined" in spec else None
+            out[name] = Family(name, re.compile(pattern), defined, spec.get("type"))
         except re.error as error:
             problems.append(f"{where}: family '{name}' has a pattern that does not compile: {error}")
     return out
@@ -129,7 +132,8 @@ def load(path: Path | None = None) -> Config:
         rules=_paths(g.get("rules"), {"kb": kb}, "[general]", problems),
         skills=_paths(g.get("skills"), {"kb": kb}, "[general]", problems),
         facets=_paths(g.get("facets"), {"kb": kb}, "[general]", problems),
-        families=_families(g.get("families"), "[general]", problems),
+        register_types=_paths(g.get("register_types"), {"kb": kb}, "[general]", problems),
+        families=_families(g.get("families"), "[general]", problems, {"kb": kb}),
     )
 
     domains: dict[str, Scope] = {}
@@ -146,7 +150,8 @@ def load(path: Path | None = None) -> Config:
             rules=_paths(d.get("rules", "self:rules.md"), bases, where, problems),
             skills=_paths(d.get("skills", "self:skills"), bases, where, problems),
             facets=_paths(d.get("facets", "self:facets.md"), bases, where, problems),
-            families=_families(d.get("families"), where, problems),
+            register_types=_paths(d.get("register_types", "self:register-types.toml"), bases, where, problems),
+            families=_families(d.get("families"), where, problems, bases),
             delegates=dict(d.get("delegates", {})),
         )
 
@@ -172,7 +177,8 @@ def load(path: Path | None = None) -> Config:
             rules=_paths(p.get("contract"), bases, where, problems),
             skills=_paths(p.get("skills"), bases, where, problems),
             facets=_paths(p.get("facets"), bases, where, problems),
-            families=_families(p.get("families"), where, problems),
+            register_types=_paths(p.get("register_types"), bases, where, problems),
+            families=_families(p.get("families"), where, problems, bases),
             delegates=dict(p.get("delegates", {})),
             specialises={k: v for k, s in p.get("specialises", {}).items()
                          if (v := _expand(s, bases, where, problems)) is not None},

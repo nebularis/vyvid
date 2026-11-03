@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: MIT
+# The register types every installation of Вивід has, from LATTICE's knowledge index, relicensed MIT
+# by its author. A domain or a project adds its own, and a later declaration of a column or a type
+# replaces an earlier one.
+#
+# A register is a Markdown table whose header is its schema. Each column maps to a property and a
+# kind, which says how a cell is read:
+#   id          the row's identifier, matched against its family
+#   claim       the bold lead of the cell, or the whole cell, at most the claim limit
+#   label       the entry's name
+#   text        the cell as it is
+#   ids         identifiers of other entries, resolved in the register's scope
+#   targets     identifiers, or CURIEs of declared terms
+#   addenda     decision addenda that narrow the entry
+#   names       names of derived things, such as architectural quanta
+#   module      a module or tool package the entry belongs to
+#   controlled  one or more values of a closed set, declared under [values]
+#   facet       one or more values of a facet scheme
+#   status      a ratified flag, yes or no
+# A column marked trailing stands last and a row may leave it out. A column with a status gives its
+# row that status when it is filled. A column on the unmapped list is
+# read by people only.
+
+[limits]
+claim = 200
+
+[values.audience]
+internal = "InternalUse"
+published = "PublishedUse"
+
+[values.phase]
+development = "Development"
+authoring = "Authoring"
+runtime = "Runtime"
+testing = "Testing"
+benchmarking = "Benchmarking"
+production = "Production"
+
+[values.built]
+built = "Built"
+partial = "PartlyBuilt"
+proposed = "NotBuilt"
+
+[values.ratified]
+yes = "Accepted"
+no = "Proposed"
+
+[values.stratum]
+architectural = "ArchitecturalStratum"
+design = "DesignStratum"
+practice = "PracticeStratum"
+convention = "ConventionStratum"
+
+[values.origin]
+stated = "Stated"
+extrapolated = "Extrapolated"
+
+[values.fitnessScope]
+atomic = "Atomic"
+holistic = "Holistic"
+
+[values.cadence]
+triggered = "Triggered"
+continual = "Continual"
+
+[columns]
+"ID" = { property = "identifier", kind = "id" }
+"#" = { property = "identifier", kind = "id" }
+"Claim" = { property = "claim", kind = "claim" }
+"Capability" = { property = "claim", kind = "claim" }
+"Debt" = { property = "claim", kind = "claim" }
+"Idea" = { property = "claim", kind = "claim" }
+"Decision" = { property = "claim", kind = "claim" }
+"Question" = { property = "claim", kind = "claim" }
+"Name" = { property = "label", kind = "label" }
+"Pointer" = { property = "pointer", kind = "text" }
+"Problem shape" = { property = "problemShape", kind = "text" }
+"Why it matters" = { property = "problemShape", kind = "text" }
+"Activity" = { property = "activity", kind = "facet", scheme = "Activity" }
+"Quality" = { property = "quality", kind = "facet", scheme = "Quality" }
+"Technology" = { property = "technology", kind = "facet", scheme = "Technology" }
+"Waits for" = { property = "waitsOn", kind = "ids" }
+"Evidenced by" = { property = "evidencedBy", kind = "ids" }
+"Decided by" = { property = "decidedBy", kind = "ids" }
+"Refines" = { property = "refines", kind = "ids" }
+"Answered by" = { property = "answeredBy", kind = "ids", status = "Answered" }
+"Supports" = { property = "supports", kind = "ids" }
+"Enforced by" = { property = "enforcedBy", kind = "ids" }
+"Unchecked because" = { property = "uncheckedBecause", kind = "text" }
+"Does not cover" = { property = "doesNotCover", kind = "text", limit = 120, trailing = true }
+"Distinguished from" = { property = "distinguishedFrom", kind = "ids", trailing = true }
+"Narrowed by" = { property = "narrowedBy", kind = "addenda", trailing = true }
+"Bears on" = { property = "bearsOn", kind = "targets", trailing = true }
+"Derived from" = { property = "derivedFrom", kind = "ids", trailing = true }
+"Stratum" = { property = "stratum", kind = "controlled", values = "stratum" }
+"Governs" = { property = "governs", kind = "names" }
+"Fitness scope" = { property = "fitnessScope", kind = "controlled", values = "fitnessScope" }
+"Cadence" = { property = "cadence", kind = "controlled", values = "cadence" }
+"Origin" = { property = "origin", kind = "controlled", values = "origin" }
+"Cost" = { property = "cost", kind = "text" }
+"Owner" = { property = "ownedBy", kind = "module" }
+"Provided by" = { property = "ownedBy", kind = "module" }
+"Audience" = { property = "audience", kind = "controlled", values = "audience" }
+"Phase" = { property = "phase", kind = "controlled", values = "phase" }
+"Entry point" = { property = "entryPoint", kind = "text" }
+"Built" = { property = "built", kind = "controlled", values = "built" }
+"Ratified" = { property = "status", kind = "status", values = "ratified" }
+"Scope" = { property = "scope", kind = "text" }
+"Unit" = { property = "unit", kind = "text" }
+"State" = { property = "state", kind = "text" }
+
+[unmapped]
+columns = [
+  "Blocked on", "Conf", "Cost of deferring", "Cost while it stays", "Likely home", "Next step",
+  "Options known", "Raised", "Reuse note", "Spotted", "Status", "What exists", "Why we want it",
+]
+
+# A register type names the class its rows become and, by default, the status a row has when it
+# carries no Ratified column.
+[types.standard]
+class = "Standard"
+
+[types.principle]
+class = "Principle"
+
+[types.pattern]
+class = "Pattern"
+
+[types.mechanism]
+class = "Mechanism"
+
+[types.capability]
+class = "Capability"
+
+[types.debt]
+class = "Debt"
+
+[types.pending-decision]
+class = "PendingDecision"
+
+[types.backlog]
+class = "Backlog"
