@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: MIT
 """``vyd``, the command line.
 
-``vyd context [folder] [--json]``
+``vyd context [folder] [--json] [--no-pull]``
     the contract that applies in a folder: each layer's rules and skills, general first and the
-    project last, which an agent reads before its first task
+    project last, which an agent reads before its first task. It first pulls the managed domains of
+    the folder's stack that are due, and prints a line for each pull that failed
 ``vyd resolve <identifier> [--in folder]``
     the canonical ``scope:LOCAL`` an identifier names, written in that folder's project
 ``vyd config``
@@ -16,6 +17,9 @@
 ``vyd misses | gap <text> | close <id>``
     the questions the index answered weakly, the gaps found by reading, and closing them
 
+``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message>``
+    the domains under the knowledge base, each a git clone of its remote, kept by its git policy
+
 Each question takes ``--in <folder>``, the folder whose stack it is asked in, the current one by default.
 """
 
@@ -24,9 +28,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
-from . import __version__, ask
+from . import __version__, ask, kb
 from .config import ConfigError, config_path, extractor_runs, load
 from .facets import RegisterError
 from .registers import DeclarationError
@@ -51,9 +56,13 @@ def _layer(config, scope) -> dict:
     return out
 
 
-def context(folder: Path, as_json: bool) -> int:
+def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     config = load()
     project = bind(config, folder)
+    if pull:
+        for result in kb.pull_due(config, layers(config, project)):
+            if not result.ok:
+                print(f"vyd: pull of {result.name} failed: {result.text}", file=sys.stderr)
     stack = [_layer(config, s) for s in layers(config, project)]
     if as_json:
         print(json.dumps({"folder": str(folder.resolve()), "project": project and project.name, "layers": stack}, indent=2))
@@ -75,6 +84,48 @@ def context(folder: Path, as_json: bool) -> int:
         for domain, item in layer.get("specialises", {}).items():
             print(f"   specialises {domain} in {item['path']}" + ("" if item["exists"] else "   (missing)"))
     return 0
+
+
+def _report(results: list[kb.Result]) -> int:
+    for r in results:
+        print(f"{r.name}: {r.text}" if r.ok else f"{r.name}: FAILED: {r.text}")
+    return 0 if all(r.ok for r in results) else 1
+
+
+def kb_status(config) -> int:
+    for scope in kb.managed(config):
+        s = kb.inspect(config, scope)
+        print(f"{s.name}  {s.folder}")
+        if not s.exists:
+            print(f"   missing, run vyd kb clone {s.name}")
+        elif not s.clone:
+            print(f"   exists and is not a clone of {s.remote or 'a remote (none is configured)'}")
+        else:
+            upstream = "no upstream" if s.ahead is None else f"ahead {s.ahead} behind {s.behind}"
+            pulled = time.strftime("%Y-%m-%d %H:%M", time.localtime(s.last_pull)) if s.last_pull else "never"
+            print(f"   clone of {s.remote}, branch {s.branch or 'detached'}, {upstream}, "
+                  f"{f'{s.changes} uncommitted' if s.changes else 'clean'}, last pulled {pulled}")
+        print(f"   policy pull={s.policy.pull} commit={s.policy.commit} push={s.policy.push}")
+    return 0
+
+
+def kb_command(arguments) -> int:
+    config = load()
+    action = arguments.kb_command
+    if action == "status":
+        return kb_status(config)
+    if action == "record":
+        return _report(kb.record(config, arguments.paths, arguments.message))
+    try:
+        scopes = kb.select(config, arguments.domains)
+    except kb.KbError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    if action == "clone":
+        if not arguments.domains:
+            scopes = [s for s in scopes if not s.path.exists()]
+        return _report([kb.clone(config, s) for s in scopes])
+    return _report(kb.pull(config, scopes, due=arguments.due))
 
 
 def build_index(folder: Path, everything: bool, embed: bool) -> int:
@@ -159,6 +210,16 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("context", help="the contract that applies in a folder, general first and the project last")
     c.add_argument("folder", nargs="?", default=".")
     c.add_argument("--json", action="store_true")
+    c.add_argument("--no-pull", action="store_true", help="do not pull the managed domains that are due first")
+    k = sub.add_parser("kb", help="the managed domains under the knowledge base: status, clone, pull and record").add_subparsers(dest="kb_command", required=True)
+    k.add_parser("status", help="each managed domain's clone, branch, ahead and behind, changes, last pull and policy")
+    k.add_parser("clone", help="clone the named domains, or every managed domain whose folder is missing").add_argument("domains", nargs="*")
+    p = k.add_parser("pull", help="git pull --ff-only in the named domains, or all of them")
+    p.add_argument("domains", nargs="*")
+    p.add_argument("--due", action="store_true", help="only the domains whose pull policy says one is due")
+    p = k.add_parser("record", help="stage changed paths in their managed domain, then commit and push by its policy")
+    p.add_argument("paths", nargs="+")
+    p.add_argument("-m", "--message", required=True)
     r = sub.add_parser("resolve", help="the canonical scope:LOCAL an identifier names")
     r.add_argument("identifier")
     r.add_argument("--in", dest="folder", default=".")
@@ -171,7 +232,9 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == "context":
-            return context(Path(arguments.folder), arguments.json)
+            return context(Path(arguments.folder), arguments.json, not arguments.no_pull)
+        if arguments.command == "kb":
+            return kb_command(arguments)
         if arguments.command == "resolve":
             config = load()
             scope = bind(config, Path(arguments.folder)) or config.general

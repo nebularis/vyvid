@@ -49,7 +49,13 @@ mise run install                       # uv tool install --editable, so vyd runs
 vyd config                             # where the configuration is read from, and whether it is sound
 vyd context ~/work/lattice             # the layers of rules that apply there, the project's last
 vyd resolve TSD-41 --in ~/work/lattice # the canonical scope:LOCAL an identifier names
+vyd kb status                          # each managed domain: clone, branch, ahead and behind, changes, last pull, policy
+vyd kb clone [domain ...]              # clone the named domains, or every managed one whose folder is missing
+vyd kb pull [domain ...] [--due]       # fast-forward pull, only the domains whose policy says one is due with --due
+vyd kb record <path> ... -m <message>  # stage changed register files, then commit and push as the domain's policy says
 ```
+
+A managed domain is a domain whose folder lies under the knowledge base, and it is a git clone of its `remote`. Its `git` policy sets when it is pulled (`on-start`, `daily` or `manual`), and whether a recorded change is committed and pushed (`auto`) or left staged (`manual`), and `commit_trailers` in `[framework]` are added to every commit `vyd kb record` makes. A pull never merges or stashes, and `vyd context` pulls what is due before it answers unless given `--no-pull`. A project's own files are never committed or pushed by `vyd`.
 
 The configuration is read from `$VYVID_CONFIG`, or from the platform's configuration folder, which `vyd config` prints. [`examples/config.toml`](examples/config.toml) is a starting point.
 

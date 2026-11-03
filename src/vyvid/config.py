@@ -34,7 +34,9 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors"}
+DOMAIN_KEYS = {"parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git"}
+# What each key of a managed domain's git policy may be, the first being the default.
+GIT_CHOICES = {"pull": ("on-start", "daily", "manual"), "commit": ("manual", "auto"), "push": ("manual", "auto")}
 
 
 class ConfigError(Exception):
@@ -43,6 +45,15 @@ class ConfigError(Exception):
     def __init__(self, problems: list[str]):
         super().__init__("\n".join(problems))
         self.problems = problems
+
+
+@dataclass(frozen=True)
+class GitPolicy:
+    """When Вивід pulls, commits and pushes a managed domain. The defaults change nothing unasked."""
+
+    pull: str = "on-start"
+    commit: str = "manual"
+    push: str = "manual"
 
 
 @dataclass(frozen=True)
@@ -86,6 +97,8 @@ class Scope:
     families: dict[str, Family] = field(default_factory=dict)
     delegates: dict[str, str] = field(default_factory=dict)
     parents: list[str] = field(default_factory=list)  # domains only
+    remote: str | None = None  # domains only: the repository a managed domain is a clone of
+    git: GitPolicy = field(default_factory=GitPolicy)  # domains only
     path: Path | None = None
     vocabulary: list[Path] = field(default_factory=list)  # Turtle, loaded into the T-Box graph
     # Each a kind and its settings, ``paths`` unexpanded. A domain's are the kinds it brings and their
@@ -109,6 +122,7 @@ class Config:
     projects: dict[str, Scope]
     embedding: ModelSpec = field(default_factory=ModelSpec)
     store: Path | None = None  # where the index is built, else the platform's data folder
+    commit_trailers: tuple[str, ...] = ()  # appended to every message ``vyd kb record`` commits
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -196,6 +210,23 @@ def _extractors(raw, where, problems) -> list[dict]:
         else:
             out.append({"kind": item["kind"], "settings": {k: v for k, v in item.items() if k != "kind"}})
     return out
+
+
+def _git_policy(raw, where: str, problems: list[str]) -> GitPolicy:
+    """A domain's ``git`` table as a policy. An unknown key or value, or a push with nothing committed to push, is a problem."""
+    if not isinstance(raw, dict):
+        if raw is not None:
+            problems.append(f"{where}: git must be a table")
+        return GitPolicy()
+    if unknown := sorted(set(raw) - set(GIT_CHOICES)):
+        problems.append(f"{where}: unknown git keys {', '.join(unknown)}")
+    for key, choices in GIT_CHOICES.items():
+        if raw.get(key, choices[0]) not in choices:
+            problems.append(f"{where}: git.{key} is '{raw[key]}', not one of {', '.join(choices)}")
+    policy = GitPolicy(**{k: raw[k] for k in GIT_CHOICES if raw.get(k) in GIT_CHOICES[k]})
+    if policy.push == "auto" and policy.commit == "manual":
+        problems.append(f"{where}: git.push is auto and git.commit is manual, so nothing would be pushed")
+    return policy
 
 
 def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> dict:
@@ -287,6 +318,7 @@ def load(path: Path | None = None) -> Config:
         bases = {"kb": kb, "self": root}
         domains[name] = Scope(
             name, "domain", path=root, parents=list(merged.get("parents", [])),
+            remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems),
             rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
             skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
             facets=_paths(merged.get("facets", "self:facets.md"), bases, where, problems),
@@ -329,8 +361,12 @@ def load(path: Path | None = None) -> Config:
                          if (v := _expand(s, bases, where, problems)) is not None},
         )
 
+    trailers = framework.get("commit_trailers", [])
+    if not isinstance(trailers, list) or not all(isinstance(t, str) for t in trailers):
+        problems.append("[framework]: commit_trailers must be a list of strings")
+        trailers = []
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None)
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

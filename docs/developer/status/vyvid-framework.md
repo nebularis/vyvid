@@ -16,7 +16,7 @@
 | VYD-2 | the index core extracted from LATTICE | built 2026-11-03, building 2026-11-03 | |
 | VYD-2b | LATTICE switches to `vyvid` | planned | VYD-2 |
 | VYD-3 | domains, their graph and register types | built 2026-11-03, building 2026-11-03 | |
-| VYD-4 | managed assets and git policy | building 2026-11-03 | |
+| VYD-4 | managed assets and git policy | built 2026-11-03, building 2026-11-03 | |
 | VYD-5 | the store across scopes | planned | VYD-0, VYD-3 |
 | VYD-6 | recipes and contracts | planned | VYD-5 |
 | VYD-7 | the triple-store domain | planned | VYD-5 |
@@ -44,3 +44,4 @@
 - 2026-11-03. Sketched [work tracked in Jira or Azure DevOps](../sketches/work-tracking-domains.md): a work-tracking domain with tracker domains under it, reads by an extractor and writes through the tracker's MCP server, a manifest that declares its requirements and runs no script, and a tracker as a claims backend only where its API rejects a stale write. Questions VYD-Q20 to VYD-Q27 open.
 - 2026-11-03. VYD-3 built: a domain's `domain.toml` merged under its configuration entry, the domain graph checked after merging, extractors as plug-ins registered as entry points, the OWL term extractor moved out of the core into the first, a domain's extractor run by each project that uses it over the project's files, and vocabulary a scope adds. Built through the OWL domain, LATTICE's 3,772 terms and the top five of five `--kind term` questions equal those built before. The extractor interface was built without the symbol-indexing research, whose recommendation it now awaits for languages other than OWL. Whether the manifest's `requires` key and `vyd doctor` join this slice waits on VYD-Q27. A term's module naming is TD-1.
 - 2026-11-03. VYD-Q20 to VYD-Q27 answered: VYD-Q23 with a project's own environment allowed to override Вивід's, VYD-Q25 not as leaned, work items a kind of record of their own, and VYD-Q27 as late as possible, so all of the tracker work is VYD-13, the plan's last slice.
+- 2026-11-03. VYD-4 built: a managed domain is a clone under the knowledge base, with a git policy for when it pulls and whether its changes are committed and pushed. `vyd kb status`, `clone`, `pull` and `record`, pulls by fast-forward only and a diverged one reported and left, `record` refusing a project's files and adding the configured trailers, and `vyd context` pulling what is due. Run end to end against a bare remote, a note was committed and pushed with its trailer under `auto`, staged only under `manual`, and a project's file refused. 149 tests pass.

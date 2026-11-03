@@ -2,6 +2,8 @@
 
 [framework]
 kb = "~/work/vyvid/kb"
+# Appended to every message that `vyd kb record` commits.
+commit_trailers = ["Co-Authored-By: Your Agent <agent@example.com>"]
 
 [general]
 rules = "kb:general/rules.md"
@@ -22,6 +24,8 @@ parents = ["software-engineering", "owl"]
 name = "tools"
 parents = ["software-engineering"]
 families = { NOTE = {} }
+remote = "git@github.com:nebularis/vyvid-tools.git"
+git = { pull = "daily", commit = "auto", push = "auto" }
 
 [[projects]]
 name = "lattice"
