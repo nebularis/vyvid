@@ -11,7 +11,8 @@ import pytest
 
 from test_index_core import Words
 from vyvid import build as builder
-from vyvid import embed, extract, facets, registers
+from vyvid import embed, extract, extractors, facets, registers
+from vyvid.extractors import owl
 from vyvid.config import ConfigError, load
 from vyvid.model import KI, index_graph, ki, node, normalise, term
 from vyvid.resolve import layers, mentions
@@ -41,6 +42,8 @@ LGQ = { pattern = '[A-Z]{1,4}\\d*[a-z]?-Q\\d+', rule = "question", type = "quest
 kind = "owl-terms"
 paths = ["code:ontology/**/*.ttl"]
 """
+
+LEDGER_PREFIXES = {"ldg": "https://example.org/ledger#"}
 
 SPEC = embed.ModelSpec()
 
@@ -252,7 +255,7 @@ def rows(ctx, tmp_path, header, *lines, name="mechanisms"):
 def test_the_signpost_columns_are_read_and_checked(world, tmp_path):
     """Does not cover is text, Distinguished from names entries, and Bears on names entries and
     declared terms by the CURIE their layer writes."""
-    write(tmp_path / "code", "ontology/ledger/ledger.ttl", "@prefix ldg: <https://example.org/ledger#> .\n")
+    world.prefixes = LEDGER_PREFIXES  # what an extractor found
     rows(world, tmp_path, "| ID | Claim | Does not cover | Distinguished from | Bears on |",
          f"| MEC-1 | **A claim.** | {'x' * 121} | MEC-2 | STD-3, ldg:keyDimension, zz:nothing, proj:STD-4 |")
     found = facts(world, node("proj", "MEC-1"))
@@ -306,7 +309,7 @@ def test_a_store_finding_takes_its_technology_from_its_evidence(world, tmp_path)
     """TSD-23's Evidence line names pySHACL, so it carries pySHACL without anyone authoring it.
     TSD-07's says "both stores", which the record's Stores covered line names as rdflib and Oxigraph."""
     write(tmp_path / "code", "docs/architecture/store.md", STORE_RECORD)
-    write(tmp_path / "code", "ontology/l.ttl", "@prefix ldg: <https://example.org/ledger#> .\n")
+    world.prefixes = LEDGER_PREFIXES
     extract.discoveries(world)
     technology = lambda ident: {q.object.value.rsplit("#", 1)[1] for q in world.out.quads
                                 if q.subject == node("proj", ident) and q.predicate == ki("technology")}
@@ -428,8 +431,12 @@ def load_terms(world, tmp_path, extra=()):
     for name, text in extra:
         write(tmp_path / "code", name, text)
     store = ox.Store()
-    extract.load_ontologies(store, [world.scope], world.out)
-    extract.term_summary(store, [world.scope], world.out)
+    context = extractors.Context(world.scope, tmp_path / "code", world.config, world.taggable, store)
+    result = owl.extract(context, {"paths": [tmp_path / "code" / "ontology" / "**" / "*.ttl"]})
+    store.bulk_extend(result.quads)
+    world.out.problems += result.problems
+    world.out.counts.update(result.counts)
+    world.prefixes = result.prefixes
     return store
 
 

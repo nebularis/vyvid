@@ -12,7 +12,7 @@ name = "software-engineering"
 
 [[domains]]
 name = "owl"
-parents = ["software-engineering"]
+path = "~/work/vyvid/examples/domains/owl"
 
 [[domains]]
 name = "triple-stores"
@@ -41,6 +41,9 @@ TD = { defined = "docs:developer/technical-debt.md", type = "debt" }
 PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-decision" }
 TSD = { pattern = 'TSD-\d+[a-z]?', defined = "docs:architecture/triple-store-discovery.md" }
 ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architecture/decisions/" }
+
+[projects.uses.owl.owl-terms]
+paths = ["code:ontology/**/*.ttl"]
 
 [[projects]]
 name = "vyvid"

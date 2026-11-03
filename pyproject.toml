@@ -13,6 +13,9 @@ test = ["pytest>=8"]
 [project.scripts]
 vyd = "vyvid.cli:main"
 
+[project.entry-points."vyvid.extractors"]
+owl-terms = "vyvid.extractors.owl:extract"
+
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"

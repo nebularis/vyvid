@@ -63,7 +63,7 @@ import pyoxigraph as ox
 
 from . import anchors, embed, registers
 from .build import build, store_dir
-from .config import Config, Scope
+from .config import Config, Scope, extractor_runs
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
 from .resolve import Unresolved, bind, layers, resolve
 
@@ -428,15 +428,19 @@ def _expand(place: Path) -> list[Path]:
 
 
 def declared_files(config: Config, stack: list[Scope]) -> list[Path]:
-    """Every file the stack's build reads by name: the configuration file, the facet and register
-    type declarations, what each family defines and what each extractor names. Never a walk of a tree."""
+    """Every file the stack's build reads by name: the configuration file, each domain's manifest, the
+    facet and register type declarations, the vocabulary, what each family defines and what each
+    extractor names. Never a walk of a tree."""
     places: list[Path] = [config.source] if config.source else []
     for scope in stack:
-        places += [*scope.facets, *scope.register_types]
+        places += [*scope.facets, *scope.register_types, *scope.vocabulary]
+        if scope.kind == "domain" and scope.path:
+            places.append(scope.path / "domain.toml")
         for family in scope.families.values():
             places += family.paths()
-        for extractor in scope.extractors:
-            places += extractor["paths"]
+        if scope.kind == "project":
+            for run in extractor_runs(config, scope):
+                places += run.settings["paths"]
     return [p for place in places for p in _expand(place) if p.is_file()]
 
 

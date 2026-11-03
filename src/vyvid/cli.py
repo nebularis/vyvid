@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, ask
-from .config import ConfigError, config_path, load
+from .config import ConfigError, config_path, extractor_runs, load
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind, layers, resolve
@@ -36,11 +36,15 @@ from .resolve import Unresolved, bind, layers, resolve
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
 
 
-def _layer(scope) -> dict:
+def _layer(config, scope) -> dict:
     out = {"scope": scope.name, "kind": scope.kind}
     for key in ("rules", "skills"):
         out[key] = [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
+    if scope.kind == "domain":
+        out["brings"] = [e["kind"] for e in scope.extractors]
     if scope.kind == "project":
+        out["runs"] = [{"kind": r.kind, "domain": r.domain, "settings": {k: [str(p) for p in v] if k == "paths" else v for k, v in r.settings.items()},
+                        "sources": r.sources} for r in extractor_runs(config, scope)]
         out["code"] = str(scope.code)
         out["docs"] = str(scope.docs)
         out["specialises"] = {d: {"path": str(p), "exists": p.exists()} for d, p in scope.specialises.items()}
@@ -50,7 +54,7 @@ def _layer(scope) -> dict:
 def context(folder: Path, as_json: bool) -> int:
     config = load()
     project = bind(config, folder)
-    stack = [_layer(s) for s in layers(config, project)]
+    stack = [_layer(config, s) for s in layers(config, project)]
     if as_json:
         print(json.dumps({"folder": str(folder.resolve()), "project": project and project.name, "layers": stack}, indent=2))
         return 0
@@ -62,6 +66,12 @@ def context(folder: Path, as_json: bool) -> int:
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
+        for kind in layer.get("brings", []):
+            print(f"   brings extractor {kind}")
+        for run in layer.get("runs", []):
+            print(f"   runs extractor {run['kind']}" + (f" of domain {run['domain']}" if run["domain"] else ""))
+            for key, value in run["settings"].items():
+                print(f"      {key} = {value}   ({run['sources'][key]})")
         for domain, item in layer.get("specialises", {}).items():
             print(f"   specialises {domain} in {item['path']}" + ("" if item["exists"] else "   (missing)"))
     return 0

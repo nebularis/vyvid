@@ -19,7 +19,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-1 | vyvid-framework | configuration, binding and `vyd context` | built 2026-11-03 |
 | VYD-2 | vyvid-framework | the index core extracted from LATTICE | built 2026-11-03 |
 | VYD-2b | vyvid-framework | LATTICE switches to `vyvid` | planned |
-| VYD-3 | vyvid-framework | domains, their graph and register types | building 2026-11-03 |
+| VYD-3 | vyvid-framework | domains, their graph and register types | built 2026-11-03 |
 | VYD-4 | vyvid-framework | managed assets and git policy | planned |
 | VYD-5 | vyvid-framework | the store across scopes | planned |
 | VYD-6 | vyvid-framework | recipes and contracts | planned |

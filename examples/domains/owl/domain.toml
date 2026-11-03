@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# The OWL ontologies domain. It brings the owl-terms extractor, which each project that uses the
+# domain runs over its own ontology documents. A project names them in [projects.uses.owl.owl-terms].
+name = "owl"
+parents = ["software-engineering"]
+extractors = [{ kind = "owl-terms" }]

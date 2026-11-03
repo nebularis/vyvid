@@ -68,18 +68,7 @@ def layers(config: Config, project: Scope | None) -> list[Scope]:
     order is the same on every run."""
     if project is None:
         return [config.general]
-    ordered: list[str] = []
-
-    def visit(name: str) -> None:
-        if name in ordered:
-            return
-        for parent in config.domains[name].parents:
-            visit(parent)
-        ordered.append(name)
-
-    for name in project.domains:
-        visit(name)
-    return [config.general, *(config.domains[n] for n in ordered), project]
+    return [config.general, *(config.domains[n] for n in config.domain_order(project)), project]
 
 
 def resolve(config: Config, mention: str, scope: Scope) -> str:

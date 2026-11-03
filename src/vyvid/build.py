@@ -2,13 +2,14 @@
 # From LATTICE's tools/knowledge/extract.py, relicensed MIT by its author.
 """Build the knowledge index of a stack of scopes into an Oxigraph store, and embed its text.
 
-The store holds the vocabulary, the merged facets, and for each scope its entries and its declared
-ontology terms. The vectors sit beside it, and a stamp records when the build started, taken before
-anything was read so a file edited while the build runs is caught the next time.
+The store holds the vocabulary, the merged facets, and for each scope its entries and what its
+extractors found, such as declared ontology terms. The vectors sit beside it, and a stamp records
+when the build started, taken before anything was read so a file edited while the build runs is
+caught the next time.
 
-The ontology documents are written in one bulk write after being parsed one at a time, and the
-store is optimised at the end. A write per document left over a thousand files that compaction did
-not merge, and a read-only open that has to open them all exceeds macOS's default limit of 256.
+The store is optimised at the end. A write per ontology document left over a thousand files that
+compaction did not merge, and a read-only open that has to open them all exceeds macOS's default
+limit of 256.
 """
 
 from __future__ import annotations
@@ -22,14 +23,14 @@ import platformdirs
 import pyoxigraph as ox
 
 from . import embed as vectors
-from . import facets, registers
-from .config import Config, Scope
-from .extract import Context, Extract, dangling, decisions, discoveries, load_ontologies, questions, register_rows, technology_words, term_summary
+from . import extractors, facets, registers
+from .config import Config, Scope, extractor_runs
+from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
 from .resolve import layers
 
 # The text of every node with a claim: an entry by its name, claim, problem shape and the case it does
-# not cover, a decision's section by its own, and a declared term by its claim, which opens with its label.
+# not cover, and a decision's section by its own. An extractor gives the text of its own nodes.
 TEXTS = f"""
 PREFIX ki: <{KI}>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -43,9 +44,6 @@ SELECT ?n (SAMPLE(?l) AS ?label) (SAMPLE(?c) AS ?claim) (SAMPLE(?ps) AS ?shape) 
       OPTIONAL {{ ?n ki:doesNotCover ?dn }}
     }}
     FILTER (STRSTARTS(STR(?g), "{KI}index/"))
-  }} UNION {{
-    GRAPH ?g {{ ?n ki:identifier ?id ; ki:claim ?c . }}
-    FILTER (STRSTARTS(STR(?g), "{KI}terms/"))
   }}
 }} GROUP BY ?n"""
 
@@ -58,6 +56,41 @@ def store_dir(config: Config) -> Path:
 def open_store(path: Path) -> ox.Store:
     """The built store, opened read-only so a query never contends with a build."""
     return ox.Store.read_only(str(path))
+
+
+def load_vocabulary(store: ox.Store, stack: list[Scope], out: Extract) -> None:
+    """The vocabulary files the stack's scopes name, general first, into the T-Box graph after the
+    packaged vocabulary. A file that is missing or does not parse is reported and loses only itself."""
+    for scope in stack:
+        for path in scope.vocabulary:
+            try:
+                store.extend([ox.Quad(q.subject, q.predicate, q.object, TBOX_GRAPH)
+                              for q in ox.parse(path=str(path), format=ox.RdfFormat.TURTLE)])
+                out.bump("vocabulary-file")
+            except (OSError, SyntaxError, ValueError) as error:
+                out.problems.append(f"{path}: vocabulary of '{scope.name}' does not load, so its terms are absent ({error.__class__.__name__})")
+
+
+def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable: dict[str, set[str]],
+                   out: Extract) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Run each extractor each project of the stack runs, its output belonging to the project.
+
+    Returns the prefixes the extractors found, by scope, and the text to embed of the nodes they made."""
+    prefixes: dict[str, dict[str, str]] = {}
+    texts: dict[str, str] = {}
+    for scope in (s for s in stack if s.kind == "project"):
+        for run in extractor_runs(config, scope):
+            context = extractors.Context(scope, scope.code or scope.path or Path.cwd(), config, taggable, store)
+            result = extractors.load(run.kind)(context, run.settings)
+            out.quads += result.quads
+            out.problems += result.problems
+            out.findings += result.findings
+            for key, count in result.counts.items():
+                out.bump(key, count)
+            texts.update(result.texts)
+            for prefix, namespace in result.prefixes.items():
+                prefixes.setdefault(scope.name, {}).setdefault(prefix, namespace)
+    return prefixes, texts
 
 
 def build(config: Config, project: Scope | None = None, store_path: Path | None = None, embed: bool = True,
@@ -82,7 +115,11 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
     store.bulk_load(input=resources.files("vyvid").joinpath("data/knowledge.ttl").read_bytes(), format=ox.RdfFormat.TURTLE, to_graph=TBOX_GRAPH)
     store.bulk_load(input=facets.turtle(schemes, values).encode("utf-8"), format=ox.RdfFormat.TURTLE, to_graph=FACETS_GRAPH)
 
-    contexts = [Context(config, scope, out, types, taggable, words) for scope in stack]
+    load_vocabulary(store, stack, out)
+    # Before the entries, because a Bears on may name a term by a prefix an extractor found.
+    prefixes, texts = run_extractors(config, stack, store, taggable, out)
+
+    contexts = [Context(config, scope, out, types, taggable, words, prefixes.get(scope.name, {})) for scope in stack]
     # Decisions first, since a register's Narrowed by names a decision's addendum.
     for ctx in contexts:
         decisions(ctx)
@@ -91,11 +128,7 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         discoveries(ctx)
         questions(ctx)
     store.bulk_extend(out.quads)
-    with_terms = [s for s in stack if any(e["kind"] == "owl-terms" for e in s.extractors)]
-    load_ontologies(store, with_terms, out)
-    # After the documents are loaded, because the summary is derived by query over them.
-    term_summary(store, with_terms, out)
-    # After the terms, because a Bears on may name one.
+    # After the extractors, because a Bears on may name a term.
     dangling(store, out)
     store.flush()
     store.optimize()
@@ -111,6 +144,7 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         entries = {str(r["n"].value): vectors.join_text([r["label"] and r["label"].value, r["claim"].value,
                                                          r["shape"] and r["shape"].value, r["uncovered"] and r["uncovered"].value])
                    for r in store.query(TEXTS)}
+        entries.update({iri: vectors.join_text([text]) for iri, text in texts.items()})
         try:
             out.counts["embedded"] = vectors.build(entries, directory, config.embedding, model)
         except vectors.Unavailable as error:

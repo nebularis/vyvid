@@ -72,6 +72,9 @@ class World:
         entries = {str(r["n"].value): embed.join_text([r["label"] and r["label"].value, r["claim"].value,
                                                        r["shape"] and r["shape"].value, r["uncovered"] and r["uncovered"].value])
                    for r in self.store.query(builder.TEXTS)}
+        # A term's text comes from the extractor that declared it, here its claim.
+        entries.update({str(r["n"].value): embed.join_text([r["c"].value]) for r in self.store.query(
+            f'SELECT ?n ?c WHERE {{ GRAPH ?g {{ ?n <{KI}claim> ?c }} FILTER (STRSTARTS(STR(?g), "{KI}terms/")) }}')})
         return embed.build(entries, self.ask.directory, self.config.embedding, self.ask.model)
 
     def entry(self, ident, kind, claim, scope="proj", phase=None, activity=None):
