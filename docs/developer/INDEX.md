@@ -21,7 +21,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-2b | vyvid-framework | LATTICE switches to `vyvid` | planned |
 | VYD-3 | vyvid-framework | domains, their graph and register types | built 2026-11-03 |
 | VYD-4 | vyvid-framework | managed assets and git policy | built 2026-11-03 |
-| VYD-5 | vyvid-framework | the store across scopes | planned |
+| VYD-5 | vyvid-framework | the store across scopes | building 2026-11-03 |
 | VYD-6 | vyvid-framework | recipes and contracts | planned |
 | VYD-7 | vyvid-framework | the triple-store domain | planned |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | planned |
