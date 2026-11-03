@@ -36,6 +36,8 @@ gantt
   VYD-10 an overlay as a domain      :s10, 33, 35
   section dogfood
   VYD-11 vyvid's own contract         :s11, 35, 38
+  section optional
+  VYD-12 agent coordination           :s12, 38, 42
 ```
 
 Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, since VYD-0's result may change VYD-2 and VYD-5, and VYD-0b's decides how VYD-3 builds extractors.
@@ -57,6 +59,7 @@ Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, 
 | **VYD-9** | `distributed-process` bound as a project, its code in one folder and its development documents in a private one, with a contract of its own | Its plans and registers are indexed and its board works, and nothing is written into its code repository but code |
 | **VYD-10** | A user-level overlay of rules expressed as a private domain bound by remote, its rules about what may reach a public project as the configured check of VYD-5 | For each repository it covers, `vyd context` resolves the same scope the overlay decides today |
 | **VYD-11** | `vyvid`'s own repository worked under a contract that `vyvid` resolves: its rules, skills and recipes in this repository's project scope, its registers indexed by itself, bound by a folder-local configuration rather than an AGENTS.md written by hand | An agent in this repository runs `vyd context` and gets this repository's contract, and `vyd find` answers from this repository's own registers |
+| **VYD-12** | Optional agent coordination, as the [agent coordination sketch](../sketches/agent-coordination.md) answers it: claims of slices, units and next identifiers granted or refused atomically, held as leases renewed by every `vyd` command, logged as events, behind one interface with three choices, `none` by default, a local SQLite store, or a shared server | With `local`, two agents claiming one slice on one machine get one grant and one refusal naming the holder, a lapsed lease shows as stale, and two branches never take the same next identifier. With `none`, nothing changes from today |
 
 ## VYD-0, the spike, in detail
 

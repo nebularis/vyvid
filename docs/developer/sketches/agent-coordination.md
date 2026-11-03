@@ -2,7 +2,7 @@
 
 # Sketch: agents claim work through a store, not through branches
 
-**Status:** sketch, 2026-11-03. Nothing is built or decided.
+**Status:** sketch, 2026-11-03. Its questions are answered, and it is built last, as slice VYD-12.
 **Unit:** vyvid-framework
 **Questions:** VYD-Q14 to VYD-Q19
 
@@ -94,11 +94,11 @@ Whether the mark-alone commit is still needed depends on VYD-Q16. It is needed f
 
 ## 5. Questions for the maintainer
 
-- **VYD-Q14.** Is the coordination store worth building now, or after the index core is done? Leaning after VYD-2, as a slice of its own, since it needs the configuration of VYD-1 and nothing of the index.
-- **VYD-Q15.** Which store: (a), (b), (c) or (d) of §3. Leaning (d).
-- **VYD-Q16.** Does the branch mark stay? Keep it as the record another machine reads, keep it only for work that spans machines, or drop it once every agent can reach a shared store. Leaning keep it until a shared store exists, and then drop the mark-alone commit but keep the states the board records.
-- **VYD-Q17.** What may be claimed: a slice, a unit, a register's next identifier, a file. Leaning slices and units, and identifier allocation, since that is LATTICE's renumbering cost, and not files, which the branch already isolates.
-- **VYD-Q18.** The lease and takeover. Leaning a 30-minute lease renewed by any `vyd` command, a stale claim shown and taken over only with `vyd claim --take-over`, which records who took it and from whom.
-- **VYD-Q19.** How a session is named. Leaning the client's session id where it exposes one, as LATTICE's presence file uses, and otherwise one `vyd` generates and keeps in the worktree's git-ignored folder.
+Answered 2026-11-03, every one as leaned, with one change to VYD-Q14:
 
-If the answers hold, this becomes a slice of the plan after VYD-2, with its own decision.
+- **VYD-Q14.** Built last, after every other slice, since it is not core. It is **optional**: a user with one agent at a time needs none of it, a user with parallel agents on one machine uses the local store, and a team of developers and agents needs the shared server. The configuration chooses `none`, `local` or a server, and `none` is the default.
+- **VYD-Q15.** (d): SQLite behind an interface a shared server can implement, the branch mark kept for work another machine must see.
+- **VYD-Q16.** The branch mark stays until a shared store exists. Then the mark-alone commit goes, and the states the board records stay.
+- **VYD-Q17.** Slices, units and a family's next identifier may be claimed, and files may not.
+- **VYD-Q18.** A 30-minute lease renewed by any `vyd` command, and a stale claim taken over only with `vyd claim --take-over`, which records who took it and from whom.
+- **VYD-Q19.** The client's session id where it exposes one, and otherwise one `vyd` generates and keeps in the worktree's git-ignored folder.
