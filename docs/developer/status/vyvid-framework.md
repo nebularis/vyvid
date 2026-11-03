@@ -27,3 +27,4 @@
 ## History
 
 - 2026-11-03. The sketch and the plan moved here from LATTICE's working notes, where they were drafted. Questions VYD-Q1 to VYD-Q9, VYD-Q11 and VYD-Q12 answered by the maintainer. VYD-Q10 open.
+- 2026-11-03. VYD-Q1 revised: identifiers are unique within their scope, families are configured per scope, and `scope:LOCAL` is canonical across scopes, so this repository's registers use plain families under the scope `vyvid`. VYD-Q13 answered: content moving out of LATTICE moves under the MIT licence.

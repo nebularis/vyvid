@@ -12,20 +12,20 @@ How Вивід is designed, planned and tracked. The layout follows LATTICE's `d
 | `plans/` | a unit's scope, decisions and slices, each slice with what done looks like | what |
 | `status/` | a unit's live state: its Status line and its slice board | where it is |
 | [`INDEX.md`](INDEX.md) | every unit and every slice, one row each | all of the above at a glance |
-| `../architecture/decisions/` | the decisions, `ADR-Vnnn` | what was decided |
+| `../architecture/decisions/` | the decisions, `ADR-nnn` | what was decided |
 
 ## Registers
 
-A register is a Markdown table whose header is its schema. Its rows are the source of truth, and the index is derived from them and never committed. Each register's family prefix is unique across every project and domain the framework reads, so an identifier names one entry wherever it is mentioned (VYD-Q1).
+A register is a Markdown table whose header is its schema. Its rows are the source of truth, and the index is derived from them and never committed. An identifier is unique within its scope, this repository's being `vyvid`, so a bare `STD-3` here is `vyvid:STD-3`, and another scope's entry is cited in its qualified form, such as `lattice:STD-12` (VYD-Q1).
 
 | Register | Prefix | Holds |
 |---|---|---|
-| [standards](standards.md) | `VSTD` | prescriptive rules for building Вивід, stratified from architectural to convention |
-| [principles](principles.md) | `VPRI` | durable design commitments, each grounded in a decision |
-| [capabilities](capabilities.md) | `VCAP` | what Вивід's own software can already do, so new work reuses it |
-| [technical debt](technical-debt.md) | `VTD` | a defect or shortfall in something that exists, with no planned home |
-| [pending design decisions](pending-design-decisions.md) | `VPDD` | a decision that matters and cannot be made yet |
-| [backlog](backlog.md) | `VBL` | an idea not yet planned |
+| [standards](standards.md) | `STD` | prescriptive rules for building Вивід, stratified from architectural to convention |
+| [principles](principles.md) | `PRI` | durable design commitments, each grounded in a decision |
+| [capabilities](capabilities.md) | `CAP` | what Вивід's own software can already do, so new work reuses it |
+| [technical debt](technical-debt.md) | `TD` | a defect or shortfall in something that exists, with no planned home |
+| [pending design decisions](pending-design-decisions.md) | `PDD` | a decision that matters and cannot be made yet |
+| [backlog](backlog.md) | `BL` | an idea not yet planned |
 | [facets](facets.md) | | the facet schemes every entry is tagged with |
 
 A register's Scope column says which scope an entry belongs to, general, a domain or this project, so an entry can move to the scope it serves without changing its identifier (VYD-Q5). The signpost columns, Does not cover, Distinguished from, Narrowed by and Bears on, stand last and a row may leave them out.

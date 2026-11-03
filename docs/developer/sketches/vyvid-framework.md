@@ -199,7 +199,7 @@ sequenceDiagram
 The triple-store record is LATTICE's today, and its findings would serve any project that runs SPARQL on Oxigraph or Jena. Moving it:
 
 1. `vyd move register store-discovery --to kb:domains/triple-stores` copies the record and its register type into the domain, with its history if the user wants it (`git filter-repo` on the one path).
-2. The identifiers are kept, since `TSD-nn` is cited across LATTICE. The family prefix is registered globally, so no other register may take it (VYD-Q1).
+2. The identifiers are kept, since `TSD-nn` is cited across LATTICE. LATTICE's configuration delegates the family `TSD` to the domain, so every bare `TSD-nn` LATTICE has written resolves there, and the domain's canonical form is `triple-stores:TSD-nn` (VYD-Q1).
 3. `lattice`'s configuration gains the domain, so every `TSD-nn` mention still resolves, through the domain now.
 4. LATTICE's copy is removed in a commit under LATTICE's contract, and its pointer documents say where the record went. A user-facing document that links the record directly is a public dependency on a domain, which VYD-Q6 asks about.
 
@@ -207,15 +207,18 @@ The reverse, promoting a project's knowledge into a domain, is the same move, an
 
 ## 7. Identifiers across many registers and projects
 
-Today every family is LATTICE's, and `normalise()` makes `STD-12` one key. With many projects, two registers could each want `STD`.
+Today every family is LATTICE's, and `normalise()` makes `STD-12` one key. With many projects, two registers may each want `STD`, and a project contributed to from outside, such as `distributed-process`, has its own conventions that it should not change for us.
 
-| Option | A mention | Cost |
-|---|---|---|
-| (a) one global namespace of family prefixes, registered when a register type is declared | `STD-12` stays unique everywhere | a project cannot reuse a common prefix |
-| (b) identifiers qualified by scope where ambiguous | `lattice:STD-12`, `haskell:STD-4` | every cross-scope mention is longer, and an unqualified one resolves within the current binding |
-| (c) both: prefixes unique by default, a qualified form accepted | as (a), with (b) where a project insists | two forms to parse |
+**An identifier is a scope and a local identifier,** written `scope:LOCAL` in its canonical form, for example `lattice:STD-12`, `vyvid:STD-3` or `triple-stores:TSD-41`. The scope is a project or a domain, named once in the configuration and never renamed, with an alias table if one ever is.
 
-**Leaning (c).** LATTICE's families keep their prefixes, a new domain registers its own, and the qualified form exists for the case that needs it.
+- **Each scope declares its own families** in the configuration: a family's name, the pattern a mention is written in, and where it is defined, which is LATTICE's `identifiers.py` family table moved into configuration. A project chooses whatever nomenclature suits it, LATTICE keeps `STD`, `PRI`, `TD` and the rest as it writes them, and a project's GitHub issues, `#123`, can be a family of its own.
+- **A bare identifier means the scope it is written in.** Inside LATTICE, `STD-12` is LATTICE's, as LATTICE's own checks already read it. Text in one scope that cites another's entry writes it qualified.
+- **A domain never cites a project's entry bare,** since a domain does not know which project reads it. Where a project and a domain it uses both declare a family, a bare mention in the project is the project's.
+- **A family can be delegated.** When a register moves, the scope it left declares the family delegated to the scope it went to, so every bare mention already written resolves there and no document is edited (§6).
+- **A mention the resolver cannot place is reported, never guessed.** The index's node identifiers include their scope, so two `STD-12`s never meet in the store.
+- **Until Вивід resolves qualified identifiers,** a project's own check skips any mention carrying a `scope:` qualifier, which for LATTICE is a small change to its identifier pattern, made when one project first cites another.
+
+This replaced an earlier answer to VYD-Q1, family prefixes unique across all scopes, which would have made every project after the first take a new letter, and every project adopt a format for our sake.
 
 ## 8. The index across scopes
 
@@ -274,7 +277,7 @@ LATTICE is the first project, and nothing in it has to move on day one.
 
 Answered 2026-11-03:
 
-- **VYD-Q1.** (c): family prefixes unique across scopes by default, and a qualified form `lattice:STD-12` accepted where a project needs it.
+- **VYD-Q1.** Revised 2026-11-03: an identifier is unique within its scope, each scope's families are configured, a bare identifier means the scope it is written in, the qualified form `scope:LOCAL` is canonical across scopes, and a family may be delegated when its register moves (§7). It replaced the first answer, (c), prefixes unique across every scope.
 - **VYD-Q2.** The four scopes, with the domains a directed graph: a domain names its parents, any number of them, and a cycle is refused (§2).
 - **VYD-Q3.** One rule file and `vyd context`, generated skills per domain, an MCP server later. A project's own skills, kept in its folder, take part in the same order and override above them.
 - **VYD-Q4.** The tool is open source under the MIT licence. Each knowledge-base domain is a git repository of its own, public or private as its author chooses.
@@ -287,3 +290,4 @@ Answered 2026-11-03:
 Open:
 
 - **VYD-Q12. The name.** Answered 2026-11-03: **Вивід**, written `vyvid` in the Latin alphabet by Ukraine's official transliteration, for the repository, the package and the documentation's Latin form, with the command **`vyd`**. All three were free on PyPI and as commands when checked that day. *Вивід* is the Ukrainian noun of *виведи* (derive it), and *логічний вивід* is logical inference. The README opens by setting out how the name corresponds to the five phrases it was drawn from. Every identifier in the code stays Latin.
+- **VYD-Q13. The licence of content moving out of LATTICE.** Answered 2026-11-03: the maintainer is the sole copyright holder of LATTICE's content, and what moves into Вивід or its domains, such as the general facet values and standards and the triple-store record, moves under the MIT licence.

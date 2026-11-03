@@ -39,7 +39,7 @@ Design. Nothing is built yet. The [sketch](docs/developer/sketches/vyvid-framewo
 | Path | Holds |
 |---|---|
 | `docs/developer/` | the working documents: sketches, plans, status records, and the registers, laid out as in LATTICE ([its README](docs/developer/README.md)) |
-| `docs/architecture/decisions/` | the decisions, `ADR-Vnnn`, listed in [the catalogue](docs/architecture/decisions/README.md) |
+| `docs/architecture/decisions/` | the decisions, `ADR-nnn`, listed in [the catalogue](docs/architecture/decisions/README.md) |
 | `mise.toml` | the only task entry point |
 
 The code arrives with slice VYD-1, and with VYD-11 this repository is worked under a contract that Вивід itself resolves.
