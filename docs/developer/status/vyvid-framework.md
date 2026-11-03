@@ -13,7 +13,7 @@
 | VYD-0 | the temporal reasoning spike | planned | |
 | VYD-0b | symbol indexing research | planned | |
 | VYD-1 | configuration, binding and `vyd context` | built 2026-11-03, building 2026-11-03 | |
-| VYD-2 | the index core extracted from LATTICE | planned | VYD-0, VYD-1 |
+| VYD-2 | the index core extracted from LATTICE | building 2026-11-03 | |
 | VYD-3 | domains, their graph and register types | planned | VYD-0b, VYD-2 |
 | VYD-4 | managed assets and git policy | planned | VYD-1 |
 | VYD-5 | the store across scopes | planned | VYD-0, VYD-3 |
