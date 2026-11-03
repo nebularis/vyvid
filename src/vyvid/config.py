@@ -18,6 +18,8 @@ from pathlib import Path
 
 import platformdirs
 
+from .embed import ModelSpec
+
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 
@@ -66,6 +68,7 @@ class Config:
     general: Scope
     domains: dict[str, Scope]
     projects: dict[str, Scope]
+    embedding: ModelSpec = field(default_factory=ModelSpec)
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -171,11 +174,30 @@ def load(path: Path | None = None) -> Config:
                          if (v := _expand(s, bases, where, problems)) is not None},
         )
 
-    config = Config(path if path.exists() else None, kb, general, domains, projects)
+    config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems))
     problems += _check(config)
     if problems:
         raise ConfigError(problems)
     return config
+
+
+def _embedding(raw: dict, problems: list[str]) -> ModelSpec:
+    """The ``[embedding]`` table as a model spec. A model other than the default must be pinned by
+    its revision and the SHA-256 of each file, since an unpinned model can change under the vectors."""
+    if not raw:
+        return ModelSpec()
+    known = {"model", "revision", "files", "query_prefix", "weak", "near", "facet_boost", "cache"}
+    if unknown := sorted(set(raw) - known):
+        problems.append(f"[embedding]: unknown keys {', '.join(unknown)}")
+    default = ModelSpec()
+    if raw.get("model", default.repo) != default.repo and not (raw.get("revision") and raw.get("files")):
+        problems.append("[embedding]: a model other than the default needs its revision and the SHA-256 of each file")
+    kwargs = {k: raw[k] for k in ("revision", "files", "query_prefix", "weak", "near", "facet_boost") if k in raw}
+    if "model" in raw:
+        kwargs["repo"] = raw["model"]
+    if "cache" in raw:
+        kwargs["cache"] = Path(raw["cache"]).expanduser()
+    return ModelSpec(**kwargs)
 
 
 def _check(config: Config) -> list[str]:
