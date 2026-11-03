@@ -1,0 +1,52 @@
+Q01	ontology-design		
+Q02	ontology-design		
+Q03	ontology-design		
+Q04	ontology-design		
+Q05	solution-design	performance	
+Q06	query-writing	performance	shacl
+Q07	solution-design	concurrency	
+Q08	implementation		sparql
+Q09	integration-design		rabbitmq
+Q10	cross-layer-design		
+Q11	solution-design		
+Q12	ontology-design		
+Q13	ontology-design		
+Q14	ontology-design		
+Q15	query-writing		
+Q16	solution-design	confidentiality	
+Q17	solution-design		
+Q18	ontology-design		
+Q19	ontology-design		
+Q20	ontology-design		
+Q21	ontology-design		
+Q22	ontology-design		
+Q23	ontology-design		
+Q24	ontology-design		
+Q25	process-design		
+Q26	solution-design		
+Q27	release-and-versioning		
+Q28	cross-layer-design		
+Q29	testing		
+Q30	query-writing		rdflib, oxigraph
+Q31	delivery		
+Q32	testing	efficiency	
+Q33	formal-verification		
+Q34	integration-design		
+Q35	implementation		
+Q36	testing		owl
+Q37	ontology-design		
+Q38	ontology-design		
+Q39	ontology-design		
+Q40	solution-design	performance	
+Q41	solution-design		
+Q42	solution-design		
+Q43	solution-design		
+Q44	ontology-design		
+Q45	integration-design		
+Q46	environment		
+Q47	integration-design		
+H1	design			
+H2	solution-design		store, jena	standard, principle
+H3	cross-layer-design			
+H4	testing	efficiency		capability
+H5	implementation		java	capability

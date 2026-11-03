@@ -1,0 +1,246 @@
+# Bake-off question set, second draft, mapped by hand against every entry of the index (580).
+#
+# Each question is an agent's words, written to avoid each entry's own wording where it can.
+# expect: an answer that must be in the top 5 (counted for recall@5, and the best-ranked one for MRR)
+# accept: also a right answer, counted for MRR only, never a miss if it is absent
+# kind:   paraphrase (the words differ), keyword (the agent uses the term), negative (nothing should match,
+#         to set the score below which an empty answer means a real absence)
+#
+# Facets are not tagged yet, so each question is ranked over all 580 entries, the harder case.
+# Q01 and Q02 are the maintainer's. MEC-35 was in both lists of Q01, and is now in expect only.
+
+- id: Q01
+  ask: how do I keep track of what state a contract is in over time
+  kind: paraphrase
+  expect: [MEC-35, MEC-32, MEC-33, MEC-03, STD-169]
+  accept: [PAT-16, PAT-15, MEC-56, PRI-07, PRI-14]
+- id: Q02
+  ask: give an object a stable identity that survives each revision of it
+  kind: paraphrase
+  expect: [MEC-01, MEC-37, MEC-38, PRI-02]
+  accept: [MEC-42, MEC-61, MEC-63, MEC-69, MEC-72, PAT-01, PRI-06, PRI-36, PRI-44, PRI-56]
+- id: Q03
+  ask: how do we tell from the data when a fact started to hold, separately from when it was recorded
+  kind: paraphrase
+  expect: [MEC-03, PAT-15, PAT-16]
+  accept: [MEC-53, MEC-02, MEC-10, PRI-09, PRI-56, STD-244]
+- id: Q04
+  ask: a running balance that gets drawn down and then topped back up
+  kind: paraphrase
+  expect: [MEC-56, MEC-36, PRI-43, PRI-44]
+  accept: [MEC-81, MEC-13, CAP-58]
+- id: Q05
+  ask: reading the graph quickly at runtime without scanning every version
+  kind: paraphrase
+  expect: [MEC-70, PAT-14]
+  accept: [MEC-71, PAT-28, PAT-31, MEC-81, PRI-16, PRI-28, STD-033, TSD-36]
+- id: Q06
+  ask: my SHACL SPARQL constraint is slow, how should I write it
+  kind: keyword
+  expect: [STD-020, STD-026, STD-027, STD-042, TSD-23]
+  accept: [STD-028, STD-029, STD-030, STD-033, STD-034, STD-043, STD-045, STD-063, STD-128, STD-162, TSD-22, TSD-26, TSD-27, CAP-20, CAP-57]
+- id: Q07
+  ask: two writers update the same record at the same moment
+  kind: paraphrase
+  expect: [MEC-59, PAT-21, PAT-05]
+  accept: [PAT-01, PAT-04, PAT-08, PAT-18, PAT-22, PAT-23, PAT-26, PAT-27, PAT-28, MEC-58, STD-016, STD-247, PRI-59]
+- id: Q08
+  ask: safely put a value from the caller into a query
+  kind: paraphrase
+  expect: [STD-243, PRI-55]
+  accept: [STD-215, TSD-11, TSD-12, TSD-20]
+- id: Q09
+  ask: send a reply back to the caller over the message broker
+  kind: negative
+  expect: []
+  accept: []
+- id: Q10
+  ask: may this layer use a term from the layer next to it
+  kind: paraphrase
+  expect: [STD-006, PRI-17, CAP-22]
+  accept: [STD-009, STD-010, STD-073, MEC-83, PRI-23]
+- id: Q11
+  ask: identifiers computed from the content, so the same input gives the same IRI
+  kind: paraphrase
+  expect: [PAT-01, PAT-46, MEC-63]
+  accept: [PAT-02, PAT-47, PAT-48, PAT-49, PAT-51, PAT-54, MEC-72, CAP-47, STD-234, STD-246, PRI-56]
+- id: Q12
+  ask: a value nobody knows yet that someone supplies later
+  kind: paraphrase
+  expect: [MEC-14]
+  accept: [MEC-51, MEC-50, MEC-39, PRI-08]
+- id: Q13
+  ask: a condition can be met, not met, or not decidable from what we know
+  kind: paraphrase
+  expect: [MEC-20, MEC-28, PRI-08]
+  accept: [MEC-30, MEC-27, PRI-27, CAP-60]
+- id: Q14
+  ask: how do we say a list is complete under the open world assumption
+  kind: paraphrase
+  expect: [MEC-31]
+  accept: [MEC-30, PAT-13, PRI-08]
+- id: Q15
+  ask: page through a large result set
+  kind: paraphrase
+  expect: [PAT-12, STD-245, PRI-57]
+  accept: [STD-251]
+- id: Q16
+  ask: remove someone's personal data on request
+  kind: paraphrase
+  expect: [MEC-65, PAT-38]
+  accept: [PAT-35, PAT-36]
+- id: Q17
+  ask: keep a history of every change to a record
+  kind: paraphrase
+  expect: [MEC-61, PAT-29, PAT-30, PAT-31]
+  accept: [MEC-01, MEC-41, MEC-42, MEC-66, PAT-16, PAT-25, PRI-54]
+- id: Q18
+  ask: amounts in different units and converting between them
+  kind: paraphrase
+  expect: [MEC-16]
+  accept: [MEC-12, MEC-13, MEC-17, MEC-78]
+- id: Q19
+  ask: a clause that cites another document at a particular edition
+  kind: paraphrase
+  expect: [MEC-38, PRI-06]
+  accept: [MEC-01, MEC-10]
+- id: Q20
+  ask: changing the wording of a policy after it was agreed
+  kind: paraphrase
+  expect: [MEC-42, MEC-53]
+  accept: [MEC-37, MEC-41, MEC-54, PRI-04]
+- id: Q21
+  ask: someone acts for another party, who is answerable
+  kind: paraphrase
+  expect: [MEC-24]
+  accept: [MEC-22, MEC-44, MEC-50]
+- id: Q22
+  ask: rights, duties and powers between the parties
+  kind: paraphrase
+  expect: [MEC-44]
+  accept: [MEC-45, MEC-54, PRI-39]
+- id: Q23
+  ask: what the contract text says versus what it means once filled in for a case
+  kind: paraphrase
+  expect: [MEC-43, PRI-05]
+  accept: [CAP-31, MEC-49, MEC-50, MEC-51, MEC-52, PRI-04]
+- id: Q24
+  ask: how several contracts in one programme relate to each other
+  kind: paraphrase
+  expect: [MEC-55, PRI-34, PRI-33]
+  accept: [PRI-35, PRI-36, PRI-38, PRI-40, PRI-41]
+- id: Q25
+  ask: modelling an exchange of messages between parties as a process
+  kind: paraphrase
+  expect: [MEC-76, CAP-63]
+  accept: [MEC-32]
+- id: Q26
+  ask: generate the database writes from a declared profile instead of hand writing them
+  kind: paraphrase
+  expect: [MEC-57, CAP-52, PRI-60]
+  accept: [CAP-50, CAP-53, CAP-54, MEC-67, MEC-68, PRI-53, STD-253]
+- id: Q27
+  ask: I edited an ontology file, what version do I change
+  kind: paraphrase
+  expect: [STD-123, STD-222, STD-223, STD-241, CAP-17]
+  accept: [STD-012, STD-111, STD-122, STD-225, STD-226, STD-228, STD-231, STD-233, CAP-15, CAP-16, PRI-03]
+- id: Q28
+  ask: can I create a new top-level folder
+  kind: paraphrase
+  expect: [STD-005]
+  accept: [PRI-11, STD-192, STD-240]
+- id: Q29
+  ask: how do I know a new check would actually catch a problem
+  kind: paraphrase
+  expect: [STD-022]
+  accept: [STD-031, STD-032, STD-049, STD-101, STD-132, STD-169, STD-196, PRI-61]
+- id: Q30
+  ask: rdflib and oxigraph disagree about number datatypes
+  kind: keyword
+  expect: [TSD-07]
+  accept: [TSD-17, TSD-18, STD-250]
+- id: Q31
+  ask: what should I run before committing
+  kind: paraphrase
+  expect: [CAP-05, STD-180, STD-181]
+  accept: [CAP-02, CAP-06, CAP-07, CAP-23, STD-059, STD-105, STD-126, STD-147, STD-182]
+- id: Q32
+  ask: the test suite is slow, how many parallel workers can I use
+  kind: paraphrase
+  expect: [CAP-65, STD-151, STD-157]
+  accept: [CAP-20, STD-037, STD-038, STD-150, STD-158, STD-160, STD-161, STD-199]
+- id: Q33
+  ask: machine-checked proofs of the layer laws
+  kind: paraphrase
+  expect: [CAP-32, CAP-28]
+  accept: [CAP-33, CAP-60, MEC-21, PRI-45, PRI-46, PRI-49]
+- id: Q34
+  ask: map a source data schema onto the ontology and compile it to RML
+  kind: keyword
+  expect: [MEC-74, CAP-69]
+  accept: [CAP-61, CAP-70, MEC-71, MEC-75, PRI-32]
+- id: Q35
+  ask: using the current time inside a guard or an identifier
+  kind: paraphrase
+  expect: [PRI-56, STD-244]
+  accept: [STD-246]
+- id: Q36
+  ask: running OWL inference in tests
+  kind: keyword
+  expect: [CAP-46, STD-011, PRI-25]
+  accept: [CAP-24, STD-039]
+- id: Q37
+  ask: a reference list of perils
+  kind: keyword
+  expect: [MEC-79]
+  accept: [MEC-78, MEC-80, PRI-26]
+- id: Q38
+  ask: dates that repeat every quarter
+  kind: paraphrase
+  expect: [MEC-18]
+  accept: [MEC-15, MEC-46]
+- id: Q39
+  ask: a deadline for giving notice, and when the clock stops
+  kind: paraphrase
+  expect: [MEC-46]
+  accept: [MEC-14, MEC-15, MEC-47]
+- id: Q40
+  ask: should I add a cache or a server to make this faster
+  kind: paraphrase
+  expect: [STD-004]
+  accept: [PRI-16, PRI-62, STD-156, STD-159, TSD-38]
+- id: Q41
+  ask: ordering siblings so that inserting one does not renumber the rest
+  kind: paraphrase
+  expect: [PAT-20, MEC-37]
+  accept: [PAT-19, PAT-42, MEC-19, MEC-60, STD-015]
+- id: Q42
+  ask: two records must never share the same key
+  kind: paraphrase
+  expect: [MEC-62, PAT-03]
+  accept: [PAT-02, PAT-04, PAT-06, PAT-07, PAT-08, PAT-09, MEC-06, MEC-69, STD-254]
+- id: Q43
+  ask: hybrid logical clock
+  kind: keyword
+  expect: [PAT-17]
+  accept: [PAT-18, PAT-32]
+- id: Q44
+  ask: Hohfeld
+  kind: keyword
+  expect: [MEC-44]
+  accept: []
+- id: Q45
+  ask: a GraphQL federation gateway
+  kind: negative
+  expect: []
+  accept: []
+- id: Q46
+  ask: autoscaling workers on Kubernetes
+  kind: negative
+  expect: []
+  accept: []
+- id: Q47
+  ask: OCR for scanned documents
+  kind: negative
+  expect: []
+  accept: []

@@ -1,0 +1,28 @@
+# Held-out questions, written by the maintainer without reading the registers.
+# Answers mapped by hand before any scoring, for the maintainer to ratify.
+
+- id: H1
+  ask: how can we track credits that go back into a ledger account (such as write-backs to a limit)?
+  kind: paraphrase
+  expect: [MEC-56]
+  accept: [MEC-36, MEC-81, PRI-43, PRI-44, CAP-58]
+- id: H2
+  ask: find any rules for adding a new graph store backend - can we consider adding Jena?
+  kind: paraphrase
+  expect: [MEC-68, PRI-52, PRI-59, STD-247, STD-256]
+  accept: [PRI-51, STD-004, STD-054, STD-062, STD-154, STD-173, STD-176, STD-200, STD-201, STD-210, STD-211, CAP-64]
+- id: H3
+  ask: how does an applied ontology build on top of the existing substrates?
+  kind: paraphrase
+  expect: [PRI-23, PRI-37, STD-240]
+  accept: [PRI-03, PRI-17, PRI-18, PRI-22, STD-006, STD-008, STD-123, STD-238, MEC-09, MEC-77, MEC-83]
+- id: H4
+  ask: we have slow running tests, what already exists to improve them?
+  kind: paraphrase
+  expect: [CAP-20, CAP-65, STD-150, STD-162]
+  accept: [CAP-64, STD-034, STD-036, STD-037, STD-038, STD-039, STD-043, STD-151, STD-152, STD-157, STD-158, STD-160, STD-161, STD-164]
+- id: H5
+  ask: is there an IRI minting capability I can use in my java service code?
+  kind: paraphrase
+  expect: [CAP-72, MEC-63]
+  accept: [CAP-48, CAP-49, MEC-72, PAT-01]

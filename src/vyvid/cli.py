@@ -11,6 +11,12 @@
 ``vyd build [folder] [--all] [--no-embed]``
     build the knowledge index for the folder's project stack, or for every scope, and print what it
     found and every problem
+``vyd find <words> | read <id> | node <id> | reaches <id> | exists <text> | sparql <query>``
+    ask the index of the folder's stack a question, rebuilding it first when a file it reads changed
+``vyd misses | gap <text> | close <id>``
+    the questions the index answered weakly, the gaps found by reading, and closing them
+
+Each question takes ``--in <folder>``, the folder whose stack it is asked in, the current one by default.
 """
 
 from __future__ import annotations
@@ -20,11 +26,14 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, ask
 from .config import ConfigError, config_path, load
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind, layers, resolve
+
+
+QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
 
 
 def _layer(scope) -> dict:
@@ -76,6 +85,63 @@ def build_index(folder: Path, everything: bool, embed: bool) -> int:
     return 0
 
 
+def _question(arguments, parser) -> int:
+    """Run one of the questions in ``ask`` for the stack of the folder named by ``--in``."""
+    config = load()
+    command = arguments.command
+    folder = Path(arguments.folder)
+    if command in ("gap", "close"):
+        a = ask.open_stack(config, folder, need_store=False)
+        return ask.gap(a, arguments.text, arguments.extras) if command == "gap" else ask.close(a, arguments.ids)
+    a = ask.open_stack(config, folder)
+    if command == "misses":
+        return ask.misses(a, arguments.limit, arguments.near, again=True)
+    if command == "find":
+        try:
+            chosen = ask.filters(a, arguments.kind, arguments.exclude, arguments.phase, arguments.audience,
+                                 activity=arguments.activity, quality=arguments.quality, tech=arguments.tech)
+        except ValueError as error:
+            parser.error(str(error))
+        return ask.find(a, " ".join(arguments.words), *chosen[:3], arguments.limit, chosen[3])
+    if command == "read":
+        return ask.read(a, arguments.argument)
+    return ask.lookup(a, command, arguments.argument)
+
+
+def _questions(sub) -> None:
+    """The subcommands that ask the index something."""
+
+    def asking(name: str, helptext: str):
+        p = sub.add_parser(name, help=helptext)
+        p.add_argument("--in", dest="folder", default=".", help="the folder whose stack the question is asked in")
+        return p
+
+    p = asking("find", "entries ranked by how close their meaning is to your words")
+    p.add_argument("words", nargs="+")
+    p.add_argument("--kind", default="", help="comma-separated kinds the stack declares. Declared ontology terms are searched only when term is named")
+    p.add_argument("--exclude", default="", help="comma-separated kinds to leave out and keep every other, such as question")
+    p.add_argument("--phase", default="", help="comma-separated phases")
+    p.add_argument("--audience", default="", help="comma-separated audiences")
+    for flag, (scheme, _) in ask.FACET_FLAGS.items():
+        p.add_argument(f"--{flag}", default="", help=f"comma-separated values of the {scheme} facet, which raise matching entries and hide none")
+    p.add_argument("--limit", type=int, default=8)
+    for name, helptext in (
+        ("exists", "does a term for this already exist in any ontology module of the stack"),
+        ("node", "what one identifier is, and where to read it"),
+        ("read", "the text of the section or definition an identifier's pointer names"),
+        ("reaches", "what an identifier touches, by declared relations"),
+        ("sparql", "run a SPARQL query against the stack's graphs"),
+    ):
+        asking(name, helptext).add_argument("argument")
+    p = asking("misses", "the questions answered weakly or not at all, newest first, and the gaps recorded")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--near", action="store_true", help="also the questions answered from the weak score to under the near score")
+    p = asking("gap", "record what reading found that the index did not say, as you find it")
+    p.add_argument("text", help="what was found, in a sentence")
+    p.add_argument("extras", nargs="*", help="the entry it qualifies, and the path:line it was read from")
+    asking("close", "close the gaps recorded against entries whose signpost is now written").add_argument("ids", nargs="+")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vyd", description="Вивід: the contract and knowledge for the folder an agent is in")
     parser.add_argument("--version", action="version", version=f"Вивід (vyvid) {__version__}")
@@ -91,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--all", action="store_true", help="every configured scope, not the folder's stack")
     b.add_argument("--no-embed", action="store_true", help="build the store and write no vectors")
     sub.add_parser("config", help="where the configuration is read from, and whether it is sound")
+    _questions(sub)
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == "context":
@@ -102,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if arguments.command == "build":
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
+        if arguments.command in QUESTIONS:
+            return _question(arguments, parser)
         config = load()
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
         print(f"domains: {', '.join(config.domains) or 'none'}")

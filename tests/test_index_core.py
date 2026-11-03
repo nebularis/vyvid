@@ -23,6 +23,9 @@ class Words:
         v = np.array([[t.lower().count(a) + 0.01 for a in self.AXES] for t in texts], dtype=np.float32)
         return v / np.linalg.norm(v, axis=1, keepdims=True)
 
+    def question(self, text):
+        return self.embed([text])[0]
+
 
 SPEC = embed.ModelSpec()
 
