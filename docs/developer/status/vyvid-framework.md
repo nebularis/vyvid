@@ -2,7 +2,7 @@
 
 # Status: vyvid-framework
 
-**Status:** planned 2026-11-03
+**Status:** building 2026-11-03
 **Plan:** [vyvid-framework](../plans/vyvid-framework.md)
 **Sketch:** [vyvid-framework](../sketches/vyvid-framework.md)
 
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | VYD-0 | the temporal reasoning spike | planned | |
 | VYD-0b | symbol indexing research | planned | |
-| VYD-1 | configuration, binding and `vyd context` | planned | |
+| VYD-1 | configuration, binding and `vyd context` | building 2026-11-03 | |
 | VYD-2 | the index core extracted from LATTICE | planned | VYD-0, VYD-1 |
 | VYD-3 | domains, their graph and register types | planned | VYD-0b, VYD-2 |
 | VYD-4 | managed assets and git policy | planned | VYD-1 |

@@ -8,7 +8,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 
 | Unit | Prefix | Plan | Status | State |
 |---|---|---|---|---|
-| vyvid-framework | VYD | [plan](plans/vyvid-framework.md) | [status](status/vyvid-framework.md) | planned 2026-11-03 |
+| vyvid-framework | VYD | [plan](plans/vyvid-framework.md) | [status](status/vyvid-framework.md) | building 2026-11-03 |
 
 ## Work
 
@@ -16,7 +16,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 |---|---|---|---|
 | VYD-0 | vyvid-framework | the temporal reasoning spike | planned |
 | VYD-0b | vyvid-framework | symbol indexing research | planned |
-| VYD-1 | vyvid-framework | configuration, binding and `vyd context` | planned |
+| VYD-1 | vyvid-framework | configuration, binding and `vyd context` | building 2026-11-03 |
 | VYD-2 | vyvid-framework | the index core extracted from LATTICE | planned |
 | VYD-3 | vyvid-framework | domains, their graph and register types | planned |
 | VYD-4 | vyvid-framework | managed assets and git policy | planned |
