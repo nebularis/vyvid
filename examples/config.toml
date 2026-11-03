@@ -11,17 +11,21 @@ skills = "kb:general/skills"
 
 [[domains]]
 name = "software-engineering"
+visibility = "public"
 
 [[domains]]
 name = "owl"
+visibility = "public"
 path = "~/work/vyvid/examples/domains/owl"
 
 [[domains]]
 name = "triple-stores"
+visibility = "public"
 parents = ["software-engineering", "owl"]
 
 [[domains]]
 name = "tools"
+visibility = "public"
 parents = ["software-engineering"]
 families = { NOTE = {} }
 remote = "git@github.com:nebularis/vyvid-tools.git"
@@ -29,6 +33,7 @@ git = { pull = "daily", commit = "auto", push = "auto" }
 
 [[projects]]
 name = "lattice"
+visibility = "public"
 code = "~/work/lattice"
 match = { remote = "github.com/nebularis/lattice" }
 docs = "code:docs"
@@ -51,6 +56,7 @@ paths = ["code:ontology/**/*.ttl"]
 
 [[projects]]
 name = "vyvid"
+visibility = "public"
 code = "~/work/vyvid"
 match = { remote = "github.com/nebularis/vyvid" }
 docs = "code:docs"

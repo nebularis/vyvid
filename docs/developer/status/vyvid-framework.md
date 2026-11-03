@@ -17,7 +17,7 @@
 | VYD-2b | LATTICE switches to `vyvid` | planned | VYD-2 |
 | VYD-3 | domains, their graph and register types | built 2026-11-03, building 2026-11-03 | |
 | VYD-4 | managed assets and git policy | built 2026-11-03, building 2026-11-03 | |
-| VYD-5 | the store across scopes | building 2026-11-03 | |
+| VYD-5 | the store across scopes | built 2026-11-03, building 2026-11-03 | |
 | VYD-6 | recipes and contracts | planned | VYD-5 |
 | VYD-7 | the triple-store domain | planned | VYD-5 |
 | VYD-8 | the Tools and Haskell domains | planned | VYD-3, VYD-5 |
@@ -45,3 +45,4 @@
 - 2026-11-03. VYD-3 built: a domain's `domain.toml` merged under its configuration entry, the domain graph checked after merging, extractors as plug-ins registered as entry points, the OWL term extractor moved out of the core into the first, a domain's extractor run by each project that uses it over the project's files, and vocabulary a scope adds. Built through the OWL domain, LATTICE's 3,772 terms and the top five of five `--kind term` questions equal those built before. The extractor interface was built without the symbol-indexing research, whose recommendation it now awaits for languages other than OWL. Whether the manifest's `requires` key and `vyd doctor` join this slice waits on VYD-Q27. A term's module naming is TD-1.
 - 2026-11-03. VYD-Q20 to VYD-Q27 answered: VYD-Q23 with a project's own environment allowed to override Вивід's, VYD-Q25 not as leaned, work items a kind of record of their own, and VYD-Q27 as late as possible, so all of the tracker work is VYD-13, the plan's last slice.
 - 2026-11-03. VYD-4 built: a managed domain is a clone under the knowledge base, with a git policy for when it pulls and whether its changes are committed and pushed. `vyd kb status`, `clone`, `pull` and `record`, pulls by fast-forward only and a diverged one reported and left, `record` refusing a project's files and adding the configured trailers, and `vyd context` pulling what is due. Run end to end against a bare remote, a note was committed and pushed with its trailer under `auto`, staged only under `manual`, and a project's file refused. 149 tests pass.
+- 2026-11-03. VYD-5 built: every scope public or private, a project public and a domain private by default, a private row of the stack flagged and a scope outside it shown only when `--scope` names it, a project's row above a domain's at equal score, `Specialises` and `Overrides` columns folding a specialised row beneath its specialiser and hiding an overridden one, and `vyd check citations` refusing a public project's change that cites a private entry. Run on LATTICE with the Tools domain private, a line citing `tools:NOTE-1` was refused with exit 1. 164 tests pass.

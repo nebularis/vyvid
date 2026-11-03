@@ -92,6 +92,8 @@ continual = "Continual"
 "Narrowed by" = { property = "narrowedBy", kind = "addenda", trailing = true }
 "Bears on" = { property = "bearsOn", kind = "targets", trailing = true }
 "Derived from" = { property = "derivedFrom", kind = "ids", trailing = true }
+"Specialises" = { property = "specialises", kind = "ids", trailing = true }
+"Overrides" = { property = "overrides", kind = "ids", trailing = true }
 "Stratum" = { property = "stratum", kind = "controlled", values = "stratum" }
 "Governs" = { property = "governs", kind = "names" }
 "Fitness scope" = { property = "fitnessScope", kind = "controlled", values = "fitnessScope" }

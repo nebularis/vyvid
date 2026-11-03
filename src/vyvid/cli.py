@@ -16,11 +16,14 @@
     ask the index of the folder's stack a question, rebuilding it first when a file it reads changed
 ``vyd misses | gap <text> | close <id>``
     the questions the index answered weakly, the gaps found by reading, and closing them
+``vyd check citations [--staged] [paths ...] [--in folder]``
+    refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
 
 ``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message>``
     the domains under the knowledge base, each a git clone of its remote, kept by its git policy
 
-Each question takes ``--in <folder>``, the folder whose stack it is asked in, the current one by default.
+Each question takes ``--in <folder>``, the folder whose stack it is asked in, the current one by default,
+and ``--scope a,b`` to add scopes to that stack or ``--scope only:a,b`` to read those alone.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, ask, kb
+from . import __version__, ask, citations, kb
 from .config import ConfigError, config_path, extractor_runs, load
 from .facets import RegisterError
 from .registers import DeclarationError
@@ -42,7 +45,7 @@ QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "g
 
 
 def _layer(config, scope) -> dict:
-    out = {"scope": scope.name, "kind": scope.kind}
+    out = {"scope": scope.name, "kind": scope.kind, "visibility": scope.visibility}
     for key in ("rules", "skills"):
         out[key] = [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
     if scope.kind == "domain":
@@ -71,7 +74,7 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
     print("Read each layer's rules in this order. A later layer overrides an earlier one, and the project's is last.\n")
     for n, layer in enumerate(stack, 1):
-        print(f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}")
+        print((f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}") + f" ({layer['visibility']})")
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
@@ -146,6 +149,32 @@ def build_index(folder: Path, everything: bool, embed: bool) -> int:
     return 0
 
 
+def check_citations(arguments) -> int:
+    """Refuse the lines a public project adds that cite an entry of a private scope."""
+    config = load()
+    project = bind(config, Path(arguments.folder))
+    if project is None:
+        print("no project claims this folder, so there is no public text to check")
+        return 0
+    if project.visibility != "public":
+        print(f"project {project.name} is private, so its text may cite any entry")
+        return 0
+    if not arguments.staged and not arguments.paths:
+        print("vyd: name the paths to check, or use --staged", file=sys.stderr)
+        return 2
+    try:
+        lines = citations.staged_lines(project) if arguments.staged else citations.file_lines([Path(p) for p in arguments.paths])
+    except citations.GitError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 2
+    refused = citations.private_citations(config, project, lines)
+    for line in refused:
+        print(line)
+    if not refused:
+        print(f"{len(lines)} line(s) checked, and none cites an entry of a private scope")
+    return 1 if refused else 0
+
+
 def _question(arguments, parser) -> int:
     """Run one of the questions in ``ask`` for the stack of the folder named by ``--in``."""
     config = load()
@@ -154,7 +183,10 @@ def _question(arguments, parser) -> int:
     if command in ("gap", "close"):
         a = ask.open_stack(config, folder, need_store=False)
         return ask.gap(a, arguments.text, arguments.extras) if command == "gap" else ask.close(a, arguments.ids)
-    a = ask.open_stack(config, folder)
+    try:
+        a = ask.open_stack(config, folder, scope=getattr(arguments, "scope", ""))
+    except ValueError as error:
+        parser.error(str(error))
     if command == "misses":
         return ask.misses(a, arguments.limit, arguments.near, again=True)
     if command == "find":
@@ -175,6 +207,8 @@ def _questions(sub) -> None:
     def asking(name: str, helptext: str):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("--in", dest="folder", default=".", help="the folder whose stack the question is asked in")
+        if name not in ("misses", "gap", "close"):
+            p.add_argument("--scope", default="", help="scopes to add to the stack for this question, or only:a,b to read those alone")
         return p
 
     p = asking("find", "entries ranked by how close their meaning is to your words")
@@ -227,6 +261,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("folder", nargs="?", default=".")
     b.add_argument("--all", action="store_true", help="every configured scope, not the folder's stack")
     b.add_argument("--no-embed", action="store_true", help="build the store and write no vectors")
+    c = sub.add_parser("check", help="checks of a folder's text").add_subparsers(dest="check_command", required=True)
+    p = c.add_parser("citations", help="refuse added lines of a public project that cite an entry of a private scope")
+    p.add_argument("paths", nargs="*", help="files or folders whose every line is checked")
+    p.add_argument("--staged", action="store_true", help="the lines staged in the project's code and documents repositories")
+    p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
     sub.add_parser("config", help="where the configuration is read from, and whether it is sound")
     _questions(sub)
     arguments = parser.parse_args(argv)
@@ -242,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if arguments.command == "build":
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
+        if arguments.command == "check":
+            return check_citations(arguments)
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
         config = load()

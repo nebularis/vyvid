@@ -113,6 +113,16 @@ ki:distinguishedFrom
     rdfs:label "distinguished from" ;
     rdfs:comment "An entry a reader confuses this one with. Read from a register's Distinguished from column, and symmetric, so the confusable neighbour arrives with either answer in find's linked table and in read (LATTICE's ADR-A134 decision 28)." .
 
+ki:specialises
+    rdf:type owl:ObjectProperty ; rdfs:domain ki:Node ; rdfs:range ki:Node ;
+    rdfs:label "specialises" ;
+    rdfs:comment "The row of a wider scope this row says more about, read from a register's Specialises column, cited qualified when the row is of another scope. Earns its place because find prints the specialised row beneath the one that specialises it, and gives it no row of its own, so a project's answer arrives with the domain's general one under it." .
+
+ki:overrides
+    rdf:type owl:ObjectProperty ; rdfs:domain ki:Node ; rdfs:range ki:Node ;
+    rdfs:label "overrides" ;
+    rdfs:comment "The row this row replaces, read from a register's Overrides column, cited qualified when the row is of another scope. Earns its place because find never shows an overridden row unless --scope names its scope, so a replaced rule does not answer beside the rule that replaced it." .
+
 ki:bearsOn
     rdf:type owl:ObjectProperty ; rdfs:domain ki:Node ; rdfs:range [ owl:unionOf ( ki:Node ki:Term ) ] ;
     rdfs:label "bears on" ;

@@ -34,7 +34,9 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git"}
+DOMAIN_KEYS = {"visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git"}
+# Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
+VISIBILITIES = ("public", "private")
 # What each key of a managed domain's git policy may be, the first being the default.
 GIT_CHOICES = {"pull": ("on-start", "daily", "manual"), "commit": ("manual", "auto"), "push": ("manual", "auto")}
 
@@ -90,6 +92,7 @@ class Scope:
 
     name: str
     kind: str  # general, domain or project
+    visibility: str = "public"  # one of VISIBILITIES
     rules: list[Path] = field(default_factory=list)
     skills: list[Path] = field(default_factory=list)
     facets: list[Path] = field(default_factory=list)
@@ -196,6 +199,14 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
     return out
 
 
+def _visibility(raw: dict, default: str, where: str, problems: list[str]) -> str:
+    value = raw.get("visibility", default)
+    if value not in VISIBILITIES:
+        problems.append(f"{where}: visibility is '{value}', not one of {', '.join(VISIBILITIES)}")
+        return default
+    return value
+
+
 def _paths(values, bases, where, problems) -> list[Path]:
     values = [values] if isinstance(values, str) else (values or [])
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
@@ -294,7 +305,7 @@ def load(path: Path | None = None) -> Config:
 
     g = raw.get("general", {})
     general = Scope(
-        "general", "general",
+        "general", "general", _visibility(g, "public", "[general]", problems),
         rules=_paths(g.get("rules"), {"kb": kb}, "[general]", problems),
         skills=_paths(g.get("skills"), {"kb": kb}, "[general]", problems),
         facets=_paths(g.get("facets"), {"kb": kb}, "[general]", problems),
@@ -317,7 +328,7 @@ def load(path: Path | None = None) -> Config:
             problems.append(f"{where}: unknown keys {', '.join(unknown)}")
         bases = {"kb": kb, "self": root}
         domains[name] = Scope(
-            name, "domain", path=root, parents=list(merged.get("parents", [])),
+            name, "domain", _visibility(merged, "private", where, problems), path=root, parents=list(merged.get("parents", [])),
             remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems),
             rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
             skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
@@ -345,7 +356,7 @@ def load(path: Path | None = None) -> Config:
         match = p.get("match", {})
         remotes = match.get("remote", [])
         projects[name] = Scope(
-            name, "project", code=code, docs=docs,
+            name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
             remotes=[remotes] if isinstance(remotes, str) else list(remotes),
             domains=list(p.get("domains", [])),
             rules=_paths(p.get("contract"), bases, where, problems),

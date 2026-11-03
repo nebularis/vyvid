@@ -10,6 +10,11 @@ A question is asked from a folder, and the folder decides the stack of scopes it
 scope, the domains the folder's project uses, and the project. Every query reads the graphs of that
 stack and no others, so a question in one project never returns another project's entries. An entry
 of the project is shown by its local identifier, and an entry of any other scope by ``scope:LOCAL``.
+``--scope a,b`` adds scopes to the stack for one question and ``--scope only:a,b`` restricts the
+question to them. At equal meaning the project's entries rank first, then the domains' from the last
+of the stack to the first, then general's. An entry of a private scope is flagged P, an entry that
+specialises another is shown with it beneath, and an entry another overrides is shown only when its
+scope is named.
 
 The questions agents actually ask:
 
@@ -252,6 +257,12 @@ SELECT ?n ?iri ?claim ?pointer ?module WHERE {{ GRAPH ?g {{
   BIND (REPLACE(STR(COALESCE(?m, "")), "^.*module/[^/]+/", "") AS ?module)
 }} {IN_TERMS % "?g"} }}"""
 )
+# The edges that fold or hide rows in find, each stored in the graph of the scope that states it.
+EDGES = (
+    PREFIXES
+    + f"""
+SELECT ?n ?p ?other WHERE {{ GRAPH ?g {{ ?n ?p ?other . VALUES ?p {{ ki:specialises ki:overrides }} }} {IN_INDEX % "?g"} }}"""
+)
 FACET_FLAGS = {"activity": ("Activity", "activities"), "quality": ("Quality", "qualities"), "tech": ("Technology", "technologies")}
 # Each phase with every phase under it, through skos:broader in the T-Box.
 PHASE_CHAIN = (
@@ -345,7 +356,9 @@ FLAG_WORDS = {
     "TD": "TD an open debt bears on the entry",
     "BL": "BL an idea on the backlog, not built, bears on the entry",
     "?": "? the entry is Proposed, not ratified",
+    "P": "P the entry is private",
 }
+FLAG_ORDER = ("!", "~", "TD", "BL", "?", "P")
 NODE_RE = re.compile(re.escape(KI) + r"(?:node|term)/(?P<scope>[^/]+)/")
 
 
@@ -360,6 +373,49 @@ class Asker:
     directory: Path
     db: ox.Store | None = None
     model: object | None = None
+    scoped: list[Scope] | None = None  # the scopes this question reads when --scope changed the stack
+    named: frozenset[str] = frozenset()  # the scopes --scope names
+
+    def choose(self, text: str) -> None:
+        """Apply ``--scope``: ``a,b`` adds scopes to the stack, ``only:a,b`` reads those alone. Raises
+        ValueError, naming the configured scopes, for one that is not configured."""
+        only = text.startswith("only:")
+        names = [n.strip() for n in text.removeprefix("only:").split(",") if n.strip()]
+        configured = [self.config.general.name, *self.config.domains, *self.config.projects]
+        if unknown := [n for n in names if n not in configured]:
+            raise ValueError(f"--scope {', '.join(unknown)} is not one of {', '.join(configured)}")
+        if only and not names:
+            raise ValueError(f"--scope only: names no scope, so it is one of {', '.join(configured)}")
+        chosen = [self.config.scope(n) for n in names]
+        self.named = frozenset(names)
+        in_stack = {s.name for s in self.stack}
+        self.scoped = chosen if only else [*self.stack, *(s for s in chosen if s.name not in in_stack)]
+        for cached in ("graphs", "types"):  # both depend on the scopes read
+            self.__dict__.pop(cached, None)
+
+    @property
+    def visible(self) -> list[Scope]:
+        """The scopes a question reads."""
+        return self.scoped if self.scoped is not None else self.stack
+
+    @property
+    def built_scopes(self) -> list[Scope]:
+        """The scopes the store must hold: the stack, and any scope --scope added to it."""
+        in_stack = {s.name for s in self.stack}
+        return [*self.stack, *(s for s in self.visible if s.name not in in_stack)]
+
+    def position(self, scope_name: str) -> int:
+        """Where a scope sits in the stack, later meaning nearer the project. A scope outside it is below general."""
+        return next((i for i, s in enumerate(self.stack) if s.name == scope_name), -1)
+
+    @property
+    def private(self) -> set[str]:
+        return {s.name for s in self.visible if s.visibility == "private" and s.name != self.home.name}
+
+    @property
+    def public_text(self) -> bool:
+        """Whether the bound project's text is public, so that citing a private entry in it is refused."""
+        return self.project is not None and self.project.visibility == "public"
 
     @property
     def home(self) -> Scope:
@@ -368,11 +424,11 @@ class Asker:
 
     @functools.cached_property
     def graphs(self) -> list[ox.NamedNode]:
-        return [g for s in self.stack for g in (index_graph(s.name), terms_graph(s.name))] + [TBOX_GRAPH, FACETS_GRAPH]
+        return [g for s in self.visible for g in (index_graph(s.name), terms_graph(s.name))] + [TBOX_GRAPH, FACETS_GRAPH]
 
     @functools.cached_property
     def types(self) -> registers.RegisterTypes:
-        return registers.types_for(self.stack)
+        return registers.types_for(self.visible)
 
     @property
     def ask_log(self) -> Path:
@@ -465,10 +521,10 @@ def stale(a: Asker) -> bool:
     store, stamp, built_for = a.directory / "store", a.directory / "built-from", a.directory / "built-for"
     if not store.exists() or not stamp.exists() or not built_for.exists():
         return True
-    if {s.name for s in a.stack} - set(built_for.read_text(encoding="utf-8").split()):
+    if {s.name for s in a.built_scopes} - set(built_for.read_text(encoding="utf-8").split()):
         return True
     built = float(stamp.read_text(encoding="utf-8").strip())
-    for path in [*declared_files(a.config, a.stack), *pointer_files(a)]:
+    for path in [*declared_files(a.config, a.built_scopes), *pointer_files(a)]:
         try:
             if os.stat(path).st_mtime > built:
                 return True
@@ -477,15 +533,18 @@ def stale(a: Asker) -> bool:
     return False
 
 
-def open_stack(config: Config, folder: Path, model=None, need_store: bool = True) -> Asker:
+def open_stack(config: Config, folder: Path, model=None, need_store: bool = True, scope: str = "") -> Asker:
     """The index for the stack the folder is bound to, rebuilt first if it is stale.
 
     So an agent that edits a document and asks again gets the document as it now is, and never the
-    lines it held before. ``need_store`` false is for the questions that only touch the logs."""
+    lines it held before. ``need_store`` false is for the questions that only touch the logs. ``scope``
+    is ``--scope``, and raises ValueError for a scope that is not configured."""
     project = bind(config, folder)
     stack = layers(config, project)
     directory = store_dir(config)
     a = Asker(config, project, stack, directory, None, model)
+    if scope:
+        a.choose(scope)
     path = directory / "store"
     if path.exists():
         a.db = ox.Store.read_only(str(path))
@@ -497,7 +556,7 @@ def open_stack(config: Config, folder: Path, model=None, need_store: bool = True
     # Build into a temporary directory and rename it into place if that race is ever seen.
     print("knowledge index is missing or older than the files it reads, so building it", file=sys.stderr)
     a.db = None
-    build(config, project, embed=True, model=model, scopes=stack)
+    build(config, project, embed=True, model=model, scopes=a.built_scopes)
     a.db = ox.Store.read_only(str(path))
     return a
 
@@ -591,9 +650,12 @@ def filters(a: Asker, kind: str = "", exclude: str = "", phase: str = "", audien
 def linked(a: Asker, top: list[dict], shown: set[str], limit: int = 8) -> list[dict]:
     """The entries the top answers are linked to by declared edges, not already shown."""
     out: dict[str, dict] = {}
+    hidden = overridden(a)
     for answer in top:
         for r in a.rows(LINKED, subject=ox.NamedNode(answer["n"])):
             r["scope"] = scope_of(r["o"])
+            if r["o"] in hidden and r["scope"] not in a.named:
+                continue
             r["id"] = a.label(r["scope"], r["id"])
             if r["id"] not in shown and r["id"] not in out:
                 r["via"] = f"{EDGE_WORDS.get(r['edge'], r['edge'])} {answer['id']}"
@@ -636,6 +698,8 @@ def flags(r: dict) -> str:
         marks += "BL"
     if r.get("status") == "Proposed":
         marks += "?"
+    if r.get("private"):
+        marks += "P"
     return marks
 
 
@@ -657,7 +721,54 @@ def under(r: dict) -> str:
         text.append(f"Open debt: {', '.join(sorted(r['debts'].split()))}.")
     if r.get("ideas"):
         text.append(f"On the backlog, not built: {', '.join(sorted(r['ideas'].split()))}.")
-    return " ".join(text)
+    return " ".join(text + signposts(r))
+
+
+def signposts(r: dict) -> list[str]:
+    """The notes find prints under a row even when it prints no claims: that the entry is private, and
+    the entries this one specialises, each with its claim and those it specialises in turn."""
+    text = [r["private"]] if r.get("private") else []
+    for parent in r.get("specialises", []):
+        text.append(f"Specialises {parent['shown_as']}: {parent['claim'].rstrip()}")
+        text += [t for t in signposts(parent) if t.startswith("Specialises")]
+    return text
+
+
+def edge_pairs(a: Asker) -> dict[str, list[tuple[str, str]]]:
+    """The ``(entry, other)`` pairs of each edge that folds or hides rows, by property name."""
+    out: dict[str, list[tuple[str, str]]] = {"specialises": [], "overrides": []}
+    for r in a.rows(EDGES):
+        out[r["p"].removeprefix(KI)].append((r["n"], r["other"]))
+    return out
+
+
+def overridden(a: Asker) -> set[str]:
+    """The nodes another entry of the questions' scopes overrides."""
+    return {other for _, other in edge_pairs(a)["overrides"]}
+
+
+def specialises_through(row: dict, other: dict) -> bool:
+    """Whether ``row`` is ``other``, or specialises it directly or through the rows it specialises."""
+    return row is other or any(specialises_through(p, other) for p in row.get("specialises", []))
+
+
+def fold(a: Asker, rows: list[dict]) -> list[dict]:
+    """Drop the rows another overrides, unless their scope is named, and fold into the row that
+    specialises it each row that is also among the answers, so it is printed beneath that row and has
+    none of its own."""
+    edges = edge_pairs(a)
+    hidden = {other for _, other in edges["overrides"]}
+    rows = [r for r in rows if r["n"] not in hidden or r["scope"] in a.named]
+    by_node = {r["n"]: r for r in rows}
+    for r in rows:
+        r["shown_as"] = a.label(r["scope"], r["id"])
+    folded: set[str] = set()
+    for child, parent in edges["specialises"]:
+        # An edge that would close a circle is left as it is, so the rows of a circle all stay.
+        if child in by_node and parent in by_node and not specialises_through(by_node[parent], by_node[child]):
+            by_node[child].setdefault("specialises", []).append(by_node[parent])
+            folded.add(parent)
+    return [r for r in rows if r["n"] not in folded]
 
 
 def find(
@@ -677,6 +788,7 @@ def find(
     So is a section an addendum reversed, which keeps its rank and names the addendum."""
     try:
         rows, best = rank(a, words, kinds, phases, audiences, facets)
+        rows = fold(a, rows)
     except embed.Unavailable as error:
         print(f"find cannot rank here: {error}")
         print("Try exists with a word the answer would use.")
@@ -693,8 +805,10 @@ def find(
         print("Widen or drop a filter, or try other words.")
         print(FALLBACK)
         return 0
+    private = "Private, so this project's public text never cites it." if a.public_text else "Private."
     for r in rows:
         r["score"] = f"{r['score']:.2f}" + ("+" * r["facets"])
+        r["private"] = private if r["scope"] in a.private else ""
         r["flags"] = flags(r)
     _show_found(a, rows, facets, best)
     return 0
@@ -741,7 +855,7 @@ def rank(
         if r["kind"] == "Decision" and (r.get("successor") or r.get("status") == "Superseded"):
             r["score"] -= SUPERSEDED
     best = max((r["meaning"] for r in rows), default=-1.0)
-    return sorted(rows, key=lambda r: -r["score"]), best
+    return sorted(rows, key=lambda r: (-r["score"], -a.position(r["scope"]))), best
 
 
 def _show_found(a: Asker, rows: list[dict], facets: dict, best: float) -> None:
@@ -752,14 +866,15 @@ def _show_found(a: Asker, rows: list[dict], facets: dict, best: float) -> None:
     # are shown, and status is left out when nothing but terms is.
     terms = [r["kind"] == "Term" for r in rows]
     columns = ("score", "id", "kind") + (("module",) if any(terms) else ()) + (() if all(terms) else ("status",)) + ("flags", "claim", "pointer")
-    show(rows, columns, under if len(rows) <= FULL_CLAIMS else None)
+    show(rows, columns, under if len(rows) <= FULL_CLAIMS else lambda r: " ".join(signposts(r)))
     also = linked(a, rows[:3], {r["id"] for r in rows})
     if also:
         print("\nlinked to the top answers by a declared edge:")
         show(also, ("via", "id", "kind", "status", "claim", "pointer"))
-    marks = {m for r in rows for m in ("!", "~", "TD", "BL", "?") if m in r["flags"]}
+    marks = {m for r in rows for m in FLAG_ORDER if m in r["flags"]}
     if marks:
-        print("\n" + ". ".join(FLAG_WORDS[m] for m in ("!", "~", "TD", "BL", "?") if m in marks) + ". The line under the row says which.")
+        words = {**FLAG_WORDS, "P": FLAG_WORDS["P"] + (", so this project's public text never cites it" if a.public_text else "")}
+        print("\n" + ". ".join(words[m] for m in FLAG_ORDER if m in marks) + ". The line under the row says which.")
     if facets:
         print("\n+ marks each facet the entry matches, which raised it by", a.config.embedding.facet_boost)
     if best < weak:
@@ -813,7 +928,7 @@ def canonical_of(a: Asker, identifier: str) -> tuple[str, str] | None:
         scope_name, local = resolve(a.config, identifier, a.home).split(":", 1)
     except Unresolved:
         return None
-    return (scope_name, local) if any(s.name == scope_name for s in a.stack) else None
+    return (scope_name, local) if any(s.name == scope_name for s in a.visible) else None
 
 
 def read(a: Asker, identifier: str) -> int:
