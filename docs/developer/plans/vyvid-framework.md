@@ -106,5 +106,5 @@ For "alongside", the spike also measures the overlap: how often the two return t
 
 Questions VYD-Q1 to VYD-Q9, VYD-Q12 and VYD-Q13 are in the sketch, answered 2026-11-03, VYD-Q1 revised the same day. Two belong to the plan.
 
-- **VYD-Q10.** Where the spike runs: in `lattice/spikes/`, which ADR-A29 and the topology allow, or outside any repository, since it would install a third-party tool and write LATTICE's registers into it. Leaning outside, under `~/work/vyvid/spikes/`.
+- **VYD-Q10.** Where the spike runs. Provisionally (c), outside any repository, answered 2026-11-03 and to be revisited when VYD-0 starts. The options were (a) `lattice/spikes/`, which puts a Вивід decision's evidence in LATTICE and lets the tool's installer add hooks to LATTICE's agent setup, (b) `vyvid/spikes/`, versioned with the decision it informs, and (c) a scratch folder outside any repository, where even the tool's full installer can be tried and its per-turn hooks measured, with the report copied into `vyvid` by hand.
 - **VYD-Q11.** Answered 2026-11-03: `vyvid` has its own repository, `nebularis/vyvid`, from VYD-1, and LATTICE consumes it from VYD-2, so the extraction is the boundary.
