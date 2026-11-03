@@ -4,8 +4,16 @@ python = "3.14.7"
 uv = "0.13.4"
 
 [tasks.check]
+description = "Every check: the tests, and the writing and publication rules"
+depends = ["check:tests", "check:writing"]
+
+[tasks."check:tests"]
 description = "Run the test suite"
 run = "uv run --extra test pytest -q"
+
+[tasks."check:writing"]
+description = "Check the writing rules on every Markdown file, and the publication rules on user-facing text (STD-3, STD-4, STD-14, STD-15)"
+run = "uv run python tools/check_writing.py"
 
 [tasks.install]
 description = "Install vyvid as a tool, editable, so vyd runs the working tree"

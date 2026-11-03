@@ -7,4 +7,4 @@ Each decision states its context, what was decided and its consequences, in a fi
 | Decision | Title | Status |
 |---|---|---|
 
-None yet. The decisions so far are the answered questions of the [sketch](../../developer/sketches/vyvid-framework.md), recorded there until each is written as a decision.
+None yet.
