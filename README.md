@@ -32,7 +32,7 @@ The Cyrillic name is the tool's label. The repository, the package, the command 
 
 ## Status
 
-Design. Nothing is built yet. The [sketch](docs/developer/sketches/vyvid-framework.md) sets out the model and its decisions, the [plan](docs/developer/plans/vyvid-framework.md) its slices, and the [status record](docs/developer/status/vyvid-framework.md) where each slice is.
+VYD-1 is built: the configuration, binding a folder to its project, and `vyd context`. The [sketch](docs/developer/sketches/vyvid-framework.md) sets out the model and its decisions, the [plan](docs/developer/plans/vyvid-framework.md) its slices, and the [status record](docs/developer/status/vyvid-framework.md) where each slice is.
 
 ## Layout
 
@@ -40,9 +40,23 @@ Design. Nothing is built yet. The [sketch](docs/developer/sketches/vyvid-framewo
 |---|---|
 | `docs/developer/` | the working documents: sketches, plans, status records, and the registers, laid out as in LATTICE ([its README](docs/developer/README.md)) |
 | `docs/architecture/decisions/` | the decisions, `ADR-nnn`, listed in [the catalogue](docs/architecture/decisions/README.md) |
+| `src/vyvid/` | the package: `config.py` the configuration, `resolve.py` binding, layers and identifiers, `cli.py` the `vyd` command |
+| `tests/` | the test suite, `mise run check` |
+| `examples/config.toml` | an example configuration with LATTICE and this repository as projects |
 | `mise.toml` | the only task entry point |
 
-The code arrives with slice VYD-1, and with VYD-11 this repository is worked under a contract that Вивід itself resolves.
+With VYD-11 this repository is worked under a contract that Вивід itself resolves.
+
+## Using it
+
+```bash
+mise run install                       # uv tool install --editable, so vyd runs this working tree
+vyd config                             # where the configuration is read from, and whether it is sound
+vyd context ~/work/lattice             # the layers of rules that apply there, the project's last
+vyd resolve TSD-41 --in ~/work/lattice # the canonical scope:LOCAL an identifier names
+```
+
+The configuration is read from `$VYVID_CONFIG`, or from the platform's configuration folder, which `vyd config` prints. [`examples/config.toml`](examples/config.toml) is a starting point.
 
 ## Licence
 

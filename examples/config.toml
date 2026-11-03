@@ -1,0 +1,54 @@
+# An example configuration. Copy it to the path `vyd config` prints, or point VYVID_CONFIG at it.
+
+[framework]
+kb = "~/work/vyvid/kb"
+
+[general]
+rules = "kb:general/rules.md"
+skills = "kb:general/skills"
+
+[[domains]]
+name = "software-engineering"
+
+[[domains]]
+name = "owl"
+parents = ["software-engineering"]
+
+[[domains]]
+name = "triple-stores"
+parents = ["software-engineering", "owl"]
+
+[[domains]]
+name = "tools"
+parents = ["software-engineering"]
+families = { NOTE = {} }
+
+[[projects]]
+name = "lattice"
+code = "~/work/lattice"
+match = { remote = "github.com/nebularis/lattice" }
+docs = "code:docs"
+contract = ["code:AGENTS.md"]
+skills = ["code:.claude/skills"]
+domains = ["owl", "triple-stores", "tools"]
+specialises = { tools = "docs:developer/tools.md" }
+
+[projects.families]
+STD = { defined = "docs:developer/standards.md" }
+PRI = { defined = "docs:developer/principles.md" }
+CAP = { defined = "docs:developer/capabilities.md" }
+TD = { defined = "docs:developer/technical-debt.md" }
+PDD = { defined = "docs:developer/pending-design-decisions.md" }
+TSD = { pattern = 'TSD-\d+[a-z]?', defined = "docs:architecture/triple-store-discovery.md" }
+ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architecture/decisions/" }
+
+[[projects]]
+name = "vyvid"
+code = "~/work/vyvid"
+match = { remote = "github.com/nebularis/vyvid" }
+docs = "code:docs"
+domains = ["software-engineering", "tools"]
+
+[projects.families]
+STD = { defined = "docs:developer/standards.md" }
+ADR = { pattern = 'ADR-\d{3}', defined = "docs:architecture/decisions/" }

@@ -1,3 +1,16 @@
-# mise is the only task entry point, as in LATTICE. Tasks arrive with the code, from VYD-1.
+# mise is the only task entry point, as in LATTICE.
 [tools]
 python = "3.14.7"
+uv = "0.13.4"
+
+[tasks.check]
+description = "Run the test suite"
+run = "uv run --extra test pytest -q"
+
+[tasks.install]
+description = "Install vyvid as a tool, editable, so vyd runs the working tree"
+run = "uv tool install --editable --force ."
+
+[tasks.context]
+description = "Print the resolved contract for a folder: mise run context -- <folder>"
+run = "uv run vyd context"
