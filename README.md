@@ -30,10 +30,6 @@ The Cyrillic name is the tool's label. The repository, the package, the command 
 
 Вивід grew out of the knowledge index of [LATTICE](https://github.com/nebularis/lattice), which is its first project.
 
-## Status
-
-VYD-1 is built: the configuration, binding a folder to its project, and `vyd context`. The [sketch](docs/developer/sketches/vyvid-framework.md) sets out the model and its decisions, the [plan](docs/developer/plans/vyvid-framework.md) its slices, and the [status record](docs/developer/status/vyvid-framework.md) where each slice is.
-
 ## Layout
 
 | Path | Holds |
@@ -60,4 +56,4 @@ The configuration is read from `$VYVID_CONFIG`, or from the platform's configura
 
 ## Licence
 
-MIT, as [LICENSE](LICENSE) states. AI-assisted contributions are disclosed in their commit trailers.
+[MIT](LICENSE)
