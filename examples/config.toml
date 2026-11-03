@@ -48,6 +48,7 @@ code = "~/work/vyvid"
 match = { remote = "github.com/nebularis/vyvid" }
 docs = "code:docs"
 domains = ["software-engineering", "tools"]
+facets = ["docs:developer/facets.md"]
 
 [projects.families]
 STD = { defined = "docs:developer/standards.md" }

@@ -49,6 +49,7 @@ class Scope:
     kind: str  # general, domain or project
     rules: list[Path] = field(default_factory=list)
     skills: list[Path] = field(default_factory=list)
+    facets: list[Path] = field(default_factory=list)
     families: dict[str, Family] = field(default_factory=dict)
     delegates: dict[str, str] = field(default_factory=dict)
     parents: list[str] = field(default_factory=list)  # domains only
@@ -127,6 +128,7 @@ def load(path: Path | None = None) -> Config:
         "general", "general",
         rules=_paths(g.get("rules"), {"kb": kb}, "[general]", problems),
         skills=_paths(g.get("skills"), {"kb": kb}, "[general]", problems),
+        facets=_paths(g.get("facets"), {"kb": kb}, "[general]", problems),
         families=_families(g.get("families"), "[general]", problems),
     )
 
@@ -143,6 +145,7 @@ def load(path: Path | None = None) -> Config:
             name, "domain", path=root, parents=list(d.get("parents", [])),
             rules=_paths(d.get("rules", "self:rules.md"), bases, where, problems),
             skills=_paths(d.get("skills", "self:skills"), bases, where, problems),
+            facets=_paths(d.get("facets", "self:facets.md"), bases, where, problems),
             families=_families(d.get("families"), where, problems),
             delegates=dict(d.get("delegates", {})),
         )
@@ -168,6 +171,7 @@ def load(path: Path | None = None) -> Config:
             domains=list(p.get("domains", [])),
             rules=_paths(p.get("contract"), bases, where, problems),
             skills=_paths(p.get("skills"), bases, where, problems),
+            facets=_paths(p.get("facets"), bases, where, problems),
             families=_families(p.get("families"), where, problems),
             delegates=dict(p.get("delegates", {})),
             specialises={k: v for k, s in p.get("specialises", {}).items()
