@@ -39,6 +39,8 @@ gantt
   VYD-11 vyvid's own contract         :s11, 35, 38
   section optional
   VYD-12 agent coordination           :s12, 38, 42
+  section trackers
+  VYD-13 work tracked in a tracker    :s13, 42, 47
 ```
 
 Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, since VYD-0's result may change VYD-2 and VYD-5, and VYD-0b's decides how VYD-3 builds extractors.
@@ -62,6 +64,7 @@ Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, 
 | **VYD-10** | A user-level overlay of rules expressed as a private domain bound by remote, its rules about what may reach a public project as the configured check of VYD-5 | For each repository it covers, `vyd context` resolves the same scope the overlay decides today |
 | **VYD-11** | `vyvid`'s own repository worked under a contract that `vyvid` resolves: its rules, skills and recipes in this repository's project scope, its registers indexed by itself, bound by a folder-local configuration rather than an AGENTS.md written by hand | An agent in this repository runs `vyd context` and gets this repository's contract, and `vyd find` answers from this repository's own registers |
 | **VYD-12** | Optional agent coordination, as the [agent coordination sketch](../sketches/agent-coordination.md) answers it: claims of slices, units and next identifiers granted or refused atomically, held as leases renewed by every `vyd` command, logged as events, behind one interface with three choices, `none` by default, a local SQLite store, or a shared server | With `local`, two agents claiming one slice on one machine get one grant and one refusal naming the holder, a lapsed lease shows as stale, and two branches never take the same next identifier. With `none`, nothing changes from today |
+| **VYD-13** | Work tracked in a tracker, as the [work-tracking sketch](../sketches/work-tracking-domains.md) answers it: a domain manifest's `requires`, `vyd doctor`, packages installed only with consent and never by a pull, an extractor run in a separate process, in Вивід's environment by default or in one a project names, the `work-tracking` domain with `jira` and `azure-devops` under it, and work items as a kind of record of their own beside the entries | A project on Jira sees its work items on `vyd board`, a missing package or credential is named by `vyd doctor`, a pull raising a requirement installs nothing until the user agrees, and two projects pinning different versions of one tracker package both build |
 
 ## VYD-0, the spike, in detail
 

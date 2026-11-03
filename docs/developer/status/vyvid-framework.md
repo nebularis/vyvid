@@ -25,6 +25,7 @@
 | VYD-10 | an overlay as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | planned | VYD-6 |
 | VYD-12 | optional agent coordination | planned | VYD-11 |
+| VYD-13 | work tracked in a tracker | planned | VYD-12 |
 
 ## History
 
@@ -42,3 +43,4 @@
 - 2026-11-03. VYD-2 built. Its condition that LATTICE's knowledge tests pass against `vyvid` moves to VYD-2b, LATTICE switching to `vyvid`, a slice of its own, by the maintainer's choice. The bake-off found LATTICE's own `find` crowded by slice entries, fixed in LATTICE by showing a slice only when asked for (LATTICE's ADR-A134 decision 34, Proposed), after which both rank the 48 questions identically, hit@5 0.884 and MRR 0.806 on the 43.
 - 2026-11-03. Sketched [work tracked in Jira or Azure DevOps](../sketches/work-tracking-domains.md): a work-tracking domain with tracker domains under it, reads by an extractor and writes through the tracker's MCP server, a manifest that declares its requirements and runs no script, and a tracker as a claims backend only where its API rejects a stale write. Questions VYD-Q20 to VYD-Q27 open.
 - 2026-11-03. VYD-3 built: a domain's `domain.toml` merged under its configuration entry, the domain graph checked after merging, extractors as plug-ins registered as entry points, the OWL term extractor moved out of the core into the first, a domain's extractor run by each project that uses it over the project's files, and vocabulary a scope adds. Built through the OWL domain, LATTICE's 3,772 terms and the top five of five `--kind term` questions equal those built before. The extractor interface was built without the symbol-indexing research, whose recommendation it now awaits for languages other than OWL. Whether the manifest's `requires` key and `vyd doctor` join this slice waits on VYD-Q27. A term's module naming is TD-1.
+- 2026-11-03. VYD-Q20 to VYD-Q27 answered: VYD-Q23 with a project's own environment allowed to override Вивід's, VYD-Q25 not as leaned, work items a kind of record of their own, and VYD-Q27 as late as possible, so all of the tracker work is VYD-13, the plan's last slice.

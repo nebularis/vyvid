@@ -2,7 +2,7 @@
 
 # Sketch: work tracked in Jira or Azure DevOps, through domains
 
-**Status:** sketch, 2026-11-03. Nothing is built or decided.
+**Status:** sketch, 2026-11-03. Its questions are answered, and it is built last, as slice VYD-13.
 **Unit:** vyvid-framework
 **Questions:** VYD-Q20 to VYD-Q27
 
@@ -108,11 +108,13 @@ So a tracker can be a backend only where its API rejects a stale write, and that
 
 ## 7. Questions for the maintainer
 
-- **VYD-Q20.** Domains for the generic tooling, and the project's folder for its own glue and rules (§2). Leaning yes.
-- **VYD-Q21.** Reads by an extractor, writes through the tracker's MCP server (§2). Leaning yes, since writes are the contract's and the client's to permission.
-- **VYD-Q22.** A domain's manifest declares requirements and runs no script (§4). Leaning yes.
-- **VYD-Q23.** Packages installed into Вивід's own tool environment, never the project's. Leaning yes, so a domain cannot change what a project builds with.
-- **VYD-Q24.** A pull that raises a requirement waits for the user (§4). Leaning yes.
-- **VYD-Q25.** Work items as entries of the project's scope, with a family of their own (§3). Leaning yes.
-- **VYD-Q26.** A tracker as a claims backend only where its API rejects a stale write, probed first (§6). Leaning yes, and only after the agent coordination slice.
-- **VYD-Q27.** Where this is planned. Leaning the manifest's `requires` key and `vyd doctor` with the domain slice now being built, `vyd domain add` with the managed assets slice, and the work-tracking, Jira and ADO domains as a slice of their own after the store across scopes, since their nodes need its visibility.
+Answered 2026-11-03:
+
+- **VYD-Q20.** As leaned: domains hold the generic tooling, and a project's folder holds only its own glue and rules.
+- **VYD-Q21.** As leaned: an extractor reads, and changes go through the tracker's MCP server under the project's contract.
+- **VYD-Q22.** As leaned: a manifest declares its requirements and runs no script.
+- **VYD-Q23.** Packages install into Вивід's own tool environment **by default**, and a project may name an environment of its own, such as its `.venv` or the one mise gives it, in which its extractors run instead, as mise pins a Python or a Java per project. A project can then pin another version of a tracker's package, and two projects needing conflicting versions both work. It follows that an extractor runs in a separate process, given its settings and returning its quads, problems, findings and texts in a serialised form, which also isolates it from Вивід, and that the extractor package depends on Вивід's interface package wherever it is installed.
+- **VYD-Q24.** As leaned: a pull that raises a requirement installs nothing until the user agrees.
+- **VYD-Q25.** **Not as leaned.** A work item is a different kind of record, kept apart from the entries, never ranked by `find` among them, and read by the board and by recipes. How it is stored and cited is designed in its slice.
+- **VYD-Q26.** As leaned: a tracker backs claims only where its API rejects a stale write, probed first, and only after the agent coordination slice.
+- **VYD-Q27.** **As late as possible.** All of it, the manifest's `requires`, `vyd doctor`, consented installs, the held-back pull, the separate-process extractor, the work-tracking, Jira and Azure DevOps domains and the work-item record, is one slice, VYD-13, the plan's last. The managed-assets slice clones, pulls, commits and pushes, and installs nothing.
