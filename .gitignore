@@ -1,0 +1,7 @@
+# Derived, never committed: the index, the vectors, environments and caches.
+.build/
+.venv/
+__pycache__/
+*.egg-info/
+# Notes true of one machine.
+.local/
