@@ -34,14 +34,13 @@ The Cyrillic name is the tool's label. The repository, the package, the command 
 
 | Path | Holds |
 |---|---|
-| `docs/developer/` | the working documents: sketches, plans, status records, and the registers, laid out as in LATTICE ([its README](docs/developer/README.md)) |
+| `docs/developer/` | how Вивід is designed and built, for its developers |
 | `docs/architecture/decisions/` | the decisions, `ADR-nnn`, listed in [the catalogue](docs/architecture/decisions/README.md) |
 | `src/vyvid/` | the package: `config.py` the configuration, `resolve.py` binding, layers and identifiers, `cli.py` the `vyd` command |
 | `tests/` | the test suite, `mise run check` |
 | `examples/config.toml` | an example configuration with LATTICE and this repository as projects |
 | `mise.toml` | the only task entry point |
 
-With VYD-11 this repository is worked under a contract that Вивід itself resolves.
 
 ## Using it
 

@@ -36,4 +36,29 @@ A slice's state is written once, in its row on its unit's status board, as one o
 
 ## Writing
 
-As in LATTICE: a paragraph or a list entry on one line, no semicolons, colons only to introduce a list, a table or a quotation, a thing said once and cross-referenced, and decisions written as the team's.
+Every piece of text, in documents, code comments, commit messages and replies (PRI-1):
+
+- a paragraph or a list entry on one line, with newlines only between paragraphs, and an edit to a wrapped one joins it (STD-3)
+- no semicolons. Use periods or commas (STD-4)
+- colons sparingly, never to join two clauses or to lead into an explanation. A colon may introduce a list, a table or a quotation (STD-5)
+- concise, a thing said once and cross-referenced (STD-6)
+- no superlatives for emphasis, no "it's not X, it's Y" reframes, no formulaic transitions and no meta-commentary (STD-7)
+- an example introduced as one, "for example" or "e.g.", never by a colon (STD-8)
+- few rhetorical questions, emphatic short sentences and metaphors (STD-9)
+- structure shown with metadata a tool reads, and a meaning stated once where it is defined (STD-1)
+- a thing named by the term this repository already uses for it (STD-2)
+- written as the team, "we decided", "accepted 2026-11-03", with AI involvement marked only in the commit trailer (STD-10)
+
+## What is published
+
+This repository is public. User-facing text is the README, every document outside `docs/developer/`, and the command's output and help.
+
+- User-facing text never refers to a working document, a sketch, a plan, a status record, a register or this index, in text, links or comments, and cites only accepted decisions, except a decision's closing Provenance section (PRI-2, STD-14).
+- User-facing text never names a slice, phase, question, debt or other delivery identifier, or uses delivery phrasing (STD-15).
+- Nothing identifies a person outside what the project itself names (STD-11), and nothing holds a credential, a private hostname or a private repository path (STD-12). A note true of one machine or one person belongs in their own configuration, never here (STD-13).
+
+## The contract
+
+- A check is reported as passed only when it ran and passed, and what was not run is said (PRI-3).
+- Each kind of document keeps its role: a sketch changes freely, a plan only when the plan changes, a status record after every material action (STD-16).
+- When two standards conflict for a change, we stop and ask the maintainer, and record the conflict in the pending design decisions, so a conflict that recurs shows which standards to rework (STD-18).
