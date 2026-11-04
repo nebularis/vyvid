@@ -27,6 +27,10 @@ run = "uv run python benchmark/lattice-bakeoff/bench.py"
 description = "Score the ways to rank symbols on fixed questions, never part of check: mise run bench:symbols -- --config <configuration>"
 run = "uv run --extra symbols python benchmark/symbols/bench.py"
 
+[tasks."bench:mechanical"]
+description = "Score find --kind symbol on questions generated from ast, by name, by meaning and by module, never part of check: mise run bench:mechanical -- --config <configuration>"
+run = "uv run --extra symbols python benchmark/symbols/mechanical.py"
+
 [tasks.install]
 description = "Install vyvid as a tool, editable, so vyd runs the working tree"
 run = "uv tool install --editable --force ."

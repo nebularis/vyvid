@@ -90,6 +90,130 @@ Lost is a symbol the default found that the way no longer shows, and gained is a
 
 **The one-line hint** under a plain `find` and every path of a plain `find` are unchanged. The hint reads the symbol vectors, which hold no chunk, and a test shows a plain `find` shows none.
 
+## Measured: Python against `ast`
+
+Measured 2026-11-04 on an 8-core arm64 Mac with Python 3.14.7, `tree-sitter` 0.26.0 and `tree-sitter-python` 0.25.0, comparing the extractor with `ast` by qualified name and line, file by file. The corpora are the 32 tracked files of `src/` and `tools/` of this repository (9,195 lines) and the 412 tracked files of LATTICE's `tools/` (102,107 lines, 4.7 MB), read from a snapshot clone. LATTICE's `platform/` holds no Python at all, only Java, so it adds nothing here. The same comparison over every tracked Python file of both repositories (60 and 559 files) gave the same result, and is the source of the failure counts below.
+
+| | This repository | LATTICE `tools/` |
+|---|---|---|
+| Classes, in `ast` and found | 42 and 42 | 636 and 636 |
+| Functions, in `ast` and found | 437 and 437 | 4,108 and 4,108 |
+| Methods, in `ast` and found | 61 and 61 | 2,007 and 2,007 |
+| Single-name module-level constants, in `ast` and found | 181 and 181 | 2,133 and 2,133 |
+| Found and not in `ast` | 0 | 0 |
+| Docstrings of those, in `ast` and found | 372 and 372 | 2,073 and 2,073 |
+| Docstring text equal after white space is collapsed | 371 | 2,072 |
+| Parse failures, by `ast`, by `has_error`, by an exception in the extractor | 0, 0, 0 | 0, 0, 0 |
+| Names `ast` binds that the extractor does not list | 5 | 174 |
+
+Every class, function and method matches by qualified name and by line, and every one of 8,884 symbols of LATTICE's tools is found with none wrong, as it was on the first count. The names missing are 156 bound by unpacking, such as `A, B = 1, 2`, and 18 assigned at module level inside an `if`, `try` or `for`, against 5 unpacked in this repository. The one docstring in each corpus that differs holds an escape sequence, since the extractor keeps the source text of the string and `ast` its value. Parse errors had not been measured before, and there are none: the parser flagged no file with `has_error`, `ast` rejected none, the extractor raised on none and the store reported no file failed or skipped.
+
+**What the extractor leaves out that `ast` sees,** counted in the same files.
+
+| | This repository | LATTICE `tools/` |
+|---|---|---|
+| Decorated functions and methods, whose decorators are not in the signature | 22 | 656 |
+| Decorated classes (`@dataclass` and others) | 29 | 271 |
+| Annotated class fields, such as a dataclass's | 205 | 1,276 |
+| Plain class-body assignments | 0 | 178 |
+| `self.x = ...` stores | 14 | 568 |
+| Imported names, none a symbol | 435 | 5,666 |
+| Names imported in an `__init__.py`, which are the re-exports | 11 in 3 files | 148 in 18 files |
+| Modules setting `__all__` (421 names in LATTICE) | 0 | 42 |
+| Module docstrings that give no chunk because they are under 80 characters | 0 of 32 | 43 of 407 |
+| Qualified names defined more than once in a file (overloads, setters, branches) | 3 | 1 |
+| Signatures containing a `#`, most of them a comment taken in from the body | 2 of 540 | 218 of 6,751 |
+
+Nested functions (18 and 129) and nested classes (0 and 7) are found with dotted names. No f-string or bytes docstring, which the extractor reads as docs and `ast` does not, occurred in either, and neither did two adjacent string literals, which `ast` reads as a docstring and the extractor does not. The extractor does not list a name made at run time (`globals()[...]`, `setattr`, `exec`, `type(name, bases, ns)`), nor does any static tool here, and LATTICE's tools hold 20 `__import__` calls and 2 three-argument `type` calls. The `tree-sitter-python` grammar also accepts Python 2's `print "x"` without an error, so `has_error` does not mark such a file. Each of these is a note with its evidence in the Python domain.
+
+## Measured: questions generated from `ast`
+
+Measured 2026-11-04 on the same Mac with `benchmark/symbols/mechanical.py`, which asks `find --kind symbol` through the function `find` calls, so the figures are the default way's (vectors over every symbol with the doc first, beside at most two of five places for chunks of documentation). The questions are generated from `ast` with seed 20261104, from symbols that have a docstring, and 300 of each mode were drawn in both corpora, apart from modules, which are fewer in this repository. A symbol is found when it is among the five results. MRR is over those five. Every index is built from nothing, so the time and the bytes are cold ones. The corpora are the 60 tracked Python files of this repository (`src`, `tests`, `tools` and `benchmark`) and the 412 of LATTICE's `tools/`, from a snapshot.
+
+| | This repository | LATTICE `tools/` |
+|---|---|---|
+| Symbols and chunks of documentation | 1,435 and 95 | 8,884 and 530 |
+| Documented symbols and modules | 454 and 60 | 2,073 and 407 |
+| Parse | 0.30 s | 1.18 s |
+| Embed, cold | 19.2 s for 1,525 texts | 126.0 s for 9,343 texts |
+| Bytes: store, symbol vectors, chunk vectors | 1,064,960, 2,595,644 and 172,924 | 6,873,088, 16,063,436 and 959,404 |
+| Without test files: symbols, chunks, embed, bytes of the vectors | 753, 70, 11.7 s, 1,487,020 | 4,039, 340, 55.2 s, 7,919,560 |
+
+| Corpus | Mode | Questions | hit@1 | hit@5 | MRR | Query, mean, median and 95th percentile |
+|---|---|---|---|---|---|---|
+| This repository | name | 300 | 0.807 | 0.963 | 0.870 | 9.9, 9.1 and 16.0 ms |
+| This repository | meaning | 300 | 0.670 | 0.887 | 0.762 | 15.3, 14.4 and 22.7 ms |
+| This repository | module | 59 | 0.898 | 0.932 | 0.915 | 15.5, 15.1 and 21.6 ms |
+| LATTICE `tools/` | name | 300 | 0.800 | 0.923 | 0.850 | 21.1, 18.9 and 32.3 ms |
+| LATTICE `tools/` | meaning | 300 | 0.597 | 0.853 | 0.698 | 24.6, 22.1 and 42.2 ms |
+| LATTICE `tools/` | module | 300 | 0.807 | 0.917 | 0.856 | 26.0, 23.6 and 45.0 ms |
+
+A query takes 10 to 26 ms on average with the model loaded, of which about 4.5 ms is embedding the question. At LATTICE's scale of 8,884 symbols it is 21 to 26 ms and at the 95th percentile 32 to 45 ms. The `name` question puts a symbol with that name first in 263 of 300 questions here and 266 of 300 in LATTICE's, which is higher than hit@1 since a name that many symbols share has no one symbol to find.
+
+**Which symbols lose.** `hit@5` by what the symbol is.
+
+| | This repository | LATTICE `tools/` |
+|---|---|---|
+| `name`, a name shared with another symbol | 42 of 51 (15 first) | 44 of 64 (20 first) |
+| `name`, a name no other symbol has | 247 of 249 (227 first) | 233 of 236 (220 first) |
+| `name`, in a test file and not | 40 of 42 and 249 of 258 | 72 of 75 and 205 of 225 |
+| `meaning`, a class, a function and a method | 20 of 26, 228 of 253 and 18 of 21 | 46 of 53, 160 of 187 and 50 of 60 |
+| `meaning`, in a test file and not | 37 of 41 and 229 of 259 | 77 of 89 and 179 of 211 |
+| `meaning`, a private name | 27 of 34 | 53 of 65 |
+| `module`, a docstring of 80 characters or more, and one under | 55 of 57 and 0 of 2 | 261 of 264 and 14 of 36 |
+
+**Name losses are the shared names.** Of the 11 and 23 `name` questions not answered, 9 and 20 name a symbol whose name others share (`read`, `command`, `load`, `resolve`, `render`, `repo`), where the five places go to other symbols of the same name or to similar names. Those are not a failure to find the name, since 263 and 266 first results bear it, but a name cannot say which symbol is meant. A name no other symbol has was found in 247 of 249 and 233 of 236, first in 227 and 220.
+
+**Meaning losses are not by kind.** A class, a function or a method, and a symbol in a test file or not, are found at about the same rate, 83 to 87% in LATTICE's tools. The losses are mostly a sentence that, with the name's words taken out, says too little (`A domain's table as a`, `The [[project. ]] tables`, `a SPARQL for an egress mapping`), a doc that many symbols could say, and a private helper (81% against 85% for all). Only 7 of the 300 first sentences in LATTICE's tools and 4 in this repository's were shared with another symbol, too few to say whether a shared doc loses. The removal is mechanical and leaves words only the symbol would use, so `meaning` is a stand-in for a question that does not share the name and not a measure of a developer's own.
+
+**Module losses are the docstrings under 80 characters,** which give no chunk of documentation, so no row holds their text. The 55 of 57 and 261 of 264 with a docstring of 80 characters or more were found, and the 14 of 36 under were found only through a symbol of the same file. This is the 43 of 407 modules of LATTICE's tools that give no chunk.
+
+**Fixed after these figures, measured again on the same seed.** A Python module docstring is now a chunk at any length, which moved `module` hit@5 from 0.917 to 0.980 and MRR from 0.856 to 0.922 on LATTICE, and from 0.932 to 0.966 and 0.915 to 0.949 on Вивід. `name` and `meaning` hit@5 did not move. A signature now stops at the definition's `:` and has its comments removed, and a docstring follows Python's rule for f-strings, bytes literals and adjacent strings, so the rows above on signatures containing a `#` and on those forms describe the code before the fix.
+
+**Test files.** Tests are 55% of LATTICE's symbols (4,845 of 8,884) and 47% of this repository's. Questions drawn again from symbols outside test files alone were asked of the full index and of an index built without test files, 300 of each mode, 34 and 214 for `module`.
+
+| Corpus | Mode | hit@1 full and without | hit@5 full and without | MRR full and without | Places of five held by test files, full |
+|---|---|---|---|---|---|
+| This repository | name | 0.790 and 0.807 | 0.960 and 0.973 | 0.859 and 0.876 | 1.30 |
+| This repository | meaning | 0.680 and 0.723 | 0.897 and 0.930 | 0.771 and 0.810 | 1.49 |
+| This repository | module | 0.882 and 0.912 | 0.941 and 0.941 | 0.912 and 0.926 | 1.18 |
+| LATTICE `tools/` | name | 0.783 and 0.797 | 0.920 and 0.930 | 0.836 and 0.849 | 1.11 |
+| LATTICE `tools/` | meaning | 0.577 and 0.603 | 0.827 and 0.857 | 0.675 and 0.702 | 1.23 |
+| LATTICE `tools/` | module | 0.780 and 0.827 | 0.911 and 0.925 | 0.840 and 0.872 | 0.92 |
+
+Test files took on average 0.9 to 1.5 of the five places for a question about code that is not a test, and leaving them out raised `hit@5` by 0.0 to 3.3 points and `hit@1` by 1.4 to 4.7. Of the questions not answered, 11 of 11 and 17 of 23 `name` and 30 of 34 and 35 of 44 `meaning` had a test-file row among the five (counted by the id, so approximately). The index without tests holds 46 to 52% of the symbols and takes 44 to 61% of the embedding time and 47 to 54% of the vector bytes. **That is a finding and not a case for changing the default,** since a question about a test then has no answer, and 95 to 96% of the test-file symbols asked by `name` were found in the full index (40 of 42 and 72 of 75). The margin is a few points on a sample of 300 and is not clear. A project that does not want test files keeps them out of its `[[project.symbols]]` paths, and the benchmark's task takes any configuration.
+
+## Measured: structural questions on Python
+
+Measured 2026-11-04 on the same Mac, for what a hand-off could name for "who calls this" in Python. The five questions were fixed before any tool ran, on this repository's 60 tracked Python files, and the truth for each was taken from `ast` and a read of every site: the uses of `run_limited` (8 sites: 4 imports and 4 calls), of `redact` (12 sites in 9 lines), of `GLUE_ENV` (3, its definition's use and a re-export), of the exception `Failed` (10) and the calls of `Model.question` (8, through an untyped parameter's attribute in 4 of them). Each tool was installed in a scratch environment under a scratch home and nothing was installed globally. The tools ran on a snapshot of the tracked files.
+
+| Question | Truth | `jedi` 0.20.1 | `scip-python` 0.6.8, as it comes | `scip-python` with `extraPaths` |
+|---|---|---|---|---|
+| Who calls `run_limited`? | 8 | 8 | 6 | 8 |
+| What calls `redact`? | 12 | 12 | 9 | 12 |
+| Where is `GLUE_ENV` defined, and what imports it? | 3 | 3 | 3 | 3 |
+| Who calls `Model.question`? | 8 | 4 | 3 | 3 |
+| What raises or catches `Failed`? | 10 | 10 | 10 | 10 |
+| Wrong answers, other than the definition itself | | 0 | 0 | 0 |
+| Time to answer one question | | 0.02 to 0.45 s warm, up to 1.03 s cold | 0.003 to 0.005 s from an index, after 0.15 s to load it with a reader written here | the same |
+| Time to get ready | | none, 2.5 s for the whole process of five questions | 12.9 s wall and 18.7 s CPU to index | 12.5 s and 18.9 s |
+| Output of an answer | | 128 to 849 bytes | 123 to 641 bytes | 123 to 944 bytes |
+| Stored | | nothing | `index.scip` of 3.04 MB | 3.13 MB |
+
+Each tool also listed the definition itself, which is not counted. The one question both fell short on is `Model.question`, called as `model.question(...)` in the benchmark and as `a.model.question(...)` in the code, where `a` is an unannotated parameter. `jedi` found the 4 calls in the benchmark and none of the 4 in the code. `scip-python` found 3 of the 4 in the code, the two in `ranked`, where the function assigns `a.model` from the class, and the one in `rank`, and none in the benchmark or in `hint`. The two are complementary here, and neither is complete. In a `src` layout `scip-python` left the tests out of its answers (2 sites of the first question, 3 of the second) until `pyrightconfig.json` named `extraPaths = ["src"]`, and it named the module `src.vyvid.config` without it. The index is a protobuf, and no `scip` tool was installed, so the answers above were read with a short reader of the format written here. A registered kind would need a reader for it that this slice did not test.
+
+| | `jedi` | `scip-python` |
+|---|---|---|
+| Installed | a pure-Python library, 29 MB with its typeshed, and `parso`, by `uv pip install` into a scratch environment | an npm package of 69 MB with 61 dependencies, node, and a Python with `pip` on `PATH` |
+| Needs the project's dependencies installed | no, it analysed with none installed | no, it indexed with none installed |
+| Runs the project's code | no. Planted modules named `json`, `os`, `site` and `sysconfig`, a `setup.py`, a `conftest.py`, a `sitecustomize.py` and an in-tree build backend, each writing a marker, with the working folder set to theirs, left no marker through `get_references`, `goto`, `infer`, `complete`, `get_signatures`, `get_names` and `Project.search` | no. The same folder left no marker, and a `pythonPath` in its `pyrightconfig.json` that pointed at an executable writing one was not run |
+| Runs anything else | a subprocess of its own interpreter. It would import a C extension of the project, which was not tried | `python3 -c`, `pip3 list` and a package-listing script, from `PATH`, three calls logged by wrapper scripts |
+| Goes stale | no, it reads the sources on each call | yes, the index must be rebuilt |
+
+`uv run` is the one command that does run a clone's code. In a folder with a `pyproject.toml` it builds the project first, and an in-tree build backend and a `json.py` in the folder both ran, while `uv run --no-project` ran nothing. A hand-off for either tool should name `uv run --no-project --with jedi` or the indexer by its full command, never a bare `uv run`.
+
+**Undecided: which to register as a kind. The leaning is `jedi`,** as `kind = "jedi"` with no database, because it answers all the questions it can answer without a build, an index to keep fresh or an extra tool to decode the answer, and it was as accurate as `scip-python` on these five. It found as many uses of the first four questions as the configured `scip-python` and 4 of the 8 calls of `Model.question` against its 3. It costs nothing to name the command, since a call is a short script and the project's own sources are the only input. A `scip` kind remains the right one for a language that has no library like this, and for a team that already builds an index, but for Python its answer needs a reader and its index goes stale. The maintainer decides, on this evidence, and nothing was added to the hand-off in this slice.
+
 ## Questions for the maintainer
 
 - **VYD-Q28. Which extractor?** Leaning the general tree-sitter extractor above, with no compiler index until a question needs one.

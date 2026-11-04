@@ -38,6 +38,26 @@ mise run bench:symbols -- --config <configuration> [--out <folder>] [--questions
 
 It is not part of `mise run check`, since it needs the checkouts and the model and takes minutes.
 
+## Questions generated from `ast`
+
+`mechanical.py` scores `find --kind symbol` on questions it generates from Python's `ast`, so a corpus needs no questions written by hand. It reads the same tracked files the symbol store parsed, draws with a fixed seed (`--seed`, 20261104 by default) and only from symbols that have a docstring, and asks each question through `find.ranked`, the function `find` calls, so the figures are those of the default way.
+
+| Mode | Question | Answered when |
+|---|---|---|
+| `name` | the symbol's exact name | the symbol is among the results. `hit@1` is the first |
+| `meaning` | the first sentence of its docstring, with the words of its name removed together with their plural, past and `-ing` forms | the symbol is among the results |
+| `module` | the first sentence of a module docstring | a symbol or a chunk of documentation of that file is among the results |
+
+A sentence left with under three words is not used, and `--count` (300 by default) is the most questions of each mode, so a project with fewer documented symbols or modules is asked fewer. The word removal is mechanical and leaves other words of the doc that only the symbol would use, so `meaning` is a stand-in for a question that does not share the name, not a measure of one. A name that several symbols share has no one symbol to find, so `name` also prints the share of questions whose first result bears the name.
+
+The report gives the size of each corpus in files, symbols and chunks, the cold parse and embedding time and bytes, `hit@1`, `hit@5` and `MRR` over the five places `find` shows, and the time of a query with the model loaded (mean, median and 95th percentile, mostly the question's embedding). It then counts the hits by kind of symbol, by a test file or not, by a name shared with another symbol, by a first sentence shared with another, and by a private name. Last it draws questions again from symbols outside test files alone and asks them of the full index and of an index built without test files (`test` or `tests` folders, `test_*.py`, `*_test.py` and `conftest.py`), and prints how many of the five places test files took.
+
+```bash
+mise run bench:mechanical -- --config <configuration> [--out <folder>] [--only <project> ...] [--seed N] [--count N]
+```
+
+It scores each project of the configuration that declares Python symbols and writes `mechanical.json` under `--out`, with every question, its place and its results. It is not part of `mise run check`, and `tests/test_mechanical.py` holds the tests of the generator.
+
 ## An example configuration
 
 ```toml

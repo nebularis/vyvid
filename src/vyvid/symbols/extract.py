@@ -74,8 +74,11 @@ def py_doc(src: bytes, node) -> str:
     body = node.child_by_field_name("body")
     if body is not None and body.named_children:
         first = body.named_children[0]
-        if first.type == "expression_statement" and first.named_children and first.named_children[0].type == "string":
-            return "".join(txt(src, c) for c in first.named_children[0].children if c.type == "string_content")
+        if first.type == "expression_statement" and first.named_children:
+            literal = first.named_children[0]
+            parts = [literal] if literal.type == "string" else [c for c in literal.named_children if c.type == "string"] if literal.type == "concatenated_string" else []
+            if not any(set(txt(src, p.children[0]).lower()) & set("fbt") for p in parts):  # an f-string or bytes literal is no __doc__
+                return "".join(txt(src, c) for p in parts for c in p.children if c.type == "string_content")
     return ""
 
 
@@ -92,7 +95,8 @@ def py_symbol(src: bytes, kind: str, name: str, node) -> dict:
     if kind == "constant":
         sig, doc = clip(txt(src, node), 120), ""
     elif body is not None:
-        sig = clip(src[node.start_byte:body.start_byte].decode("utf-8", "replace").rstrip().rstrip(":"), SIG_LIMIT)
+        colon = next(c for c in node.children if c.type == ":")  # the block starts after any comment that follows the colon
+        sig = clip(text_without(src, node, colon.start_byte).rstrip(), SIG_LIMIT)
         doc = py_doc(src, node)
     else:
         sig, doc = clip(txt(src, node), SIG_LIMIT), ""
@@ -394,7 +398,7 @@ def py_blocks(src: bytes) -> list[tuple[list[tuple[int, str]], bool]]:
     first = next((c for c in root.named_children if c.type != "comment"), None)
     if first is not None and first.type == "expression_statement" and first.named_children and first.named_children[0].type == "string":
         s = first.named_children[0]
-        body = re.match(r"^[rRuUbB]*(\"\"\"|'''|\"|')(.*)\1$", txt(src, s), re.S)
+        body = re.match(r"^[rRuU]*(\"\"\"|'''|\"|')(.*)\1$", txt(src, s), re.S)
         if body:
             out.append(([(s.start_point[0] + 1 + k, t) for k, t in enumerate(body.group(2).splitlines())], True))
     for c in root.children:
@@ -465,7 +469,7 @@ def docs(language: str, src: bytes) -> list[dict]:
             base = slug(heading) or f"L{start}"
             for k, window in enumerate(windows(lines), 1):
                 body = "\n".join(t.strip() for _, t in window).strip()
-                if len(body) < DOC_MIN or LICENCE.search(body):
+                if (len(body) < DOC_MIN and not (language == "python" and is_header and body)) or LICENCE.search(body):
                     continue
                 shown = [n for n, t in window if t.strip()]
                 out.append({"kind": "doc", "name": heading or ("module header" if is_header else "note"), "qual": base if k == 1 else f"{base}+{k}",

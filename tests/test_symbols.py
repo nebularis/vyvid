@@ -552,10 +552,10 @@ def test_haskell_documentation_is_split_at_headings_and_keeps_block_comments_and
 def test_python_documentation_is_the_docstring_and_the_comment_runs_of_three_lines(tmp_path, monkeypatch):
     config, project, _, out = built(tmp_path, monkeypatch, {"ledger.py": PYDOC})
     got = chunks(tmp_path, project, config)
-    assert sorted(got) == ["proj:ledger#L8", "proj:ledger#Posting-rules"]
+    assert sorted(got) == ["proj:ledger#L1", "proj:ledger#L8", "proj:ledger#Posting-rules"]  # the module docstring, however short
     assert got["proj:ledger#Posting-rules"]["doc"].startswith("Every entry is posted once") and got["proj:ledger#Posting-rules"]["line"] == 5
     assert got["proj:ledger#L8"]["doc"].startswith("Retries are bounded") and (got["proj:ledger#L8"]["line"], got["proj:ledger#L8"]["end_line"]) == (8, 10)
-    assert out.counts["symbols-docs"] == 2 and out.counts["symbols-symbols"] == 1
+    assert out.counts["symbols-docs"] == 3 and out.counts["symbols-symbols"] == 1
 
 
 def test_a_long_section_is_windowed_with_an_overlap_and_a_short_one_is_dropped():
@@ -576,11 +576,11 @@ def test_documentation_is_rebuilt_with_its_file_only_and_is_not_a_symbol(tmp_pat
     assert store.build(project, directory)[0]["unchanged"] == 2 and chunks(tmp_path, project, config).keys() == before.keys()
     put(code, "ledger.py", PYDOC.replace("Retries are bounded", "Retries stay bounded"))
     again = builder.build(config, project, model=Words())
-    assert again.counts["symbols-parsed"] == 1 and again.counts["symbols-docs"] == 2 and again.counts["symbols-embedded"] == 1
+    assert again.counts["symbols-parsed"] == 1 and again.counts["symbols-docs"] == 3 and again.counts["symbols-embedded"] == 1
     assert "Retries stay bounded" in chunks(tmp_path, project, config)["proj:ledger#L8"]["doc"]
     ids, _ = store.load_vectors(directory, config.embedding)
     docs, _ = store.load_vectors(directory, config.embedding, store.DOC_VECTORS)
-    assert len(ids) == 2 and len(docs) == 2
+    assert len(ids) == 2 and len(docs) == 3
     assert not any(r["name"] == "Posting rules" for r in rows(tmp_path, project, config, "WHERE kind != 'doc'"))
     db = store.connect(directory / store.DB)
     try:
@@ -660,4 +660,40 @@ def test_the_share_comes_from_the_question_then_the_project_then_the_configurati
     path.write_text('[framework]\ndoc_share = 0.25\n[[projects]]\nname = "p"\ncode = "' + tmp_path.as_posix() + '"\ndoc_share = 0.75\n', encoding="utf-8")
     config = load(path)
     assert config.doc_share == 0.25 and config.projects["p"].doc_share == 0.75
+
+
+def test_a_python_signature_stops_at_its_colon_and_a_docstring_is_what_python_says_it_is():
+    from vyvid.symbols import extract
+    source = b'''def a(x, y="#"):  # trailing
+    # first
+    """Doc of a."""
+
+def b(
+    x,  # why
+):
+    f"""Not a doc {1}."""
+
+def c():
+    b"""Not a doc."""
+
+def d():
+    "Joined " "up."
+
+class E:
+    # first
+    """Doc of E."""
+'''
+    _, found = extract.parse("python", source)
+    rows = {s["name"]: s for s in found}
+    assert rows["a"]["sig"] == 'def a(x, y="#")' and rows["a"]["doc"] == "Doc of a."
+    assert "why" not in rows["b"]["sig"] and rows["b"]["doc"] == ""
+    assert rows["c"]["doc"] == "" and rows["d"]["doc"] == "Joined up."
+    assert rows["E"]["sig"] == "class E" and rows["E"]["doc"] == "Doc of E."
+
+
+def test_a_short_python_module_docstring_is_a_chunk_and_a_short_comment_run_is_not():
+    from vyvid.symbols import extract
+    assert [d["doc"] for d in extract.docs("python", b'"""Reads the board."""\nx = 1\n')] == ["Reads the board."]
+    assert extract.docs("python", b"# a\n# b\n# c\nx = 1\n") == []
+    assert extract.docs("python", b'b"""Not a docstring."""\nx = 1\n') == []
 
