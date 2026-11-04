@@ -62,7 +62,7 @@ VISIBILITIES = ("public", "private")
 PROJECT_FILE = "vyvid.toml"
 PROJECT_REFUSED = ("code", "git", "remote", "trust", "match")
 PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
-                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index"}
+                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index", "doc_share"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -251,6 +251,7 @@ class Scope:
     checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
     identifiers: Scan = field(default_factory=Scan)  # projects only
     symbols: list[SymbolSpec] = field(default_factory=list)  # projects only: what to parse for symbols
+    doc_share: float | None = None  # projects only: its own share of places for documentation
     code_index: list[CodeIndex] = field(default_factory=list)  # projects only: the compiler indexes it registers
     private_docs: bool = False  # projects only: the documents folder lies outside the code folder and is not declared public
     docs_git: GitPolicy = field(default_factory=GitPolicy)  # projects only: commit and push of the private documents (``git.docs``)
@@ -304,6 +305,7 @@ class Config:
     set_aside: dict[str, list[str]] = field(default_factory=dict)  # domain -> why its manifest or a parent's was refused
     entries: dict[str, dict] = field(default_factory=dict)  # the user's [[projects]] entries as written, by name
     files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
+    doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -670,6 +672,16 @@ def _paths(values, bases, where, problems) -> list[Path]:
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
 
 
+def _share(value, default, where: str, problems: list[str]):
+    """A share of places, from 0 to 1. Anything else is a problem and leaves the default."""
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+        problems.append(f"{where}: doc_share is {value!r}, not a number from 0 to 1")
+        return default
+    return float(value)
+
+
 def _symbols(raw, bases, where: str, problems: list[str]) -> list[SymbolSpec]:
     """The ``[[project.symbols]]`` tables: a ``language`` this version parses and the ``paths`` to parse."""
     if raw is None:
@@ -990,7 +1002,7 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
         delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
         extractors=_extractors(p.get("extractors"), where, problems, own=True),
-        symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
+        doc_share=_share(p.get("doc_share"), None, where, problems), symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
         uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
         specialises={k: v for k, s in p.get("specialises", {}).items()
                      if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
@@ -1130,7 +1142,8 @@ def load(path: Path | None = None) -> Config:
         problems.append("[framework]: logs must be true or false")
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries)
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
+                    doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

@@ -338,13 +338,13 @@ def collapse(db: sqlite3.Connection, ranked: list[tuple[int, float]]) -> list[tu
     return out
 
 
-def combine(method: str, symbols: list[tuple[int, float]], docs: list[tuple[int, float]], limit: int) -> list[int]:
+def combine(method: str, symbols: list[tuple[int, float]], docs: list[tuple[int, float]], limit: int, share: float = 0.4) -> list[int]:
     """The rowids to show for ``limit`` places, symbols and documentation chunks being each a list of ``(rowid, cosine)``, best first.
 
     ``symbols`` and ``docs`` are one list each. ``mixed`` sorts both by cosine, ``capped`` does so with at most two fifths of the places going to
     documentation, ``fit`` puts symbols first and takes the places left to documentation, and ``split`` shows ``limit`` symbols, then
     three fifths of ``limit`` documentation chunks beyond them."""
-    cap = max(1, limit * 2 // 5)
+    cap = max(1, int(limit * share + 1e-9)) if share > 0 else 0
     if method == "symbols":
         return [i for i, _ in symbols[:limit]]
     if method == "docs":

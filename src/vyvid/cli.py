@@ -451,12 +451,14 @@ def _question(arguments, parser) -> int:
                                  activity=arguments.activity, quality=arguments.quality, tech=arguments.tech)
         except ValueError as error:
             parser.error(str(error))
+        if arguments.doc_share is not None and "Symbol" not in chosen[0]:
+            parser.error("--doc-share goes with --kind symbol, since it says how symbols and documentation share places")
         if "Symbol" in chosen[0]:
             if chosen[0] != {"Symbol"}:
                 parser.error("--kind symbol is asked alone, since symbols are ranked apart from the entries")
             from .symbols.find import find_symbols
 
-            return find_symbols(a, " ".join(arguments.words), arguments.limit)
+            return find_symbols(a, " ".join(arguments.words), arguments.limit, arguments.doc_share)
         return ask.find(a, " ".join(arguments.words), *chosen[:3], arguments.limit, chosen[3])
     if command == "read":
         return ask.read(a, arguments.argument)
@@ -482,6 +484,7 @@ def _questions(sub) -> None:
     for flag, (scheme, _) in ask.FACET_FLAGS.items():
         p.add_argument(f"--{flag}", default="", help=f"comma-separated values of the {scheme} facet, which raise matching entries and hide none")
     p.add_argument("--limit", type=int, default=8)
+    p.add_argument("--doc-share", type=_doc_share, default=None, help="with --kind symbol, the share of places documentation may take, from 0 to 1. Overrides doc_share in the configuration")
     for name, helptext in (
         ("exists", "does a term for this already exist in any ontology module of the stack"),
         ("node", "what one identifier is, and where to read it"),
@@ -497,6 +500,13 @@ def _questions(sub) -> None:
     p.add_argument("text", help="what was found, in a sentence")
     p.add_argument("extras", nargs="*", help="the entry it qualifies, and the path:line it was read from")
     asking("close", "close the gaps recorded against entries whose signpost is now written").add_argument("ids", nargs="+")
+
+
+def _doc_share(text: str) -> float:
+    value = float(text)
+    if not 0 <= value <= 1:
+        raise argparse.ArgumentTypeError(f"{text} is not from 0 to 1")
+    return value
 
 
 def main(argv: list[str] | None = None) -> int:

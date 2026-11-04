@@ -8,6 +8,7 @@ commit_trailers = ["Co-Authored-By: Your Agent <agent@example.com>"]
 # glue = "stop"
 # Set to false to write no log of the questions asked.
 # logs = false
+# doc_share = 0.4          # the most of `find --kind symbol`'s places documentation may take, 0 to 1. A project may set its own
 
 [general]
 rules = "kb:general/rules.md"

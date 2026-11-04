@@ -39,7 +39,15 @@ def vectors(a, name: str = store.VECTORS):
         return None
 
 
-def ranked(a, db: sqlite3.Connection, words: str, limit: int) -> tuple[list[dict], float, str]:
+def share_of(a, given: float | None) -> float:
+    """The share of places documentation may take: the question's own, then the project's, then the configuration's."""
+    if given is not None:
+        return given
+    own = a.project.doc_share if a.project is not None else None
+    return own if own is not None else a.config.doc_share
+
+
+def ranked(a, db: sqlite3.Connection, words: str, limit: int, share: float | None = None) -> tuple[list[dict], float, str]:
     """The best symbols for the words, the best meaning score (-1 where there are no vectors), and a note on what could not be used."""
     ranking, best, note = store.word_rank(db, words), -1.0, ""
     if (loaded := vectors(a)) is not None:
@@ -55,7 +63,7 @@ def ranked(a, db: sqlite3.Connection, words: str, limit: int) -> tuple[list[dict
     if METHOD != "symbols" and note == "" and (docs := vectors(a, store.DOC_VECTORS)) is not None and len(docs[0]):
         named = store.named_rank(db, words)
         scored = [(i, 1.0) for i in named] + [m for m in meaning if m[0] not in named]
-        order = store.combine(METHOD, scored, store.collapse(db, store.meaning_rank(*docs, a.model.question(words))), limit)
+        order = store.combine(METHOD, scored, store.collapse(db, store.meaning_rank(*docs, a.model.question(words))), limit, share_of(a, share))
     by_rowid = {r["rowid"]: r for r in store.rows(db, f"WHERE rowid IN ({','.join('?' * len(order))})", tuple(order))} if order else {}
     return [by_rowid[i] for i in order if i in by_rowid], best, note
 
@@ -67,7 +75,7 @@ def under(row: dict) -> str:
     return f"{row['signature']}" + (f"  -- {first}" if first else "")
 
 
-def find_symbols(a, words: str, limit: int) -> int:
+def find_symbols(a, words: str, limit: int, share: float | None = None) -> int:
     """The symbols that answer the words, in the table ``find`` prints for entries, with the signature and the first line of the doc under each row."""
     if a.project is None or not a.project.symbols:
         print("this project declares no symbols. Add a [[project.symbols]] table to its vyvid.toml, with a language and the paths to parse.")
@@ -80,7 +88,7 @@ def find_symbols(a, words: str, limit: int) -> int:
             print(f"NOTE: {problem}")
         return 0
     try:
-        found, best, note = ranked(a, db, words, limit)
+        found, best, note = ranked(a, db, words, limit, share)
     finally:
         db.close()
     for problem in problems:
