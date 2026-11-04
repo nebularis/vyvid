@@ -46,6 +46,7 @@ from . import extractors
 from .credentials import credential_problems, host_of, private_dir, private_file, remote_problem
 from .embed import ModelSpec
 from .patterns import SECONDS as PATTERN_SECONDS, Pattern
+from .symbols import LANGUAGES
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
@@ -61,7 +62,7 @@ VISIBILITIES = ("public", "private")
 PROJECT_FILE = "vyvid.toml"
 PROJECT_REFUSED = ("code", "git", "remote", "trust", "match")
 PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
-                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers"}
+                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -168,6 +169,25 @@ class Scan:
 
 
 @dataclass(frozen=True)
+class SymbolSpec:
+    """A language and the tracked files of a project to parse for symbols, as globs under its code folder."""
+
+    language: str
+    paths: tuple[Path, ...]
+
+
+@dataclass(frozen=True)
+class CodeIndex:
+    """A compiler index a person or a pipeline builds and Вивід never runs: its kind, the database, the text of the
+    command that builds it, and the sources it indexes. Only the kind and the database are required."""
+
+    kind: str
+    database: Path
+    built_by: str = ""
+    sources: Path | None = None
+
+
+@dataclass(frozen=True)
 class Recipe:
     """A named chain of steps that narrows an answer to the work, declared by a domain or a project.
     Each step is a table with a ``step`` key, its values checked at load. The budget is in tokens."""
@@ -230,6 +250,8 @@ class Scope:
     specialises: dict[str, Path] = field(default_factory=dict)
     checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
     identifiers: Scan = field(default_factory=Scan)  # projects only
+    symbols: list[SymbolSpec] = field(default_factory=list)  # projects only: what to parse for symbols
+    code_index: list[CodeIndex] = field(default_factory=list)  # projects only: the compiler indexes it registers
     file: Path | None = None  # projects only: the vyvid.toml this project was declared in, if any
     file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
     dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
@@ -521,6 +543,11 @@ def leaving(manifest: dict, root: Path, tokens: dict[str, Path] | None = None, p
             check(f"specialises.{domain}", value)
         for item in manifest.get("moves") if isinstance(manifest.get("moves"), list) else []:
             check("moves.source", item.get("source") if isinstance(item, dict) else None)
+        for item in manifest.get("symbols") if isinstance(manifest.get("symbols"), list) else []:
+            check("symbols.paths", item.get("paths") if isinstance(item, dict) else None)
+        for item in manifest.get("code_index") if isinstance(manifest.get("code_index"), list) else []:
+            for key in ("database", "sources"):
+                check(f"code_index.{key}", item.get(key) if isinstance(item, dict) else None)
     return found
 
 
@@ -639,6 +666,49 @@ def _visibility(raw: dict, default: str, where: str, problems: list[str]) -> str
 def _paths(values, bases, where, problems) -> list[Path]:
     values = [values] if isinstance(values, str) else (values or [])
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
+
+
+def _symbols(raw, bases, where: str, problems: list[str]) -> list[SymbolSpec]:
+    """The ``[[project.symbols]]`` tables: a ``language`` this version parses and the ``paths`` to parse."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(r, dict) for r in raw):
+        problems.append(f"{where}: symbols must be an array of tables")
+        return []
+    out = []
+    for item in raw:
+        language, paths = item.get("language"), item.get("paths")
+        if unknown := sorted(set(item) - {"language", "paths"}):
+            problems.append(f"{where}: symbols has unknown keys {', '.join(unknown)}")
+        elif language not in LANGUAGES:
+            problems.append(f"{where}: symbols needs a language of {', '.join(LANGUAGES)}, not '{language}'")
+        elif not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
+            problems.append(f"{where}: symbols of {language} needs paths, a list of globs")
+        else:
+            out.append(SymbolSpec(language, tuple(_paths(paths, bases, where, problems))))
+    return out
+
+
+def _code_index(raw, bases, where: str, problems: list[str]) -> list[CodeIndex]:
+    """The ``[[project.code_index]]`` tables. The kind may be one this version knows nothing of, which ``handoff`` says."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(r, dict) for r in raw):
+        problems.append(f"{where}: code_index must be an array of tables")
+        return []
+    out = []
+    for item in raw:
+        kind, database, built_by, sources = item.get("kind"), item.get("database"), item.get("built_by", ""), item.get("sources")
+        if unknown := sorted(set(item) - {"kind", "database", "built_by", "sources"}):
+            problems.append(f"{where}: code_index has unknown keys {', '.join(unknown)}")
+        elif not isinstance(kind, str) or not NAME_RE.match(kind) or not isinstance(database, str) or not isinstance(built_by, str) \
+                or not (sources is None or isinstance(sources, str)):
+            problems.append(f"{where}: code_index needs a lower-case kind and a database path, and takes built_by and sources as strings")
+        else:
+            there, read = _paths(database, bases, where, problems), _paths(sources, bases, where, problems)
+            if there:
+                out.append(CodeIndex(kind, there[0], " ".join(built_by.split()), read[0] if read else None))
+    return out
 
 
 def _extractors(raw, where, problems, own=False) -> list[dict]:
@@ -903,6 +973,7 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
         delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
         extractors=_extractors(p.get("extractors"), where, problems, own=True),
+        symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
         uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
         specialises={k: v for k, s in p.get("specialises", {}).items()
                      if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},

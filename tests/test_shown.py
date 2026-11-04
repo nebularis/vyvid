@@ -73,7 +73,7 @@ def test_exclude_keeps_such_a_type_out_as_it_keeps_terms_out(world):
     assert "Slice" not in kinds and "Term" not in kinds and "Standard" not in kinds and "Question" in kinds
     assert ask.filters(a, kind="slice")[0] == {"Slice"}
     assert ask.filters(a, kind="slice,term", exclude="slice")[0] == {"Term"}
-    assert ask.asked_for(a) == {"Term", "Slice"}
+    assert ask.asked_for(a) == {"Term", "Symbol", "Slice"}
 
 
 def test_find_shows_a_named_slice_first_and_no_slice_otherwise(world, capsys):

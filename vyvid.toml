@@ -30,6 +30,10 @@ VYDQ = { pattern = 'VYD-Q\d+', defined = ["docs:developer/plans", "docs:develope
 [project.identifiers]
 exceptions = "docs:developer/identifier-exceptions.txt"
 
+[[project.symbols]]
+language = "python"
+paths = ["code:src/**/*.py", "code:tests/*.py", "code:tools/*.py", "code:benchmark/**/*.py"]
+
 [[project.recipes]]
 name = "configuration-change"
 description = "When changing how a configuration, a vyvid.toml, trust, binding or a scope's rules are read or checked"

@@ -475,7 +475,7 @@ class Asker:
 
     def kinds(self) -> dict[str, str]:
         """The kinds a question may name, from the register types the stack declares, and terms."""
-        return {**self.types.types, "term": "Term"}
+        return {**self.types.types, "term": "Term", "symbol": "Symbol"}
 
     def values(self, name: str) -> dict[str, str]:
         return self.types.values.get(name, {})
@@ -624,8 +624,8 @@ def phase_matches(a: Asker, given: set[str]) -> set[str]:
 
 
 def asked_for(a: Asker) -> set[str]:
-    """The classes find shows only when asked for: terms, and the types the stack declares ``shown = "asked"``."""
-    return {"Term"} | a.types.asked
+    """The classes find shows only when asked for: terms, symbols, and the types the stack declares ``shown = "asked"``."""
+    return {"Term", "Symbol"} | a.types.asked
 
 
 def without(a: Asker, kinds: set[str], excluded: set[str]) -> set[str]:
@@ -836,6 +836,7 @@ def find(
         print(f"no entry has the facets asked for: {words}")
         print("Widen or drop a filter, or try other words.")
         print(FALLBACK)
+        _symbol_hint(a, words)
         return 0
     private = private_note(a)
     for r in rows:
@@ -844,7 +845,16 @@ def find(
         r["data"] = data_note(a, r["scope"], r["claim"], r.get("section"))
         r["flags"] = flags(r)
     _show_found(a, rows, facets, best)
+    _symbol_hint(a, words)
     return 0
+
+
+def _symbol_hint(a: Asker, words: str) -> None:
+    """One line saying that ``--kind symbol`` has answers, where the project's symbols match the words strongly."""
+    if a.project is not None and a.project.symbols:
+        from .symbols import find as symbol_find
+
+        symbol_find.hint(a, words)
 
 
 def data_note(a: Asker, scope: str, *texts: str | None) -> str:
@@ -896,7 +906,8 @@ def rank(
     named = frozenset(normalise(word) for word in words.split())
     rows = candidates(a, kinds, phases, audiences, named)
     nodes, vectors = embed.load(a.directory, a.config.embedding)
-    question = (model or a.model or embed.Model(a.config.embedding)).question(words)
+    a.model = model or a.model or embed.Model(a.config.embedding)
+    question = a.model.question(words)
     index = {n: i for i, n in enumerate(nodes)}
     sections: dict[str, list[dict]] = {}
     for section in a.rows(SECTIONS):
@@ -994,6 +1005,11 @@ def read(a: Asker, identifier: str) -> int:
 
     A pointer naming the whole of a long file is refused, since it hands the reader a register or a
     document and not the entry, and the fields above stand in for it."""
+    if a.project is not None and a.project.symbols:
+        from .symbols import find as symbol_find
+
+        if (done := symbol_find.read_symbol(a, identifier)) is not None:
+            return done
     named = canonical_of(a, identifier)
     pieces = []
     if named:

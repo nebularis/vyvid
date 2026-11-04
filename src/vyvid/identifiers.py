@@ -39,9 +39,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .build import store_dir
 from .config import Config, Family, Scope
 from .model import normalise
 from .resolve import definition_sites, forget, moved, visible_families
+from .symbols import store as symbol_store
 
 Site = tuple[Path, int]
 # The scope a mention is qualified with, written directly before it. One that nothing configures names an entry of no scope here.
@@ -134,6 +136,28 @@ def mentions(config: Config, project: Scope, paths: list[Path]) -> dict[tuple[st
                     if match.group(0) not in claimed and not any(a <= match.start() and match.end() <= b for a, b in spans) \
                             and not QUALIFIER.search(line[: match.start()]) and add(project, family, match.group(0), path, number):
                         claimed.add(match.group(0))
+    return found
+
+
+def gone_symbols(config: Config, project: Scope, paths: list[Path]) -> list[tuple[str, Path, int]] | None:
+    """The mentions of ``package:Module.name`` in the files that the project's symbol store no longer holds, as the identifier, file and line.
+    None where the project builds no symbols or none are built yet. A package the store holds no symbol of cannot be told from a scope, so it is not matched."""
+    path = store_dir(config, project) / symbol_store.DB
+    if not project.symbols or not path.is_file():
+        return None
+    db = symbol_store.connect(path)
+    try:
+        held = {r[0] for r in db.execute("SELECT id FROM symbols")}
+        packages = sorted({r[0] for r in db.execute("SELECT DISTINCT package FROM symbols")}, key=len, reverse=True)
+    finally:
+        db.close()
+    if not packages:
+        return []
+    form = re.compile(r"(?<![\w-])(?:" + "|".join(map(re.escape, packages)) + r"):[A-Za-z_][\w']*(?:\.[\w']+)+")
+    found = []
+    for file in paths:
+        for number, line in enumerate(file.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            found += [(m.group(0), file, number) for m in form.finditer(line) if m.group(0) not in held]
     return found
 
 
@@ -250,8 +274,10 @@ def command(config: Config, project: Scope | None, as_json: bool, everything: bo
     roots = [r for r in (project.code, project.docs) if r is not None]
     settled = [(f, sites, [committed_on(p, n) for p, n, _ in sites]) for f, sites in findings.duplicated]
     failed = bool(findings.unresolved or settled or slow)
+    gone = gone_symbols(config, project, paths)
     if as_json:
-        print(json.dumps(_json(findings, settled, slow, roots, len(paths), project), indent=2))
+        print(json.dumps({**_json(findings, settled, slow, roots, len(paths), project),
+                          **({} if gone is None else {"symbols_gone": [{"identifier": i, "path": _name(p, roots), "line": n} for i, p, n in gone]})}, indent=2))
         return int(failed)
     for mention, why in findings.unresolved:
         print(f"ERROR: {_label(mention, project, sorted(mention.spellings)[0])} ({mention.family.name}) is {why}: {_where(mention.sites, roots)}")
@@ -268,11 +294,14 @@ def command(config: Config, project: Scope | None, as_json: bool, everything: bo
             print(f"variant: {', '.join(s for s in sorted(mention.spellings) if s != canonical)} -> {canonical} ({mention.family.name}): {_where(mention.sites, roots)}")
         for mention in findings.removable:
             print(f"removable: {_label(mention, project, sorted(mention.spellings)[0])} ({mention.family.name}) is no longer defined: {_where(mention.sites, roots)}")
+    for identifier, path, number in gone or []:
+        print(f"symbol gone: {identifier} is in no file the symbol store holds: {_name(path, roots)}:{number}")
     for path, number, entry in findings.stale:
         print(f"stale: {entry} ({_name(path, roots)}:{number}) is excused and nothing needs it")
     print(f"{'identifier check failed' if failed else 'identifier check passed'}: {len(found)} identifiers mentioned in {len(paths)} files, "
           f"{len(findings.unresolved)} unresolved, {len(settled)} defined twice, {len(findings.variants)} written under another spelling, "
-          f"{len(findings.removable)} removable no longer defined, {len(findings.stale)} stale exceptions" + ("" if everything else " (--all lists them)"))
+          f"{len(findings.removable)} removable no longer defined, {len(findings.stale)} stale exceptions"
+          + ("" if gone is None else f", {len(gone)} symbols gone") + ("" if everything else " (--all lists them)"))
     return int(failed)
 
 

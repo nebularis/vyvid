@@ -26,7 +26,7 @@
 | VYD-6f | trust and held updates | built 2026-11-04 | |
 | VYD-6g | identifiers, slices and units | built 2026-11-04 | |
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
-| VYD-8 | the Tools and Haskell domains | building 2026-11-04 | |
+| VYD-8 | the Tools and Haskell domains | built 2026-11-04 | |
 | VYD-9 | a project with private docs | planned | VYD-6 |
 | VYD-10 | private rules as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
@@ -65,3 +65,4 @@
 - 2026-11-04. VYD-0b built: the [symbol indexing research](../plans/symbol-indexing.md) recommends a general tree-sitter extractor, since parsing runs nothing from a clone and every compiler index needs a build, which does. It matched `ast` by name on 8,884 Python symbols and a hand count on 240 Haskell symbols. VYD-Q28 and VYD-Q29 wait for the maintainer.
 - 2026-11-04. VYD-8's Tools half built: `vyd domain new`, the note register type, a `vyvid.toml` naming a domain nobody here configured no longer sets its project aside, and the `vyvid-tools` domain with eight notes, each from a run on this machine, not from memory. This repository specialises it in `docs/developer/tools.md`. The condition on LATTICE's own row waits for its switch, and the Haskell half waits for the decisions the symbol indexing research raised.
 - 2026-11-04. The [code intelligence sketch](../sketches/code-intelligence.md) records an experiment on `distributed-process-client-server` with `hiedb`, which answers across packages exactly, and the maintainer's decisions from it: Вивід tells the agent about a tool and never calls one, code symbols stay out of the graph, and definitions are not imported for now. VYD-Q33 and VYD-Q34 wait, and so does VYD-8's Haskell half.
+- 2026-11-04. VYD-8 built: symbols from tree-sitter in a SQLite store per checkout, `find --kind symbol`, `vyd handoff` with templates of our own and a guard for each silent failure, and the `vyvid-haskell` domain of measured findings. No symbol enters the graph, and the bake-off is unchanged. By measurement every symbol is embedded with its doc first, at 6.18 MB and 29.6 s for 3,415 symbols, on 16 questions in two languages. All 7 Python questions were answered, and 5 of 9 Haskell questions lost every expected symbol from the top five. The handoff's silent failures were each shown firing, and an untrusted file now gets neither a database opened nor a command printed. The condition on LATTICE's own row waits for its switch.

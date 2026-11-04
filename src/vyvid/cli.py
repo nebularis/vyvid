@@ -16,8 +16,10 @@
     at a terminal to confirm
 ``vyd build [folder] [--all] [--no-embed]``
     build the knowledge index for the folder's project stack, or for every scope, and print what it
-    found and every problem
-``vyd find <words> | read <id> | node <id> | reaches <id> | exists <text> | sparql <query>``
+    found and every problem. A project that declares symbols has them parsed too, into a store of their own
+``vyd handoff <name> [--module M] [--unit U] [--in folder]``
+    the exact commands for the compiler index the folder's project registers, which are printed and never run
+``vyd find <words> [--kind symbol] | read <id> | node <id> | reaches <id> | exists <text> | sparql <query>``
     ask the index of the folder's stack a question, rebuilding it first when a file it reads changed
 ``vyd misses | gap <text> | close <id>``
     the questions the index answered weakly, the gaps found by reading, and closing them
@@ -59,7 +61,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, citations, identifiers, install, kb, moves, newdomain, recipes
+from . import __version__, ask, audit, citations, handoff, identifiers, install, kb, moves, newdomain, recipes
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -112,6 +114,9 @@ def _layer(config, scope) -> dict:
         out["code"] = str(scope.code)
         out["docs"] = str(scope.docs)
         out["specialises"] = {d: {"path": str(p), "exists": p.exists()} for d, p in scope.specialises.items()}
+        out["symbols"] = [{"language": x.language, "paths": [str(p) for p in x.paths]} for x in scope.symbols]
+        out["code_index"] = [{"kind": handoff.clean(i.kind), "database": str(i.database), "exists": i.database.is_file(), "sources": str(i.sources) if i.sources else None,
+                              "built_by": None if withheld else (handoff.clean(i.built_by) or None), "known": i.kind in handoff.KNOWN} for i in scope.code_index]
     return out
 
 
@@ -157,6 +162,12 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
                 print(f"      {key} = {value}   ({run['sources'][key]})")
         for domain, item in layer.get("specialises", {}).items():
             print(f"   specialises {domain} in {item['path']}" + ("" if item["exists"] else "   (missing)"))
+        for item in layer.get("symbols", []):
+            print(f"   symbols of {item['language']} parsed from {', '.join(item['paths'])}")
+        for item in layer.get("code_index", []):
+            built = ", built_by withheld" if "withheld" in layer else (f", built by {item['built_by']}" if item["built_by"] else "")
+            print(f"   code index {item['kind']}: {item['database']}" + ("" if item["exists"] else " (missing)") + built
+                  + (". vyd handoff <name> prints its commands and runs none" if item["known"] else ", a kind vyd knows no commands for"))
     return 0
 
 
@@ -264,7 +275,8 @@ def trust_command(path: Path | None) -> int:
                 print(f"  {problem}", file=sys.stderr)
             return 1
         lines = [*configuration.declared([scope]), *(f"project {scope.name}, contract: {p}" for p in scope.rules),
-                 *(f"project {scope.name}, skills: {p}" for p in scope.skills)]
+                 *(f"project {scope.name}, skills: {p}" for p in scope.skills),
+                 *(f"project {scope.name}, code index {handoff.clean(i.kind)}, shown to agents as text and never run, built by: {handoff.clean(i.built_by)}" for i in scope.code_index if i.built_by)]
     else:
         lines = configuration.declared(config.projects.values())
     says = ("these, which an agent reads or which run with your privileges:", "no glue, no command extractor, no contract and no skills.") if file else \
@@ -422,6 +434,12 @@ def _question(arguments, parser) -> int:
                                  activity=arguments.activity, quality=arguments.quality, tech=arguments.tech)
         except ValueError as error:
             parser.error(str(error))
+        if "Symbol" in chosen[0]:
+            if chosen[0] != {"Symbol"}:
+                parser.error("--kind symbol is asked alone, since symbols are ranked apart from the entries")
+            from .symbols.find import find_symbols
+
+            return find_symbols(a, " ".join(arguments.words), arguments.limit)
         return ask.find(a, " ".join(arguments.words), *chosen[:3], arguments.limit, chosen[3])
     if command == "read":
         return ask.read(a, arguments.argument)
@@ -440,7 +458,7 @@ def _questions(sub) -> None:
 
     p = asking("find", "entries ranked by how close their meaning is to your words")
     p.add_argument("words", nargs="+")
-    p.add_argument("--kind", default="", help="comma-separated kinds the stack declares. Declared ontology terms are searched only when term is named")
+    p.add_argument("--kind", default="", help="comma-separated kinds the stack declares. Declared ontology terms are searched only when term is named, and the project's symbols only when symbol is, alone")
     p.add_argument("--exclude", default="", help="comma-separated kinds to leave out and keep every other, such as question")
     p.add_argument("--phase", default="", help="comma-separated phases")
     p.add_argument("--audience", default="", help="comma-separated audiences")
@@ -530,6 +548,11 @@ def main(argv: list[str] | None = None) -> int:
     p = d.add_parser("review-path", help="where the review of a domain at a commit is recorded")
     p.add_argument("domain")
     p.add_argument("commit")
+    p = sub.add_parser("handoff", help="the exact commands for the code index a project registers, printed and never run")
+    p.add_argument("name", help="a name to find the definition and references of, or a module the index holds, for what it calls")
+    p.add_argument("--module", help="the module the name is defined in, or a module to list the calls of")
+    p.add_argument("--unit", help="with a module, keep what it calls to the units whose name starts with this")
+    p.add_argument("--in", dest="folder", default=".", help="the folder whose project's code index is used")
     i = sub.add_parser("install", help="write a client's user-level rule file and one skill per configured domain")
     i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
@@ -579,6 +602,11 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError as error:
                 parser.error(str(error))
             return 0
+        if arguments.command == "handoff":
+            from .build import store_dir
+
+            config, project = bind_in(load(), Path(arguments.folder))
+            return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
         if arguments.command == "install":
             return install.install(load(), arguments.client, arguments.target, arguments.dry_run)
         if arguments.command in QUESTIONS:

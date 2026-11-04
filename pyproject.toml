@@ -8,7 +8,8 @@ requires-python = ">=3.11"
 dependencies = ["platformdirs>=4,<5", "numpy>=1.24,<3", "onnxruntime>=1.20,<2", "tokenizers>=0.20,<1", "pyoxigraph==0.5.13", "regex==2026.9.29"]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+symbols = ["tree-sitter==0.26.0", "tree-sitter-python==0.25.0", "tree-sitter-haskell==0.24.1", "tree-sitter-java==0.23.5", "tree-sitter-typescript==0.23.2"]
+test = ["pytest>=8", "vyvid[symbols]"]
 
 [project.scripts]
 vyd = "vyvid.cli:main"

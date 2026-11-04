@@ -33,6 +33,7 @@ from .extract import Context, Extract, dangling, decisions, discoveries, questio
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
 from .citations import domain_citations
 from .resolve import forget, layers
+from .symbols import store as symbol_store
 
 # The text of every node with a claim: an entry by its name, claim, problem shape and the case it does
 # not cover, and a decision's section by its own. An extractor gives the text of its own nodes.
@@ -197,6 +198,11 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         except vectors.Unavailable as error:
             out.problems.append(f"no embeddings, so nothing can be ranked by meaning: {error}")
             out.bump("embeddings-unavailable")
+    if project is not None and project.symbols:  # parsed apart from the graph, and incrementally
+        counts, problems = symbol_store.refresh(project, directory, config.embedding, embed, model, None if store_dir(config) == directory else store_dir(config))
+        out.problems += problems
+        for key, count in counts.items():
+            out.bump(f"symbols-{key}", count)
     if project is not None and project.checkout is not None:  # so `vyd store prune` can tell when it is gone
         (directory / ROOT_FILE).write_text(f"{project.checkout.resolve()}\n", encoding="utf-8", newline="\n")
     (directory / "built-from").write_text(f"{built_from}\n", encoding="utf-8", newline="\n")

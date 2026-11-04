@@ -26,6 +26,43 @@ How existing tools collect a codebase's symbols and index them, so that `--kind 
 
 **What would change this.** A need to answer "who calls this", "what re-exports this" or "all instances of this class", a grammar that proves unreliable, since parse errors were not measured, or retrieval that stays poor at scale. Instances filling the top five suggests the next cheap test, keeping an instance as a term but embedding no text for it.
 
+## Measured: what to embed
+
+Measured 2026-11-04 on an 8-core arm64 Mac with `benchmark/symbols`, which answers VYD-Q34. The corpora are the 108 Haskell files of `packages/*/src` in a public Haskell library (34,310 lines, 3,415 symbols, parsed in 0.48 s) and the 14 files of `tools/knowledge/*.py` in LATTICE (447 symbols, 0.12 s). The 16 questions were written before any was run, 3 of Python and 3 of Haskell from the research and 4 and 6 new. The new ones are in a developer's words, and some use a word in neither the name nor the doc of the symbol wanted, such as stopping a process for `kill`. A question counts as answered when an expected symbol is in the top five. MRR is over the top eight. Every way is embedded from nothing, so the time and bytes are cold ones.
+
+| Way | Python hit@5 | Python MRR | Haskell hit@5 | Haskell MRR | All hit@5 | All MRR | Embed, Haskell | Vectors, Haskell | Per query |
+|---|---|---|---|---|---|---|---|---|---|
+| word search alone | 1.000 | 0.857 | 0.111 | 0.051 | 0.500 | 0.404 | none | none | 0.4 ms |
+| vectors over every symbol | 1.000 | 0.857 | 0.333 | 0.310 | 0.625 | 0.549 | 29.5 s | 6.2 MB | 4.7 ms |
+| vectors over functions, types, classes and methods only | 1.000 | 0.857 | 0.333 | 0.236 | 0.625 | 0.508 | 20.3 s | 3.7 MB | 4.6 ms |
+| those, fused with word search | 1.000 | 0.929 | 0.444 | 0.226 | 0.688 | 0.533 | 20.3 s | 3.7 MB | 5.2 ms |
+| those, with the doc before the signature | 1.000 | 1.000 | 0.444 | 0.274 | 0.688 | 0.592 | 19.8 s | 3.7 MB | 4.6 ms |
+| those with the doc first, fused with word search | 1.000 | 1.000 | 0.444 | 0.226 | 0.688 | 0.565 | 19.8 s | 3.7 MB | 5.1 ms |
+| every symbol fused with word search | 1.000 | 0.929 | 0.444 | 0.189 | 0.688 | 0.512 | 29.5 s | 6.2 MB | 5.1 ms |
+| **vectors over every symbol, the doc before the signature** | 1.000 | 1.000 | 0.444 | 0.330 | 0.688 | 0.623 | 29.6 s | 6.2 MB | 4.7 ms |
+
+The per-query time is mostly embedding the question (about 4.5 ms). Fusion adds about 0.5 ms. Python had 7 questions and Haskell 9, so one question is 0.143 and 0.111 of its corpus and 0.063 of all. The same run twice gave the same figures.
+
+**Which questions each way loses** (no expected symbol in the top five). Every way answered all seven Python questions, so the losses are Haskell's alone.
+
+| Way | Loses |
+|---|---|
+| word search alone | the node of a process or port, wrapping a value without serialising, stopping a process, waiting with a time limit, being told when a process goes down, a channel for typed messages, starting a process remotely, sending by a registered name |
+| every symbol, and the kinds only | wrapping, stopping, waiting, the channel, starting remotely, sending by name |
+| the kinds fused, and every symbol fused | stopping, waiting, the channel, starting remotely, sending by name |
+| the kinds with the doc first | wrapping, stopping, the channel, starting remotely, sending by name |
+| every symbol with the doc first | wrapping, stopping, the channel, starting remotely, sending by name |
+
+**What leaving out instances, constructors and fields loses.** The question about the node of a process or port wants the field `processNodeId`. Every symbol ranks it first (reciprocal rank 1.00) and the kinds alone cannot return it, giving 0.33 for `nodeOf` third, or 0.50 with the doc first. That is the whole of the MRR gap in Haskell (0.310 against 0.236), and no hit@5 changed. The kinds saved 40% of the bytes and 31% of the time.
+
+**What the doc first gains.** With the doc before the signature MRR rose in both corpora and for both sets of kinds, from 0.857 to 1.000 in Python and from 0.236 to 0.274 and 0.310 to 0.330 in Haskell, and no hit@5 fell.
+
+**Fusion helped nothing that vectors had not.** Word search with reciprocal rank fusion never beat its vector-only twin on MRR, 0.592 against 0.565 and 0.549 against 0.512, and in Haskell it raised hit@5 of the two sets with the signature first from 0.333 to 0.444, which putting the doc first reached without it.
+
+**The default** is vectors over every symbol with the doc before the signature. It ties four other ways for the best hit@5 (0.688, 11 of 16) and has the best MRR (0.623), at 6.2 MB and 29.6 s on the Haskell. The kinds-only way with the doc first is a fair choice at 0.592 and 40% less, and the question it loses is a field. Hit@5 cannot tell the best five apart, since they differ by one question, so the MRR order is the only separation and it rests on 16 questions in two languages, written by us. Word search is used where there are no vectors, and a name written in the question as camelCase or snake_case is ranked first, which these questions did not test.
+
+**The one-line hint** under a plain `find` appears when the best symbol scores the model's `near` score (0.74) or more. The best scores of the 16 questions were 0.666 to 0.834 and 11 of them reached it, and 5 questions about nothing in the code scored 0.487 to 0.693 and none did.
+
 ## Questions for the maintainer
 
 - **VYD-Q28. Which extractor?** Leaning the general tree-sitter extractor above, with no compiler index until a question needs one.

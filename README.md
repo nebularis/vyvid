@@ -50,6 +50,9 @@ vyd store prune [--dry-run]            # remove the index stores of linked git w
 vyd install --client claude-code [--target folder] [--dry-run] # write the user-level rule file and one skill per domain
 vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change
 vyd domain audit <folder> [--json] [--allow <scope>] # list the links, files, paths, hidden text, commands and qualified mentions of other scopes in a domain you did not write, running nothing from it
+vyd find <words> --kind symbol [--in folder] # the project's functions, types and classes ranked by meaning, from source parsed apart from the graph. Needs vyvid[symbols]
+vyd read <package:Module.name>         # the source lines of a symbol, read inside the repository
+vyd handoff <name> [--module M] [--unit U] [--in folder] # the exact commands for the compiler index a project registers, printed and never run
 vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
 ```
 
@@ -78,6 +81,30 @@ A project that gave a family, or some rows of one, to a domain declares it with 
 `vyd check identifiers` reads the Markdown that `git ls-files` lists in the project's repository, never a folder walk, so an ignored folder is not read. A mention resolves on a normalised key, so another spelling of a defined identifier is a variant and is reported. A family with `removable = true` has its unresolved mentions reported and never failed. A family's `exceptions` file, or `identifiers.exceptions` for the project, lists identifiers mentioned and defined nowhere, one per line with a reason after `#`, and an entry nothing needs any longer is reported as stale. An identifier a family defines twice fails, and the line committed earlier keeps the number. A mention covered by a move resolves only if the domain defines it. A family with `defined_only = true` reads a bare match of its pattern as a mention only where its source defines the identifier, so a loose pattern does not read `UTF-8` as an entry. The exit code is 1 on an unresolved or twice-defined identifier and 0 otherwise, and `--json` prints everything found.
 
 A register type declared with `shown = "asked"` is left out of `find` unless `--kind` names it or the question names an entry by its identifier, as declared terms are. The packaged `slice` type is one, and reads a board of `Slice`, `Deliverable`, `State` and `Blocked on`.
+
+## Code
+
+A project asks for its source to be searched by declaring what to parse, in its entry or its `vyvid.toml`. The grammars are the optional extra `vyvid[symbols]` (`uv tool install "vyvid[symbols]"`), and without it `vyd` goes on and says so.
+
+```toml
+[[project.symbols]]
+language = "haskell"   # python, haskell, java or typescript
+paths = ["code:packages/*/src/**/*.hs"]
+```
+
+`vyd build` parses the files `git ls-files` lists, and only those whose content changed since the last build, into `symbols.sqlite` beside the index. Nothing in the clone runs, so symbols work before a `vyvid.toml` is trusted, and a symbol of an untrusted project is labelled as data like any other entry. No symbol enters the graph. `vyd find <words> --kind symbol` ranks every symbol by meaning, with a name written as camelCase or snake_case in the question first, and prints the identifier `package:Module.name`, its kind, module and `file:line`, with the signature and the first line of the doc beneath. Plain `find` shows no symbol and says in one line when some match strongly. A text may name a symbol by its identifier, and `vyd check identifiers` reports one that no longer exists without failing.
+
+Who calls a name is a question for a compiler's index, which Вивід does not build or run. A project registers the one it has, and `vyd handoff` prints the exact commands to ask it, after checking that its database exists and holds rows.
+
+```toml
+[[project.code_index]]
+kind = "hiedb"                       # the only kind with commands so far
+database = "code:.build/hie.db"
+built_by = "mise run build:index"    # shown as text, and withheld until the vyvid.toml is trusted
+sources = "code:packages/*/src"      # newer than the database means it may be stale
+```
+
+`vyd context` lists each registered index. The commands come from templates in Вивід, and the file supplies only a quoted path.
 
 A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only a project's entry in your own configuration, or a `vyvid.toml` you have trusted, declares one.
 

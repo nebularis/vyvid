@@ -138,15 +138,15 @@ def _cached(source: Path, spec: ModelSpec) -> dict[str, np.ndarray]:
         return dict(zip(previous["digests"].tolist(), previous["vectors"]))
 
 
-def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None, warm: Path | None = None) -> int:
-    """Write the vectors of every node's text into ``directory``, embedding only text not seen before.
+def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None, warm: Path | None = None, name: str = VECTORS) -> int:
+    """Write the vectors of every node's text into ``directory`` as ``name``, embedding only text not seen before.
     ``warm`` is another directory of vectors whose texts are reused too, so stores share one cache.
 
     Returns how many texts were embedded this time. Raises Unavailable, having removed any vectors,
     so a stale set is never ranked against a changed index."""
-    target = directory / VECTORS
+    target = directory / name
     digests = {node: hashlib.sha256(text.encode("utf-8")).hexdigest() for node, text in entries.items()}
-    cached = {**_cached(warm / VECTORS, spec), **_cached(target, spec)} if warm else _cached(target, spec)
+    cached = {**_cached(warm / name, spec), **_cached(target, spec)} if warm else _cached(target, spec)
     by_digest = {digests[node]: text for node, text in entries.items()}
     # A batch is padded to its longest text, so texts of a length are embedded together. Measured
     # on LATTICE, 2026-10-28: a cold build of 5,168 texts took 317 s in any other order, and 60 s in this one.
@@ -171,11 +171,11 @@ def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None,
     return len(todo)
 
 
-def load(directory: Path, spec: ModelSpec) -> tuple[list[str], np.ndarray]:
+def load(directory: Path, spec: ModelSpec, name: str = VECTORS) -> tuple[list[str], np.ndarray]:
     """The nodes and their vectors, or Unavailable if none were written or another model made them."""
-    target = directory / VECTORS
+    target = directory / name
     if not target.exists():
-        raise Unavailable(f"no {VECTORS} in {directory}. The build says why")
+        raise Unavailable(f"no {name} in {directory}. The build says why")
     with np.load(target) as saved:
         if str(saved["revision"]) != spec.revision:
             raise Unavailable("the vectors were made by another model revision. Rebuild the index")

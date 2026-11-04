@@ -131,7 +131,9 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
         facets=[move(p) for p in project.facets], register_types=[move(p) for p in project.register_types],
         vocabulary=[move(p) for p in project.vocabulary], specialises={k: move(p) for k, p in project.specialises.items()},
         families={k: family(f) for k, f in project.families.items()},
-        identifiers=replace(project.identifiers, exceptions=move(project.identifiers.exceptions)))
+        identifiers=replace(project.identifiers, exceptions=move(project.identifiers.exceptions)),
+        symbols=[replace(x, paths=tuple(move(p) for p in x.paths)) for x in project.symbols],
+        code_index=[replace(x, database=move(x.database), sources=move(x.sources)) for x in project.code_index])
     return replace(config, projects={**config.projects, project.name: moved})
 
 

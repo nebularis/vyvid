@@ -2,7 +2,7 @@
 
 # Sketch: code intelligence, in stores of its own
 
-**Status:** sketch, 2026-11-04, for the maintainer to settle. Nothing here is built.
+**Status:** sketch, 2026-11-04, settled by the maintainer. Symbols, the hand-off for `hiedb` and the measurement behind VYD-Q34 are built.
 **Unit:** vyvid-framework
 **Questions:** VYD-Q28 to VYD-Q34
 
@@ -102,4 +102,4 @@ Answered 2026-11-04:
 - **VYD-Q32.** A project may name other projects it reads, for their knowledge. Exact questions across repositories belong to the compiler index.
 
 - **VYD-Q33.** Symbols go in SQLite per checkout, and the graph holds only an identifier string.
-- **VYD-Q34.** Symbols are embedded, in principle. Which kinds is measured before it is settled, since embedding costs 5 MB and 30 s per repository like this one, and instances and fields crowded the top five in the research.
+- **VYD-Q34.** Every symbol is embedded, with the doc before the signature in the text, and word search ranks where there are no vectors. Measured 2026-11-04 on 16 questions in two corpora, this ties four other ways for the best hit@5, 11 of 16 (0.688), and has the best MRR, 0.623 against 0.549 with the signature first and 0.508 with instances, constructors and fields left out, at 6.2 MB and 29.6 s for 3,415 symbols. Leaving those kinds out saves 40% of the bytes and loses the one question whose answer is a field. Fusion with word search never beat vectors alone. The figures and the questions are in the [research](../plans/symbol-indexing.md) and `benchmark/symbols`.
