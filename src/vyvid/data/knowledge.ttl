@@ -58,6 +58,10 @@ ki:Backlog
     rdf:type owl:Class ; rdfs:subClassOf ki:Node ; rdfs:label "backlog" ;
     rdfs:comment "Something we want built that no plan owns yet, an idea or a sketch. Removable, like a debt. Earns its class from the query for what a thing under design depends on that is not built, and from the BL flag find shows beside an entry such an idea bears on." .
 
+ki:Note
+    rdf:type owl:Class ; rdfs:subClassOf ki:Node ; rdfs:label "note" ;
+    rdfs:comment "How to do something with a tool, found by running it. A domain holds the general note and a project may hold one that specialises it. Earns its class from the query for how to run a tool here, answered with the project's row first and the domain's beneath it." .
+
 ki:Discovery
     rdf:type owl:Class ; rdfs:subClassOf ki:Node ; rdfs:label "discovery" ;
     rdfs:comment "Something found out by probing, measuring or being surprised. Earns its class from the check that a principle has supporting evidence, which is a query for discoveries." .
@@ -498,3 +502,8 @@ ki:cadence
     rdf:type owl:ObjectProperty ; rdfs:domain ki:Capability ; rdfs:range ki:Cadence ;
     rdfs:label "cadence" ;
     rdfs:comment "Earns its place from the same query as ki:Cadence." .
+
+ki:tool
+    rdf:type owl:DatatypeProperty ; rdfs:domain ki:Note ; rdfs:range xsd:string ;
+    rdfs:label "tool" ;
+    rdfs:comment "The tool a note is about, as its users name it. Earns its place from the question 'how do I do this with that tool', where the name is the word a person asks with." .

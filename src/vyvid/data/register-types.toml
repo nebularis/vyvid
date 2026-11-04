@@ -72,6 +72,7 @@ continual = "Continual"
 "Idea" = { property = "claim", kind = "claim" }
 "Decision" = { property = "claim", kind = "claim" }
 "Question" = { property = "claim", kind = "claim" }
+"Tool" = { property = "tool", kind = "text" }
 "Name" = { property = "label", kind = "label" }
 "Pointer" = { property = "pointer", kind = "text" }
 "Problem shape" = { property = "problemShape", kind = "text" }
@@ -117,7 +118,7 @@ continual = "Continual"
 [unmapped]
 columns = [
   "Conf", "Cost of deferring", "Cost while it stays", "Likely home", "Next step",
-  "Options known", "Raised", "Reuse note", "Spotted", "Status", "What exists", "Why we want it",
+  "Evidence", "Options known", "Raised", "Reuse note", "Spotted", "Status", "What exists", "Why we want it",
 ]
 
 # A register type names the class its rows become and, by default, the status a row has when it
@@ -164,3 +165,8 @@ class = "Discovery"
 
 [types.question]
 class = "Question"
+
+# How to do something with a tool, in a domain or a project. A project's row of this type may name a
+# domain's row in Specialises.
+[types.note]
+class = "Note"

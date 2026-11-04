@@ -34,6 +34,8 @@
     A run that stops at a glue step exits 3, and ``vyd recipe run --resume <state> --glue-output <file>`` goes on
 ``vyd store prune [--dry-run]``
     remove the index stores of linked checkouts that no longer exist
+``vyd domain new <name> [--registers <type>] [--path <folder>]``
+    write a domain folder and print the lines to add to your configuration, which it leaves alone
 ``vyd domain audit <folder> [--json]`` and ``vyd domain review-path <domain> <commit>``
     the facts about a folder someone else wrote, read and never run, and where its review is recorded
 ``vyd install --client claude-code [--target folder] [--dry-run]``
@@ -57,7 +59,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, citations, identifiers, install, kb, moves, recipes
+from . import __version__, ask, audit, citations, identifiers, install, kb, moves, newdomain, recipes
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -83,6 +85,12 @@ def _set_aside(config) -> None:
         print(f"vyd: the project declared in {file} is set aside, so the folder gets the general scope", file=sys.stderr)
         for problem in why:
             print(f"  {problem}", file=sys.stderr)
+
+
+def _dropped(project) -> None:
+    """Say which domains a repository's vyvid.toml names that this user has not configured. It is a note, since a clone's reader will not have them."""
+    for name in project.dropped if project else []:
+        print(f"NOTE: domain {name} is named by {project.file.name} and is not configured here, so it is left out of the stack for this run", file=sys.stderr)
 
 
 def _layer(config, scope) -> dict:
@@ -111,6 +119,7 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     configured = load()
     config, project = bind_in(configured, folder)
     _set_aside(config)
+    _dropped(project)
     if pull:
         for result in kb.pull_due(config, layers(config, project)):
             if not result.ok:
@@ -278,6 +287,7 @@ def build_index(folder: Path, everything: bool, embed: bool) -> int:
     if not everything and project is None:
         print("no project claims this folder, so the general scope alone is built. Use --all for every scope")
     _set_aside(config)
+    _dropped(project)
     out = build(config, None if everything else project, embed=embed, scopes=None if everything or project else [config.general])
     for key in sorted(out.counts):
         print(f"  {key:<28} {out.counts[key]}")
@@ -508,7 +518,11 @@ def main(argv: list[str] | None = None) -> int:
     st = sub.add_parser("store", help="the index stores").add_subparsers(dest="store_command", required=True)
     st.add_parser("prune", help="remove the stores of linked checkouts that no longer exist").add_argument(
         "--dry-run", action="store_true", help="print what would be removed and remove nothing")
-    d = sub.add_parser("domain", help="facts about a domain folder someone else wrote").add_subparsers(dest="domain_command", required=True)
+    d = sub.add_parser("domain", help="make a domain folder, or report the facts about one someone else wrote").add_subparsers(dest="domain_command", required=True)
+    p = d.add_parser("new", help="write a domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration")
+    p.add_argument("name")
+    p.add_argument("--registers", default="note", metavar="TYPE", help="the register type of its first register, note by default")
+    p.add_argument("--path", type=Path, help="the folder to write, the knowledge base's domains/<name> by default")
     p = d.add_parser("audit", help="report links, file types, paths, patterns, hidden text and commands in a folder, and run nothing from it")
     p.add_argument("folder", type=Path)
     p.add_argument("--json", action="store_true")
@@ -556,6 +570,8 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "store":
             return store_command(arguments)
         if arguments.command == "domain":
+            if arguments.domain_command == "new":
+                return newdomain.new(arguments.name, arguments.registers, arguments.path)
             if arguments.domain_command == "audit":
                 return audit.command(arguments.folder, arguments.json, tuple(arguments.allow))
             try:

@@ -232,6 +232,7 @@ class Scope:
     identifiers: Scan = field(default_factory=Scan)  # projects only
     file: Path | None = None  # projects only: the vyvid.toml this project was declared in, if any
     file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
+    dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
 
     @property
     def standing(self) -> str:
@@ -942,7 +943,15 @@ def file_project(config: Config, path: Path, table: dict, code: Path, entry: dic
     if not isinstance(name, str) or not NAME_RE.match(name) or name == "general" or name in config.domains or name in config.set_aside:
         return None, [f"{path}: [project] needs a unique lower-case name, distinct from every domain and from general, not '{name}'"]
     problems: list[str] = []
+    # A contributor who clones the repository has not configured every domain it names, which is no reason to set the
+    # project aside. The user's own entry naming one stays an error, since the user can fix that.
+    named = table.get("domains") if isinstance(table.get("domains"), list) else []
+    dropped = [d for d in named if "domains" not in (entry or {}) and d not in config.domains and d not in config.set_aside]
+    if dropped:
+        table = {**table, "domains": [d for d in named if d not in dropped],
+                 **{k: {d: v for d, v in table[k].items() if d not in dropped} for k in ("specialises", "uses") if isinstance(table.get(k), dict)}}
     scope = _project({**table, **(entry or {}), "name": name, "code": str(code)}, name, code, config.kb, config.set_aside, problems)
+    scope.dropped = dropped
     scope.file, scope.file_keys = path, frozenset(k for k in table if k != "name" and k not in (entry or {}))
     if "families" in scope.file_keys:
         scope.families = {k: replace(f, root=path.parent) for k, f in scope.families.items()}

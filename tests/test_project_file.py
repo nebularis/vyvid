@@ -223,8 +223,7 @@ def test_a_bad_pattern_an_unknown_key_and_a_bad_name_are_problems(tmp_path):
              (BASE.replace("[project.families]", "mystery = 1\n\n[project.families]"), "unknown keys mystery"),
              (BASE.replace('name = "proj"', 'name = "general"'), "distinct from every domain and from general"),
              (BASE.replace('name = "proj"', 'name = "Bad Name"'), "needs a unique lower-case name"),
-             ("not toml = [", "does not parse"), ("[other]\nx = 1\n", "needs a [project] table"),
-             (BASE.replace("[project.families]", 'domains = ["nowhere"]\n\n[project.families]'), "domain 'nowhere' is not configured"))
+             ("not toml = [", "does not parse"), ("[other]\nx = 1\n", "needs a [project] table"))
     for n, (toml, said) in enumerate(cases):
         config = bound(repo(tmp_path, f"c{n}", toml))[0]
         assert any(said in p for why in config.files_aside.values() for p in why), (said, config.files_aside)

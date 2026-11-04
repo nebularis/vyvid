@@ -8,6 +8,8 @@ docs = "code:docs"
 contract = "docs:developer/contract.md"
 facets = ["docs:developer/facets.md"]
 register_types = ["docs:developer/register-types.toml"]
+domains = ["tools"]
+specialises = { tools = "docs:developer/tools.md" }
 
 [project.families]
 STD = { defined = "docs:developer/standards.md", type = "standard" }
@@ -17,6 +19,8 @@ CAP = { defined = "docs:developer/capabilities.md", type = "capability" }
 TD = { defined = "docs:developer/technical-debt.md", type = "debt", removable = true }
 PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-decision" }
 BL = { defined = "docs:developer/backlog.md", type = "backlog" }
+# A tool note of this repository, which may name a note of the Tools domain in Specialises.
+TOOL = { defined = "docs:developer/tools.md", type = "note" }
 SEC = { defined = "docs:developer/security.md", type = "security-finding" }
 # A slice is defined by its row in the index, and a bare match elsewhere is a mention only where the index defines it.
 VYD = { pattern = 'VYD-\d+[a-z]?', defined = "docs:developer/INDEX.md", type = "slice", defined_only = true }

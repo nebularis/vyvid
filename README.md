@@ -48,11 +48,14 @@ vyd kb accept <domain>                 # a person fast-forwards a domain whose p
 vyd trust [path]                       # a person trusts a configuration outside their own folder, or this repository's vyvid.toml, by its hash, so its glue and command extractors run
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install --client claude-code [--target folder] [--dry-run] # write the user-level rule file and one skill per domain
+vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change
 vyd domain audit <folder> [--json] [--allow <scope>] # list the links, files, paths, hidden text, commands and qualified mentions of other scopes in a domain you did not write, running nothing from it
 vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
 ```
 
 A domain gives knowledge alone unless its entry in your configuration says `trust = "own"`, or `trust = "reviewed"` with the `commit` you reviewed. A domain with a remote is knowledge by default and one with none is your own. A knowledge domain installs no rules or skills, its results are labelled as data, and a pull that changes its rules, skills or manifest is held until you run `vyd kb accept`. A configuration at a path other than your own, such as one named by `VYVID_CONFIG`, runs no glue and no command extractor until you run `vyd trust` in a terminal, and again after it changes.
+
+A project specialises a domain by keeping a register of the domain's register type in its own documents, such as a `note` register for the Tools domain, and by naming the domain's row in a row's `Specialises` column, qualified with the domain, as `tools:NOTE-1`. In a folder of the project `vyd find` ranks the project's row above the domain's and shows the domain's beneath it, and a row the project `Overrides` is shown only when its scope is named. A `vyvid.toml` that names a domain you have not configured does not set its project aside. `vyd context` and `vyd build` print a note, the domain is left out of the stack for that run, and a `Specialises` cell naming it stays unresolved. A project entry in your own configuration that names an unknown domain is still an error.
 
 A repository can declare its own project, with no entry in your configuration, in a `vyvid.toml` at its root. It holds what a `[[projects]]` entry holds, under `[project]`, and the repository's folder is the project's code folder.
 
