@@ -15,6 +15,7 @@ from vyvid import embed, extract, extractors, facets, registers
 from vyvid.extractors import owl
 from vyvid.config import ConfigError, load
 from vyvid.model import KI, index_graph, ki, node, normalise, term
+from vyvid.patterns import Pattern
 from vyvid.resolve import layers, mentions
 
 CONFIG = """
@@ -340,7 +341,7 @@ ID = r"[A-Z]{1,4}\d*[a-z]?-Q\d+"
 def test_a_question_is_read_from_its_lead_or_its_row():
     """Three lead forms and the table row plans use. A lead's paragraph runs to the next blank line,
     and a question is answered when its text says so, with the date that follows."""
-    found = {q.identifier: q for q in extract.questions_in(QUESTIONS, ID)}
+    found = {q.identifier: q for q in extract.questions_in(QUESTIONS, Pattern(ID))}
     assert sorted(found) == ["C3-Q1", "C6-Q1", "LG-Q1", "LG-Q7", "LG-Q8"], "a decision point is not a question"
     assert found["LG-Q1"].question == "Which word names an account?" and found["LG-Q1"].answer.startswith("Account")
     assert (found["C6-Q1"].start, found["C6-Q1"].end) == (5, 6) and found["C6-Q1"].answer.endswith("continued here.")

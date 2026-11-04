@@ -35,10 +35,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pyoxigraph as ox
+import regex
 
 from . import anchors, facets, registers
 from .config import Config, Family, Scope
 from .model import KI, RDF_TYPE, RDFS_LABEL, document, index_graph, ki, node, node_of, normalise, term
+from .patterns import Pattern
 from .registers import SEPARATOR_RE, shorten
 from .registers import _cells as table_cells
 from .resolve import Unresolved, mentions, resolve, visible_families
@@ -128,9 +130,9 @@ class Context:
         return [f for f in self.scope.families.values() if f.rule == rule]
 
 
-def head(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
+def head(pattern: Pattern, text: str):
     """The identifier a text opens with: the family's pattern at the start, not run into a longer word."""
-    return re.match(rf"(?:{pattern.pattern})(?!\w)", text)
+    return pattern.derive(lambda p: rf"(?:{p})(?!\w)").match(text)
 
 
 def status_of(line: str) -> str | None:
@@ -288,7 +290,7 @@ def decisions(ctx: Context) -> None:
     for family in ctx.families("file"):
         files = family.paths()
         defined = {normalise(m.group(0)) for p in files if (m := head(family.pattern, p.stem))}
-        title_re = re.compile(rf"^#\s+(?:{family.pattern.pattern})\s*[:.]\s*(?P<title>.+?)\s*$")
+        title_re = family.pattern.derive(lambda p: rf"^#\s+(?:{p})\s*[:.]\s*(?P<title>.+?)\s*$")
         for path in files:
             if not (match := head(family.pattern, path.stem)):
                 continue
@@ -390,7 +392,8 @@ def addendum_refs(ctx: Context, cell: str) -> list[tuple[str, str, str]]:
     ``Extract.addenda``: a decision of a ``file`` family and the day of its addendum."""
     refs = []
     for family in (f for f in visible_families(ctx.config, ctx.scope) if f.rule == "file"):
-        for m in re.finditer(rf"(?<![\w-])(?P<id>{family.pattern.pattern})\s+addendum\s+(?P<day>\d{{4}}-\d{{2}}-\d{{2}})", cell, re.I):
+        form = family.pattern.derive(lambda p: rf"(?<![\w-])(?P<id>{p})\s+addendum\s+(?P<day>\d{{4}}-\d{{2}}-\d{{2}})", regex.I)
+        for m in form.finditer(cell):
             refs.append((m.group("id"), m.group("day"), m.start()))
     return [(spelling, day) for spelling, day, _ in sorted(refs, key=lambda r: r[2])]
 
@@ -529,10 +532,10 @@ class Question:
 
 
 @functools.lru_cache(maxsize=None)
-def _question_forms(id_pattern: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
+def _question_forms(id_pattern: Pattern) -> tuple[Pattern, Pattern]:
     # ``**LG-Q7. A question?**``, ``- **C6-Q1. A question.** text`` and ``- **C3-Q1.** text``.
-    lead = re.compile(rf"^\s*(?:[-*]\s+|\d+\.\s+)?\*\*(?P<id>{id_pattern})(?:[.:](?P<inside>[^*]*))?\*\*\s*(?P<after>.*)$")
-    row = re.compile(rf"^\|\s*(?:\*\*)?(?P<id>{id_pattern})(?:\*\*)?\s*\|(?P<rest>.*)$")
+    lead = id_pattern.derive(lambda p: rf"^\s*(?:[-*]\s+|\d+\.\s+)?\*\*(?P<id>{p})(?:[.:](?P<inside>[^*]*))?\*\*\s*(?P<after>.*)$")
+    row = id_pattern.derive(lambda p: rf"^\|\s*(?:\*\*)?(?P<id>{p})(?:\*\*)?\s*\|(?P<rest>.*)$")
     return lead, row
 
 
@@ -542,7 +545,7 @@ def _sentence(text: str) -> tuple[str, str]:
     return (match.group(1), text[match.end():]) if match else (text, "")
 
 
-def questions_in(lines: list[str], id_pattern: str) -> list[Question]:
+def questions_in(lines: list[str], id_pattern: Pattern) -> list[Question]:
     """Every question a document raises by a bold lead or a table row, in order.
 
     A lead's paragraph runs to the next blank line or the next lead. A row is its own line, its
@@ -593,7 +596,7 @@ def questions(ctx: Context, today: dt.date | None = None) -> None:
         seen: set[str] = set()
         for path in family.paths():
             rel = ctx.rel(path)
-            for q in questions_in(path.read_text(encoding="utf-8", errors="replace").splitlines(), family.pattern.pattern):
+            for q in questions_in(path.read_text(encoding="utf-8", errors="replace").splitlines(), family.pattern):
                 key = normalise(q.identifier)
                 if key in seen:
                     out.bump("question-defined-again")

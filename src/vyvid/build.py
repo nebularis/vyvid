@@ -24,7 +24,7 @@ import pyoxigraph as ox
 
 from . import embed as vectors
 from . import extractors, facets, registers
-from .config import Config, Scope, extractor_runs
+from .config import Config, Scope, extractor_runs, refusals, timeouts
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
 from .resolve import layers
@@ -62,7 +62,7 @@ def load_vocabulary(store: ox.Store, stack: list[Scope], out: Extract) -> None:
     """The vocabulary files the stack's scopes name, general first, into the T-Box graph after the
     packaged vocabulary. A file that is missing or does not parse is reported and loses only itself."""
     for scope in stack:
-        for path in scope.vocabulary:
+        for path in scope.readable(scope.vocabulary):
             try:
                 store.extend([ox.Quad(q.subject, q.predicate, q.object, TBOX_GRAPH)
                               for q in ox.parse(path=str(path), format=ox.RdfFormat.TURTLE)])
@@ -127,6 +127,7 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         register_rows(ctx)
         discoveries(ctx)
         questions(ctx)
+    out.problems += refusals(stack) + timeouts(stack)
     store.bulk_extend(out.quads)
     # After the extractors, because a Bears on may name a term.
     dangling(store, out)

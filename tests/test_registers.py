@@ -3,18 +3,18 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 
 from vyvid import facets, registers
 from vyvid.config import load
+from vyvid.patterns import Pattern
 from vyvid.resolve import bind, layers
 
 TYPES = registers.declarations([("default", registers.default_declarations())])
 TAGGABLE = facets.taggable(facets.merge([("default", facets.default_register())])[1])
-STD = re.compile(r"STD-\d+")
+STD = Pattern(r"STD-\d+")
 
 
 def read(tmp_path, header, *rows, rtype="standard"):

@@ -16,8 +16,8 @@ list of steps and an optional budget in tokens. The steps build one result, a li
     keeps the first ``n`` entries, or the first ``n`` of each kind with ``per_kind``
 ``glue``
     runs ``command`` with the result as JSON on its standard input and replaces the result with the
-    JSON on its standard output. Only a project's recipe may have one, and it runs in the project's
-    code folder
+    JSON on its standard output, within ``seconds`` (GLUE_SECONDS if the step sets none). Only a
+    project's recipe may have one, and it runs in the project's code folder
 
 Every step adds the entries it reaches after those already there, once each. The briefing prints the
 entries compactly and drops the last ones when it is over the budget, estimated at four characters a
@@ -165,13 +165,13 @@ def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
     """Run the command in the project's code folder, as an argument list and never a shell string."""
     if declaring.kind != "project" or declaring.code is None:
         raise RecipeError("a glue step runs only in a project's recipe")
-    command = step["command"]
+    command, seconds = step["command"], step.get("seconds", GLUE_SECONDS)
     shown = " ".join(command)
     try:
         done = subprocess.run(command, input=json.dumps(result), capture_output=True, text=True,
-                              cwd=declaring.code, timeout=GLUE_SECONDS, check=False)
+                              cwd=declaring.code, timeout=seconds, check=False)
     except subprocess.TimeoutExpired as error:
-        raise RecipeError(f"glue {shown} did not finish within {GLUE_SECONDS} seconds") from error
+        raise RecipeError(f"glue {shown} did not finish within {seconds} seconds") from error
     except OSError as error:
         raise RecipeError(f"glue {shown} cannot run. {error}") from error
     if done.returncode:
@@ -183,6 +183,18 @@ def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
     if not isinstance(replaced, list) or not all(isinstance(e, dict) and isinstance(e.get("id"), str) for e in replaced):
         raise RecipeError(f"glue {shown} must print a list of entries, each with an id")
     return [{"node": "", "kind": "", "scope": "", "claim": "", "pointer": "", "signposts": [], **e} for e in replaced]
+
+
+def dry_run(recipe: Recipe, declaring: Scope) -> str:
+    """Each step of the recipe, a glue step's command as an argument list with the folder it would run in
+    and its time limit. Nothing is run, and the text says so."""
+    lines = [f"Recipe {recipe.name}, dry run"]
+    for n, step in enumerate(recipe.steps, 1):
+        if step["step"] == "glue":
+            lines.append(f"{n}. glue {json.dumps(step['command'], ensure_ascii=False)} in {declaring.code}, within {step.get('seconds', GLUE_SECONDS)} seconds")
+        else:
+            lines.append(f"{n}. {step['step']} " + ", ".join(f"{k}={v}" for k, v in step.items() if k != "step"))
+    return "\n".join([*lines, "", "Nothing was run."])
 
 
 def render(recipe: Recipe, question: str, entries: list[dict], dropped: int = 0) -> str:

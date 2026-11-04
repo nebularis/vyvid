@@ -12,6 +12,11 @@ A domain is a folder, and its ``domain.toml`` may declare what the configuration
 declares. A key the configuration sets replaces the manifest's, so a user can override a domain
 locally. A domain brings extractors by kind, and each project that uses the domain runs them over
 its own files (``extractor_runs``).
+
+A manifest comes from whoever wrote the domain, so it is held to its folder. Every path it names must
+stay inside the folder after symlinks are resolved, and it may not set ``git`` or ``remote``. The same
+keys in the user's configuration are the user's own and stay free. A file under a domain's folder that
+is a symlink leaving it is never read (``escapes``).
 """
 
 from __future__ import annotations
@@ -24,9 +29,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import platformdirs
+import regex
 
 from . import extractors
 from .embed import ModelSpec
+from .patterns import SECONDS as PATTERN_SECONDS, Pattern
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
@@ -37,6 +44,10 @@ RULES = ("table", "file", "heading", "question")
 DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
+# What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
+MANIFEST_REFUSED = ("git", "remote")
+# The keys of a manifest whose value is a path or a list of them.
+MANIFEST_PATHS = ("rules", "skills", "facets", "register_types", "vocabulary")
 # What each key of a managed domain's git policy may be, the first being the default.
 GIT_CHOICES = {"pull": ("on-start", "daily", "manual"), "commit": ("manual", "auto"), "push": ("manual", "auto")}
 # The edges a recipe's linked step may follow, which the index stores between entries.
@@ -50,11 +61,11 @@ STEPS = {
     "linked": (("edges",), ("direction",)),
     "include": (("ids",), ()),
     "take": (("n",), ("per_kind",)),
-    "glue": (("command",), ()),
+    "glue": (("command",), ("seconds",)),
 }
 EXPECTS = {"words": "a string", "limit": "a whole number above zero", "n": "a whole number above zero",
            "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a list of strings",
-           "direction": f"one of {', '.join(DIRECTIONS)}", "per_kind": "true or false",
+           "direction": f"one of {', '.join(DIRECTIONS)}", "per_kind": "true or false", "seconds": "a number of seconds above zero",
            **dict.fromkeys(FILTER_KEYS, "a string or a list of strings")}
 DEFAULT_BUDGET = 1000
 
@@ -81,13 +92,22 @@ class Family:
     """An identifier family of one scope: how its local identifiers are written, and where defined."""
 
     name: str
-    pattern: re.Pattern[str]
+    pattern: Pattern
     defined: Path | None = None  # a file, a folder of Markdown files, or a glob
     type: str | None = None  # the register type of the register that defines it
     rule: str = "table"  # one of RULES
     also: tuple[Path, ...] = ()  # more places it is defined, after ``defined``
+    root: Path | None = None  # the folder of the domain that declares it, whose links may not leave it
 
     def paths(self) -> list[Path]:
+        """The files that define this family, minus any that escape its domain's folder (``refused``)."""
+        return [p for p in self._listed() if not escapes(p, self.root)]
+
+    def refused(self) -> list[Path]:
+        """The files that define this family and are links leaving its domain's folder."""
+        return [p for p in self._listed() if escapes(p, self.root)]
+
+    def _listed(self) -> list[Path]:
         """The files that define this family, in the order they were named. A glob is expanded and a
         folder stands for its Markdown files, each sorted, so a plan's definition comes before a sketch's."""
         found: list[Path] = []
@@ -147,6 +167,17 @@ class Scope:
     domains: list[str] = field(default_factory=list)
     specialises: dict[str, Path] = field(default_factory=dict)
 
+    def readable(self, files: list[Path]) -> list[Path]:
+        """The files that may be read, which leaves out any that escape this domain's folder."""
+        return [p for p in files if not escapes(p, self.path if self.kind == "domain" else None)]
+
+    def refused(self) -> list[Path]:
+        """Every file this domain reads that is a link leaving its folder, once each."""
+        if self.kind != "domain":
+            return []
+        named = [*self.rules, *self.skills, *self.facets, *self.register_types, *self.vocabulary]
+        return [*(p for p in named if escapes(p, self.path)), *(p for f in self.families.values() for p in f.refused())]
+
 
 @dataclass
 class Config:
@@ -201,6 +232,55 @@ def config_path() -> Path:
     return platformdirs.user_config_path("vyvid") / "config.toml"
 
 
+def escapes(path: Path, root: Path | None) -> bool:
+    """Whether ``path``, written under ``root``, resolves through a symlink to somewhere outside it. A
+    path written elsewhere is the user's own choice, so it never escapes."""
+    if root is None:
+        return False
+    written, base = Path(os.path.abspath(path)), Path(os.path.abspath(root))
+    return written.is_relative_to(base) and not written.resolve().is_relative_to(base.resolve())
+
+
+def refusals(scopes: list[Scope]) -> list[str]:
+    """A line for each file of a domain that is a link leaving its folder, and so is not read."""
+    return [f"{s.name}: {p} is a link that leaves the domain's folder, so it is not read" for s in scopes for p in s.refused()]
+
+
+def timeouts(scopes: list[Scope]) -> list[str]:
+    """A line for each family whose pattern ran out of time in this run, and so matched nothing after."""
+    return [f"{s.name}: family {f.name} has a pattern that ran past {PATTERN_SECONDS} seconds, so the family is disabled for this run"
+            for s in scopes for f in s.families.values() if f.pattern.timed_out]
+
+
+def _inside(value: str, root: Path) -> bool:
+    """Whether a manifest's path stays in the domain's folder: relative or ``self:``, with no other
+    token, no ``~``, and not leaving through ``..`` or a symlink."""
+    rest = value.removeprefix("self:").replace("\\", "/")
+    if rest.startswith(("~", "/")) or re.match(r"[A-Za-z][\w-]*:", rest):
+        return False
+    return Path(os.path.realpath(root / rest)).is_relative_to(Path(os.path.realpath(root)))
+
+
+def leaving(manifest: dict, root: Path) -> list[tuple[str, str]]:
+    """The key and value of each path in a manifest that leaves the domain's folder."""
+    found: list[tuple[str, str]] = []
+
+    def check(key: str, values) -> None:
+        for v in [values] if isinstance(values, str) else values if isinstance(values, list) else []:
+            if isinstance(v, str) and not _inside(v, root):
+                found.append((key, v))
+
+    for key in MANIFEST_PATHS:
+        check(key, manifest.get(key))
+    families = manifest.get("families")
+    for name, spec in (families.items() if isinstance(families, dict) else []):
+        for key in ("defined", "also"):
+            check(f"families.{name}.{key}", spec.get(key) if isinstance(spec, dict) else None)
+    for item in manifest.get("extractors") if isinstance(manifest.get("extractors"), list) else []:
+        check("extractors.paths", item.get("paths") if isinstance(item, dict) else None)
+    return found
+
+
 def _expand(value: str, bases: dict[str, Path | None], where: str, problems: list[str]) -> Path | None:
     for token, base in bases.items():
         if value.startswith(token + ":"):
@@ -225,8 +305,8 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
             continue
         try:
             places = _paths(spec.get("defined"), bases or {}, where, problems)
-            out[name] = Family(name, re.compile(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]))
-        except re.error as error:
+            out[name] = Family(name, Pattern(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]), (bases or {}).get("self"))
+        except (regex.error, TypeError) as error:
             problems.append(f"{where}: family '{name}' has a pattern that does not compile: {error}")
     return out
 
@@ -284,6 +364,8 @@ def _step_value(key: str, value):
         return value
     if key in ("edges", "ids", "command") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
         return list(value)
+    if key == "seconds" and isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return value
     if (key == "direction" and value in DIRECTIONS) or (key == "per_kind" and isinstance(value, bool)):
         return value
     raise ValueError(f"'{key}' must be {EXPECTS[key]}")
@@ -353,7 +435,9 @@ def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> 
         return {}
     if manifest.get("name", name) != name:
         problems.append(f"{where}: domain.toml names the domain '{manifest['name']}'")
-    return {k: v for k, v in manifest.items() if k != "name"}
+    problems += [f"{where}: domain.toml sets '{k}', which only the user's configuration may" for k in MANIFEST_REFUSED if k in manifest]
+    problems += [f"{where}: domain.toml {key} names '{value}', which leaves the domain's folder" for key, value in leaving(manifest, root)]
+    return {k: v for k, v in manifest.items() if k not in ("name", *MANIFEST_REFUSED)}
 
 
 def extractor_runs(config: Config, project: Scope) -> list[Run]:

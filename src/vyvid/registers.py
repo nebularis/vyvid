@@ -24,6 +24,7 @@ from importlib import resources
 from pathlib import Path
 
 from . import anchors
+from .patterns import Pattern
 
 KINDS = {"id", "claim", "label", "text", "ids", "targets", "addenda", "names", "module", "controlled", "facet", "status"}
 SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|?$")
@@ -130,7 +131,7 @@ def shorten(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def read(path: Path, name: str, family_pattern: re.Pattern[str], register_type: str, types: RegisterTypes,
+def read(path: Path, name: str, family_pattern: Pattern, register_type: str, types: RegisterTypes,
          taggable: dict[str, set[str]], root: Path) -> tuple[list[Row], list[str]]:
     """The rows of a register of one type, and every problem found. ``name`` is how the register is
     named in a problem, ``root`` the folder its pointers are resolved against."""
@@ -218,7 +219,7 @@ def types_for(stack) -> RegisterTypes:
     """The register types a stack of scopes declares: the packaged ones, then each scope's that exist."""
     sources = [("vyvid:data/register-types.toml", default_declarations())]
     for scope in stack:
-        sources += [(str(p), p.read_text(encoding="utf-8")) for p in scope.register_types if p.exists()]
+        sources += [(str(p), p.read_text(encoding="utf-8")) for p in scope.readable(scope.register_types) if p.exists()]
     return declarations(sources)
 
 

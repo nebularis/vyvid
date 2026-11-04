@@ -5,6 +5,7 @@ that vyd context lists."""
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pyoxigraph as ox
@@ -184,6 +185,35 @@ def test_a_failing_glue_step_is_a_recipe_error(tmp_path):
         w.run("fails")
     with pytest.raises(recipes.RecipeError, match="did not print JSON"):
         w.run("text")
+
+
+def test_a_glue_step_may_set_its_own_time_limit(tmp_path):
+    sleeper = "import time\ntime.sleep(5)\n"
+    w = World(tmp_path, recipe_text("slow", glue(tmp_path, sleeper).replace(" }", ", seconds = 0.5 }")))
+    start = time.perf_counter()
+    with pytest.raises(recipes.RecipeError, match="did not finish within 0.5 seconds"):
+        w.run("slow")
+    assert time.perf_counter() - start < 4
+    assert recipes.available(w.stack)["slow"].steps[0]["seconds"] == 0.5
+
+
+def test_a_glue_time_limit_must_be_a_positive_number(tmp_path):
+    for n, bad in enumerate(("0", "-1", '"soon"', "true")):
+        (tmp_path / str(n)).mkdir()
+        with pytest.raises(ConfigError, match="'seconds' must be a number of seconds above zero"):
+            World(tmp_path / str(n), recipe_text("r", f'  {{ step = "glue", command = ["true"], seconds = {bad} }},'))
+
+
+def test_dry_run_prints_each_step_and_glue_command_and_runs_none(tmp_path, monkeypatch, capsys):
+    marker = tmp_path / "RAN"
+    step = glue(tmp_path, f"from pathlib import Path\nPath({marker.as_posix()!r}).write_text('x')\nprint('[]')\n")
+    w = World(tmp_path, recipe_text("r", find(kind="standard", limit=2) + "\n" + step.replace(" }", ", seconds = 5 }")))
+    monkeypatch.setenv("VYVID_CONFIG", str(w.path))
+    assert cli.main(["recipe", "run", "r", "q", "--in", str(w.code), "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "1. find words={question}, kind=standard, limit=2" in out
+    assert f'2. glue ["{Path(sys.executable).as_posix()}"' in out and f"in {w.code}, within 5 seconds" in out
+    assert out.rstrip().endswith("Nothing was run.") and not marker.exists()
 
 
 def test_a_domains_glue_step_is_refused_at_load(tmp_path):

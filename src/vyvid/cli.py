@@ -20,6 +20,8 @@
     refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
 ``vyd recipe list [--in folder]`` and ``vyd recipe run <name> "<question>" [--in folder] [--all] [--json]``
     the named chains of queries the folder's stack declares, and one run as a briefing within its budget
+``vyd domain audit <folder> [--json]`` and ``vyd domain review-path <domain> <commit>``
+    the facts about a folder someone else wrote, read and never run, and where its review is recorded
 ``vyd install --client claude-code [--target folder] [--dry-run]``
     write the client's user-level rule file and one skill per configured domain
 
@@ -38,8 +40,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, ask, citations, install, kb, recipes
-from .config import ConfigError, config_path, extractor_runs, load
+from . import __version__, ask, audit, citations, install, kb, recipes
+from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind, layers, resolve
@@ -198,6 +200,9 @@ def recipe_command(arguments, parser) -> int:
     if recipe is None:
         print(f"vyd: no recipe '{arguments.name}' in this folder's stack, which has {', '.join(found) or 'none'}", file=sys.stderr)
         return 1
+    if arguments.dry_run:
+        print(recipes.dry_run(recipe, config.scope(recipe.scope)))
+        return 0
     try:
         a = ask.open_stack(config, folder, scope=recipes.extra_scopes(recipe))
         entries = recipes.run(a, recipe, arguments.question)
@@ -316,6 +321,14 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--in", dest="folder", default=".", help="the folder whose stack the recipe is read from")
     r.add_argument("--all", action="store_true", help="every entry, ignoring the recipe's budget")
     r.add_argument("--json", action="store_true")
+    r.add_argument("--dry-run", action="store_true", help="print each step and each glue command with its folder, and run nothing")
+    d = sub.add_parser("domain", help="facts about a domain folder someone else wrote").add_subparsers(dest="domain_command", required=True)
+    p = d.add_parser("audit", help="report links, file types, paths, patterns, hidden text and commands in a folder, and run nothing from it")
+    p.add_argument("folder", type=Path)
+    p.add_argument("--json", action="store_true")
+    p = d.add_parser("review-path", help="where the review of a domain at a commit is recorded")
+    p.add_argument("domain")
+    p.add_argument("commit")
     i = sub.add_parser("install", help="write a client's user-level rule file and one skill per configured domain")
     i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
@@ -331,7 +344,11 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "resolve":
             config = load()
             scope = bind(config, Path(arguments.folder)) or config.general
-            print(resolve(config, arguments.identifier, scope))
+            try:
+                print(resolve(config, arguments.identifier, scope))
+            finally:
+                for line in timeouts([config.general, *config.domains.values(), *config.projects.values()]):
+                    print(f"vyd: {line}", file=sys.stderr)
             return 0
         if arguments.command == "build":
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
@@ -339,6 +356,14 @@ def main(argv: list[str] | None = None) -> int:
             return check_citations(arguments)
         if arguments.command == "recipe":
             return recipe_command(arguments, parser)
+        if arguments.command == "domain":
+            if arguments.domain_command == "audit":
+                return audit.command(arguments.folder, arguments.json)
+            try:
+                print(audit.review_path(arguments.domain, arguments.commit))
+            except ValueError as error:
+                parser.error(str(error))
+            return 0
         if arguments.command == "install":
             return install.install(load(), arguments.client, arguments.target, arguments.dry_run)
         if arguments.command in QUESTIONS:

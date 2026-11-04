@@ -238,5 +238,5 @@ def registers(stack) -> list[tuple[str, str]]:
     found = [(str(p), p.read_text(encoding="utf-8")) for p in general.facets if p.exists()]
     out = found or [("vyvid:data/facets.md", default_register())]
     for scope in rest:
-        out += [(str(p), p.read_text(encoding="utf-8")) for p in scope.facets if p.exists()]
+        out += [(str(p), p.read_text(encoding="utf-8")) for p in scope.readable(scope.facets) if p.exists()]
     return out

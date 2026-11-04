@@ -126,11 +126,12 @@ def mentions(config: Config, text: str, scope: Scope) -> list[str]:
     qualified: list[tuple[int, int]] = []
     for target in [config.general, *config.domains.values(), *config.projects.values()]:
         for family in visible_families(config, target):
-            for m in re.finditer(rf"(?<![\w-]){re.escape(target.name)}:(?:{family.pattern.pattern})(?![\w-])", text):
+            qualified_form = family.pattern.derive(lambda p: rf"(?<![\w-]){re.escape(target.name)}:(?:{p})(?![\w-])")
+            for m in qualified_form.finditer(text):
                 found.append((m.start(), m.end(), m.group(0)))
                 qualified.append((m.start(), m.end()))
     for family in visible_families(config, scope):
-        for m in re.finditer(rf"(?<![\w-])(?:{family.pattern.pattern})(?![\w-])", text):
+        for m in family.pattern.derive(lambda p: rf"(?<![\w-])(?:{p})(?![\w-])").finditer(text):
             if not any(a <= m.start() and m.end() <= b for a, b in qualified):
                 found.append((m.start(), m.end(), m.group(0)))
     out: dict[tuple[str, str], str] = {}
