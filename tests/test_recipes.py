@@ -478,3 +478,11 @@ def test_a_domain_cannot_take_a_core_skill_name():
     for name in ("core-domain-review", "domain-review", "core"):
         assert not f"{install.DOMAIN_SKILL}{name}".startswith(install.CORE_SKILL)
 
+
+
+def test_install_writes_the_reviewer_with_read_and_search_tools_alone(tmp_path):
+    w = World(tmp_path)
+    target = tmp_path / "client"
+    assert install.install(w.config, "claude-code", target, dry_run=False) == 0
+    agent = (target / "agents" / f"{install.REVIEWER}.md").read_text(encoding="utf-8")
+    assert "\ntools: Read, Grep, Glob\n" in agent and install.MARK in agent and "DevSecOps" in agent

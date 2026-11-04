@@ -8,6 +8,7 @@ the review skill reads the findings.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -33,8 +34,16 @@ URL_RE = re.compile(r"\b(?:https?|ftp|ssh|git)://\S+", re.I)
 HTML_COMMENT = "<!--"
 # ``scope:ID-12``. The identifier is upper case with a dash and a digit, so a URL, ``xsd:long`` and a SPARQL prefix do not match.
 CITES_RE = re.compile(r"(?<![\w/.:-])(?P<scope>[a-z][a-z0-9-]*):(?P<id>[A-Z][A-Z0-9]*-(?=[A-Za-z0-9.-]*\d)[A-Za-z0-9][A-Za-z0-9.-]*)")
+# Text aimed at whoever reads it, read with invisible characters removed, since they can split a word. A
+# fact to weigh, never proof: anyone can reword it, which is why a person or a reviewer reads the rest.
+STEERING = re.compile(
+    r"\b(?:ignore\s+(?:\w+\s+)?(?:previous|prior|above|earlier)|note\s+to\s+(?:\w+\s+)?(?:reviewers?|agents?|ai\b)"
+    r"|(?:agents?|assistants?|reviewers?|llms?)\s+(?:should|must|may|need|are\s+to)\b|report\s+no\s+findings|already\s+reviewed"
+    r"|do\s+not\s+(?:tell|mention|inform|report)|as\s+your\s+task|skip\s+.{0,40}\b(?:check|checks|review|confirmation)\b)|\btrust\s*=\s*[\"']",
+    re.I)
+CREDENTIAL_PATHS = re.compile(r"(?:~|\$HOME|%USERPROFILE%)[/\\]\.?[\w.-]*(?:ssh|aws|gnupg|netrc|kube|docker|config/gh)\b|\bid_(?:rsa|ed25519|ecdsa)\b|\.netrc\b")
 COMMANDS = re.compile(
-    r"\b(?:curl|wget)\b|\|\s*(?:ba|z)?sh\b|\bsudo\b|\brm\s+-\w*[rf]|\bchmod\s+\+x|\bpip3?\s+install|\bnpx\b|\beval\b|\b(?:ba|z)?sh\s+-c\b", re.I)
+    r"\b(?:curl|wget)\b|\|\s*(?:ba|z)?sh\b|\bsudo\b|\brm\s+-\w*[rf]|\bchmod\s+\+x|\bpip3?\s+install|\bnpx\b|\beval\b(?!\.)|\b(?:ba|z)?sh\s+-c\b|\bos\.system\b|\bsubprocess\.\w+\(|\bpython3?\s+-c\b|\btouch\s+\S*/", re.I)
 
 
 @dataclass(frozen=True)
@@ -106,6 +115,13 @@ def _manifest(folder: Path) -> list[Finding]:
            for key in MANIFEST_REFUSED if key in manifest]
     out += [Finding("domain.toml", _line_of(text, value), "manifest-path", f"{key} names '{value}', which leaves the folder")
             for key, value in leaving(manifest, folder)]
+    out += [Finding("domain.toml", _line_of(text, value), "instruction-file", f"{key} names '{value}', whose text would reach agents as instructions")
+            for key in ("rules", "skills") for value in ([manifest[key]] if isinstance(manifest.get(key), str) else manifest.get(key) or []) if isinstance(value, str)]
+    recipes = manifest.get("recipes")
+    for recipe in recipes if isinstance(recipes, list) else []:
+        for step in (recipe.get("steps") or []) if isinstance(recipe, dict) else []:
+            if isinstance(step, dict) and step.get("step") == "glue":
+                out.append(Finding("domain.toml", _line_of(text, "glue"), "glue", f"recipe '{recipe.get('name')}', described as '{recipe.get('description')}', runs {step.get('command')}"))
     families = manifest.get("families")
     for name, spec in families.items() if isinstance(families, dict) else []:
         source = spec.get("pattern") if isinstance(spec, dict) else None
@@ -125,6 +141,19 @@ def _manifest(folder: Path) -> list[Finding]:
     return out
 
 
+def _bare(line: str) -> str:
+    """A line with its invisible characters removed."""
+    return "".join(c for c in line if unicodedata.category(c) != "Cf")
+
+
+def _decoded(blob: str) -> str | None:
+    """What an encoded blob says, if it is text, so a reader sees it with nothing decoded by hand or run."""
+    try:
+        return base64.b64decode(blob + "=" * (-len(blob) % 4)).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
 def _content(folder: Path, path: Path, scopes: set[str]) -> list[Finding]:
     """Invisible characters, comments, encoded blobs, URLs, command-shaped lines and qualified mentions
     of a scope outside ``scopes``, by line."""
@@ -135,8 +164,9 @@ def _content(folder: Path, path: Path, scopes: set[str]) -> list[Finding]:
     out = []
     for n, raw in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
         line = raw.removeprefix("﻿") if n == 1 else raw
-        kinds = hidden(line) + [kind for kind, hit in (("base64", BASE64_RE.search(line)), ("url", URL_RE.search(line)), ("command", COMMANDS.search(line))) if hit]
+        kinds = hidden(line) + [kind for kind, hit in (("base64", BASE64_RE.search(line)), ("steering", STEERING.search(_bare(line))), ("credential-path", CREDENTIAL_PATHS.search(line)), ("url", URL_RE.search(line)), ("command", COMMANDS.search(line))) if hit]
         out += [Finding(rel, n, kind, _cut(_visible(line))) for kind in kinds]
+        out += [Finding(rel, n, "base64-decoded", _cut(_visible(text))) for m in BASE64_RE.finditer(line) if (text := _decoded(m.group(0)))]
         out += [Finding(rel, n, "qualified-mention", f"{m.group(0)} names the scope '{m.group('scope')}'") for m in CITES_RE.finditer(line)
                 if m.group("scope") not in scopes]
     return out
