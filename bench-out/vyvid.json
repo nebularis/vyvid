@@ -1,0 +1,482 @@
+{
+ "questions|Q01": [
+  "PRI-07",
+  "ADR-A104",
+  "MEC-61",
+  "PM-Q3",
+  "BL-12",
+  "ADR-A16",
+  "ADR-A106",
+  "PRI-33"
+ ],
+ "questions|Q02": [
+  "PRI-02",
+  "MEC-01",
+  "PRI-06",
+  "STD-284",
+  "ADR-A82",
+  "ADR-A141",
+  "VH-Q3",
+  "ADR-A12"
+ ],
+ "questions|Q03": [
+  "MEC-03",
+  "STD-016",
+  "STD-014",
+  "PRI-31",
+  "MEC-02",
+  "STD-294",
+  "ADR-A134",
+  "STD-210"
+ ],
+ "questions|Q04": [
+  "WF-Q2",
+  "MEC-56",
+  "LG-Q8",
+  "ADR-A131",
+  "CAP-58",
+  "MEC-36",
+  "PRI-43",
+  "C9b-Q5"
+ ],
+ "questions|Q05": [
+  "ADR-A-CAP1",
+  "CAP-76",
+  "PDD-17",
+  "MEC-81",
+  "CAP-85",
+  "CAP-45",
+  "TSD-14",
+  "PDD-12"
+ ],
+ "questions|Q06": [
+  "CAP-57",
+  "STD-027",
+  "STD-020",
+  "STD-128",
+  "TSD-Q14",
+  "ADR-A128",
+  "TD-11",
+  "STD-063"
+ ],
+ "questions|Q07": [
+  "STD-016",
+  "STD-294",
+  "MEC-59",
+  "PAT-23",
+  "PAT-05",
+  "ADR-A149",
+  "PAT-04",
+  "FS-Q3"
+ ],
+ "questions|Q08": [
+  "STD-243",
+  "H2-Q4",
+  "PRI-55",
+  "ADR-A103",
+  "TSD-Q20",
+  "TD-72",
+  "TSD-22",
+  "PAT-20"
+ ],
+ "questions|Q10": [
+  "STD-006",
+  "STD-258",
+  "PRI-17",
+  "MEC-83",
+  "CAP-22",
+  "ADR-A-FM2",
+  "ADR-A-C2",
+  "PRI-67"
+ ],
+ "questions|Q11": [
+  "ADR-A122",
+  "STD-234",
+  "ADR-A82",
+  "PAT-01",
+  "ADR-A147",
+  "PAT-46",
+  "MEC-62",
+  "KC-Q6"
+ ],
+ "questions|Q12": [
+  "PRI-73",
+  "STD-295",
+  "PRI-08",
+  "MEC-14",
+  "ADR-A103",
+  "PRI-36",
+  "IR-Q4",
+  "OR-Q14"
+ ],
+ "questions|Q13": [
+  "MEC-27",
+  "MEC-25",
+  "ADR-A87",
+  "HQ6a-Q3",
+  "MEC-85",
+  "MEC-20",
+  "MEC-28",
+  "ADR-A103"
+ ],
+ "questions|Q14": [
+  "MEC-31",
+  "ADR-A116",
+  "MEC-27",
+  "ADR-A87",
+  "ADR-A103",
+  "ADR-A126",
+  "ADR-A105",
+  "MB-Q3"
+ ],
+ "questions|Q15": [
+  "PAT-12",
+  "TSD-38",
+  "TD-77",
+  "CAP-57",
+  "ADR-A67",
+  "PRI-57",
+  "PAT-16",
+  "XJ-Q8"
+ ],
+ "questions|Q16": [
+  "PAT-38",
+  "MEC-65",
+  "STD-066",
+  "ADR-A68",
+  "ADR-A51",
+  "ADR-A117",
+  "PRI-72",
+  "STD-138"
+ ],
+ "questions|Q17": [
+  "STD-294",
+  "MEC-61",
+  "STD-075",
+  "PAT-36",
+  "STD-156",
+  "PAT-31",
+  "ADR-A128",
+  "STD-016"
+ ],
+ "questions|Q18": [
+  "MEC-16",
+  "EV-Q7",
+  "ADR-A93",
+  "MEC-17",
+  "LF-Q4",
+  "MEC-12",
+  "ADR-A95",
+  "ADR-A131"
+ ],
+ "questions|Q19": [
+  "ADR-A139",
+  "ADR-A99",
+  "PDD-05",
+  "PRI-20",
+  "ADR-A144",
+  "ADR-A-FM3",
+  "TD-62",
+  "VH-Q2"
+ ],
+ "questions|Q20": [
+  "ADR-A139",
+  "ADR-A104",
+  "IT-Q7",
+  "MEC-42",
+  "RE-Q3",
+  "MEC-53",
+  "LE-Q3",
+  "PDD-16"
+ ],
+ "questions|Q21": [
+  "ADR-A144",
+  "MEC-50",
+  "MEC-24",
+  "C7c-Q3",
+  "ADR-A104",
+  "CC-Q4",
+  "ADR-A102",
+  "MEC-44"
+ ],
+ "questions|Q22": [
+  "ADR-A144",
+  "MEC-44",
+  "ADR-A104",
+  "C6-Q4",
+  "ADR-A102",
+  "MEC-50",
+  "C9b-Q3",
+  "MEC-78"
+ ],
+ "questions|Q23": [
+  "MEC-43",
+  "PRI-04",
+  "ADR-A112",
+  "MEC-50",
+  "ADR-A104",
+  "PDD-05",
+  "PRI-05",
+  "P7-Q7"
+ ],
+ "questions|Q24": [
+  "PRI-34",
+  "PRI-33",
+  "ADR-A116",
+  "MEC-55",
+  "IX-Q1",
+  "MEC-09",
+  "ADR-A130",
+  "MEC-77"
+ ],
+ "questions|Q25": [
+  "MEC-33",
+  "CAP-63",
+  "ADR-A07",
+  "MEC-25",
+  "ADR-A20",
+  "ADR-A67",
+  "ADR-A68",
+  "MEC-76"
+ ],
+ "questions|Q26": [
+  "PRI-60",
+  "MEC-57",
+  "ADR-A123",
+  "ADR-A79",
+  "ADR-A149",
+  "STD-310",
+  "CAP-52",
+  "CAP-54"
+ ],
+ "questions|Q27": [
+  "CAP-17",
+  "STD-117",
+  "CAP-18",
+  "CAP-105",
+  "PRI-03",
+  "ADR-A86",
+  "STD-222",
+  "STD-181"
+ ],
+ "questions|Q28": [
+  "STD-005",
+  "RC-Q4",
+  "ADR-A77",
+  "CAP-22",
+  "STD-006",
+  "TD-54",
+  "STD-192",
+  "CAP-82"
+ ],
+ "questions|Q29": [
+  "STD-022",
+  "PRI-63",
+  "PRI-69",
+  "STD-002",
+  "STD-057",
+  "STD-180",
+  "STD-127",
+  "STD-169"
+ ],
+ "questions|Q30": [
+  "TSD-07",
+  "STD-054",
+  "TSD-37",
+  "TSD-35",
+  "TSD-Q2",
+  "CAP-57",
+  "TSD-61",
+  "TSD-60"
+ ],
+ "questions|Q31": [
+  "STD-105",
+  "ADR-A133",
+  "STD-060",
+  "STD-057",
+  "STD-301",
+  "STD-055",
+  "CAP-05",
+  "STD-074"
+ ],
+ "questions|Q32": [
+  "PRI-66",
+  "STD-150",
+  "CAP-65",
+  "STD-162",
+  "STD-161",
+  "STD-038",
+  "STD-037",
+  "STD-158"
+ ],
+ "questions|Q33": [
+  "CAP-28",
+  "CAP-33",
+  "ADR-A-FM1",
+  "ADR-A-FM2",
+  "CAP-32",
+  "ADR-A97",
+  "FM-Q1",
+  "EV-Q5"
+ ],
+ "questions|Q34": [
+  "CAP-69",
+  "MEC-74",
+  "CAP-53",
+  "ADR-A79",
+  "ADR-A07",
+  "ADR-A88",
+  "ADR-A137",
+  "WF-Q1"
+ ],
+ "questions|Q35": [
+  "STD-244",
+  "PRI-56",
+  "ADR-A67",
+  "ADR-A104",
+  "ADR-A94",
+  "ADR-A123",
+  "MEC-46",
+  "CC-Q1"
+ ],
+ "questions|Q36": [
+  "CAP-46",
+  "CAP-92",
+  "ADR-A90",
+  "STD-241",
+  "CAP-64",
+  "CAP-86",
+  "CAP-60",
+  "CAP-93"
+ ],
+ "questions|Q37": [
+  "ADR-A99",
+  "MEC-79",
+  "W-Q1",
+  "TP-Q1",
+  "MB-Q1",
+  "C8b-Q1",
+  "ADR-A120",
+  "MB-Q3"
+ ],
+ "questions|Q38": [
+  "MEC-18",
+  "CC-Q3",
+  "ADR-A94",
+  "C7b-Q4",
+  "PDD-15",
+  "MEC-33",
+  "MEC-03",
+  "MEC-46"
+ ],
+ "questions|Q39": [
+  "MEC-46",
+  "ADR-A105",
+  "C7a-Q4",
+  "ADR-A104",
+  "CL-Q2",
+  "C11a-Q2",
+  "ADR-A81",
+  "HQ6a-Q4"
+ ],
+ "questions|Q40": [
+  "PRI-78",
+  "STD-004",
+  "STD-159",
+  "XS-Q1",
+  "STD-161",
+  "TSD-44",
+  "ADR-A74",
+  "STD-162"
+ ],
+ "questions|Q41": [
+  "MEC-37",
+  "PAT-20",
+  "MEC-19",
+  "STD-251",
+  "TSD-01",
+  "PAT-42",
+  "ADR-A90",
+  "TSD-19"
+ ],
+ "questions|Q42": [
+  "STD-016",
+  "ADR-A114",
+  "PAT-03",
+  "MEC-62",
+  "STD-254",
+  "PAT-04",
+  "ADR-A68",
+  "TSD-29"
+ ],
+ "questions|Q43": [
+  "PAT-17",
+  "PAT-01",
+  "ADR-A67",
+  "MEC-33",
+  "CAP-64",
+  "PAT-15",
+  "CAP-83",
+  "PB-Q7"
+ ],
+ "questions|Q44": [
+  "MEC-44",
+  "ADR-A-FM1",
+  "ADR-A104",
+  "MEC-32",
+  "MEC-35",
+  "H2-Q5",
+  "MEC-34",
+  "TY-Q3"
+ ],
+ "held-out|H1": [
+  "MS-Q6",
+  "MEC-56",
+  "PAT-25",
+  "MEC-61",
+  "PAT-11",
+  "CL-Q4",
+  "LG-Q1",
+  "PRI-54"
+ ],
+ "held-out|H2": [
+  "ADR-A118",
+  "CAP-94",
+  "CAP-93",
+  "TSD-Q25",
+  "ADR-A136",
+  "TSD-Q31",
+  "CAP-85",
+  "TSD-53"
+ ],
+ "held-out|H3": [
+  "BUN-Q6",
+  "CAP-86",
+  "STD-240",
+  "ADR-A78",
+  "CAP-105",
+  "PRI-03",
+  "ADR-A129",
+  "CD-Q2"
+ ],
+ "held-out|H4": [
+  "STD-162",
+  "STD-040",
+  "STD-155",
+  "STD-158",
+  "STD-179",
+  "PRI-66",
+  "CAP-20",
+  "STD-150"
+ ],
+ "held-out|H5": [
+  "CAP-72",
+  "LF-Q19",
+  "ADR-A84",
+  "MEC-63",
+  "CAP-47",
+  "PAT-45",
+  "PRI-53",
+  "STD-234"
+ ]
+}

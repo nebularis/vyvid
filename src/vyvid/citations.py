@@ -14,6 +14,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from .audit import CITES_RE
 from .config import Config, Scope
 from .resolve import mentions
 
@@ -80,4 +81,25 @@ def private_citations(config: Config, project: Scope, lines: list[tuple[str, int
         for canonical in mentions(config, text, project):
             if config.scope(canonical.split(":", 1)[0]).visibility == "private":
                 found.append(f"{path}:{number}: cites {canonical}, which is private")
+    return found
+
+
+def domain_citations(config: Config, domain: Scope) -> list[str]:
+    """One ``path:line: ...`` for each qualified mention, in the text a domain's families, rules and skills
+    read, of a project or of a domain outside its ancestors. A domain may cite itself, its ancestors and the
+    general scope alone, since it cannot depend on what a project may not use."""
+    allowed, todo = {domain.name, config.general.name}, [domain.name]
+    while todo:
+        for parent in config.domains[todo.pop()].parents:
+            if parent not in allowed and parent in config.domains:
+                allowed.add(parent)
+                todo.append(parent)
+    named = [*domain.rules, *domain.skills, *(p for f in domain.families.values() for p in f.paths())]
+    found = []
+    for path, number, text in file_lines([p for p in domain.readable(named) if p.exists()]):
+        for m in CITES_RE.finditer(text):
+            other = config.scope(m.group("scope"))
+            if other is not None and other.name not in allowed:
+                found.append(f"{path}:{number}: domain '{domain.name}' cites {other.kind} '{other.name}' in {m.group(0)}, "
+                             f"and a domain may cite its ancestors and itself alone")
     return found

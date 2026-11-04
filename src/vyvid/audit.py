@@ -31,6 +31,8 @@ COMMIT_RE = re.compile(r"^[0-9a-f]{7,64}$")
 BASE64_RE = re.compile(r"[A-Za-z0-9+/]{80,}={0,2}")
 URL_RE = re.compile(r"\b(?:https?|ftp|ssh|git)://\S+", re.I)
 HTML_COMMENT = "<!--"
+# ``scope:ID-12``. The identifier is upper case with a dash and a digit, so a URL, ``xsd:long`` and a SPARQL prefix do not match.
+CITES_RE = re.compile(r"(?<![\w/.:-])(?P<scope>[a-z][a-z0-9-]*):(?P<id>[A-Z][A-Z0-9]*-(?=[A-Za-z0-9.-]*\d)[A-Za-z0-9][A-Za-z0-9.-]*)")
 COMMANDS = re.compile(
     r"\b(?:curl|wget)\b|\|\s*(?:ba|z)?sh\b|\bsudo\b|\brm\s+-\w*[rf]|\bchmod\s+\+x|\bpip3?\s+install|\bnpx\b|\beval\b|\b(?:ba|z)?sh\s+-c\b", re.I)
 
@@ -123,8 +125,9 @@ def _manifest(folder: Path) -> list[Finding]:
     return out
 
 
-def _content(folder: Path, path: Path) -> list[Finding]:
-    """Invisible characters, comments, encoded blobs, URLs and command-shaped lines, by line."""
+def _content(folder: Path, path: Path, scopes: set[str]) -> list[Finding]:
+    """Invisible characters, comments, encoded blobs, URLs, command-shaped lines and qualified mentions
+    of a scope outside ``scopes``, by line."""
     rel = path.relative_to(folder).as_posix()
     data = path.read_bytes()[:MAX_BYTES]
     if b"\0" in data:
@@ -134,17 +137,30 @@ def _content(folder: Path, path: Path) -> list[Finding]:
         line = raw.removeprefix("﻿") if n == 1 else raw
         kinds = hidden(line) + [kind for kind, hit in (("base64", BASE64_RE.search(line)), ("url", URL_RE.search(line)), ("command", COMMANDS.search(line))) if hit]
         out += [Finding(rel, n, kind, _cut(_visible(line))) for kind in kinds]
+        out += [Finding(rel, n, "qualified-mention", f"{m.group(0)} names the scope '{m.group('scope')}'") for m in CITES_RE.finditer(line)
+                if m.group("scope") not in scopes]
     return out
 
 
-def audit(folder: Path) -> list[Finding]:
-    """Every finding in the folder. Nothing in it is run, imported or followed through a link."""
+def own_name(folder: Path) -> str:
+    """The domain's name: ``name`` in its ``domain.toml`` if it sets one, else its folder's."""
+    try:
+        name = tomllib.loads((folder / "domain.toml").read_text(encoding="utf-8")).get("name")
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        name = None
+    return name if isinstance(name, str) else folder.name
+
+
+def audit(folder: Path, allow: tuple[str, ...] = ()) -> list[Finding]:
+    """Every finding in the folder. Nothing in it is run, imported or followed through a link.
+    A qualified mention is a finding unless it names the domain itself or a scope in ``allow``, such as a parent."""
     folder = folder.resolve()
+    scopes = {own_name(folder), *allow}
     out = _manifest(folder)
     for path in _files(folder):
         out += _layout(folder, path)
         if not path.is_symlink():
-            out += _content(folder, path)
+            out += _content(folder, path, scopes)
     return [Finding(f.path, f.line, f.kind, _cut(f.text)) for f in out]
 
 
@@ -155,12 +171,12 @@ def review_path(domain: str, commit: str) -> Path:
     return platformdirs.user_data_path("vyvid") / "reviews" / domain / f"{commit}.md"
 
 
-def command(folder: Path, as_json: bool) -> int:
+def command(folder: Path, as_json: bool, allow: tuple[str, ...] = ()) -> int:
     """Print the findings, plain or as JSON. Returns 1 if there are any."""
     if not folder.is_dir():
         print(f"vyd: {folder} is not a folder")
         return 2
-    found = audit(folder)
+    found = audit(folder, allow)
     if as_json:
         print(json.dumps([asdict(f) for f in found], indent=2, ensure_ascii=False))
     else:

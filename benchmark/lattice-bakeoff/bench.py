@@ -93,6 +93,20 @@ def table_ids(out: str) -> list[str]:
     return ids
 
 
+def as_written(identifier: str, project) -> str:
+    """An answer under the identifier the questions were written with, so an entry a project moved to a
+    domain still counts: ``triple-stores:RDF-2`` as ``STD-027``, and ``triple-stores:TSD-07`` as ``TSD-07``."""
+    scope, _, local = identifier.rpartition(":")
+    for move in (project.moves if project else []):
+        if move.to == scope:
+            renamed = {new: old for old, new in (move.rows or {}).items()}
+            if local in renamed:
+                return renamed[local]
+            if not move.rows and local.startswith(move.family.rstrip("Q")):
+                return local
+    return identifier
+
+
 def given_of(question: dict, known: dict) -> dict[str, list[str]]:
     return {scheme: [v for v in question["facets"].get(flag, []) if v in known.get(scheme, {})] for flag, scheme in FLAGS.items()}
 
@@ -138,7 +152,7 @@ def run_vyvid(checkout: Path, config_path: Path, questions: list[dict], out: Pat
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             ask.find(a, q["text"], set(), set(), set(), 8, ask.expand(a, given_of(q, known)))
-        results[key(q)] = table_ids(buffer.getvalue())
+        results[key(q)] = [as_written(i, a.project) for i in table_ids(buffer.getvalue())]
     return results
 
 

@@ -43,7 +43,7 @@ from .model import KI, RDF_TYPE, RDFS_LABEL, document, index_graph, ki, node, no
 from .patterns import Pattern
 from .registers import SEPARATOR_RE, shorten
 from .registers import _cells as table_cells
-from .resolve import Unresolved, mentions, resolve, visible_families
+from .resolve import Unresolved, mentions, moved, resolve, visible_families
 
 CLAIM_LIMIT = 200
 
@@ -125,6 +125,13 @@ class Context:
 
     def mentions(self, text: str) -> list[str]:
         return mentions(self.config, text, self.scope)
+
+    def moved(self, identifier: str) -> bool:
+        """Whether a move hands this identifier to a domain, which now answers for it. It is counted, never indexed."""
+        if (hit := moved(self.config, self.scope, identifier)) is None:
+            return False
+        self.out.bump(f"moved:{self.scope.name}>{hit[0].to}")
+        return True
 
     def families(self, rule: str) -> list[Family]:
         return [f for f in self.scope.families.values() if f.rule == rule]
@@ -295,6 +302,8 @@ def decisions(ctx: Context) -> None:
             if not (match := head(family.pattern, path.stem)):
                 continue
             canonical = match.group(0)
+            if ctx.moved(canonical):
+                continue
             subject = node(scope.name, canonical)
             rel = ctx.rel(path)
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -404,7 +413,7 @@ def register_rows(ctx: Context) -> None:
     rows, problems = registers.read_scope(scope, ctx.types, ctx.taggable)
     out.problems += problems
     columns = {c.property: c for c in ctx.types.columns.values()}
-    for row in rows:
+    for row in (r for r in rows if not ctx.moved(r.identifier)):
         subject = node(scope.name, row.identifier)
         here = f"{row.source}:{row.line}: {row.identifier}"
         ctx.add(subject, RDF_TYPE, ki(row.cls))
@@ -495,6 +504,8 @@ def discoveries(ctx: Context) -> None:
                 if not match:
                     continue
                 canonical = match.group(0)
+                if ctx.moved(canonical):
+                    continue
                 subject = node(scope.name, canonical)
                 claim = heading[match.end() :].lstrip(". ").strip()
                 ctx.add(subject, RDF_TYPE, ki(cls))
@@ -602,6 +613,8 @@ def questions(ctx: Context, today: dt.date | None = None) -> None:
                     out.bump("question-defined-again")
                     continue
                 seen.add(key)
+                if ctx.moved(q.identifier):
+                    continue
                 subject = node(scope.name, q.identifier)
                 answer = q.answer.replace("**", "")
                 claim = shorten(q.question.replace("**", ""), CLAIM_LIMIT) + (" " + shorten(answer, CLAIM_LIMIT) if answer else "")

@@ -43,6 +43,7 @@ from .embed import ModelSpec
 from .patterns import SECONDS as PATTERN_SECONDS, Pattern
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # How a family's identifiers are defined: a table row of a register, a file named by the identifier,
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
@@ -155,6 +156,22 @@ class Recipe:
     scope: str = ""  # the scope that declares it, in which its identifiers are resolved
 
 
+@dataclass(frozen=True)
+class Move:
+    """A family, or some rows of it, that a project's knowledge now has in a domain.
+
+    A whole family is delegated to the domain at load, so a bare identifier written in the project resolves
+    there. ``rows`` maps the project's identifiers to the domain's, and covers those alone. The project's
+    own definition of a moved whole family may stay configured until its copy is removed. The move wins
+    over it, and the build leaves the copy out of the index."""
+
+    family: str
+    to: str
+    source: Path | None  # the file the knowledge came from, as it stood at ``commit``
+    commit: str
+    rows: dict[str, str] = field(default_factory=dict)
+
+
 @dataclass
 class Scope:
     """A layer of rules: the general scope, a domain or a project."""
@@ -182,6 +199,7 @@ class Scope:
     extractors: list[dict] = field(default_factory=list)
     # projects only
     uses: dict[str, dict[str, dict]] = field(default_factory=dict)  # domain -> kind -> the project's settings
+    moves: list[Move] = field(default_factory=list)
     code: Path | None = None
     docs: Path | None = None
     remotes: list[str] = field(default_factory=list)
@@ -266,20 +284,34 @@ class Run:
     sources: dict[str, str]
 
 
+STOP_SECONDS = 2
+
+
+def _signal_group(process: subprocess.Popen, sig) -> None:
+    if sig is not None and hasattr(os, "killpg"):
+        try:
+            os.killpg(process.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
 def run_limited(command: list[str], request: str, folder: Path, env: dict[str, str], seconds: float) -> subprocess.CompletedProcess:
     """Run a command in a session of its own, so a time limit also stops what it started, such as the
-    program a wrapper like ``mise exec`` runs. Raises ``subprocess.TimeoutExpired`` at the limit."""
+    program a wrapper like ``mise run`` runs: SIGTERM to the group, a moment to finish, then SIGKILL.
+    As the session's leader, ``mise run`` keeps its task in the group. Raises
+    ``subprocess.TimeoutExpired`` at the limit."""
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                errors="replace", cwd=folder, env=env, start_new_session=True)
     try:
         out, err = process.communicate(request, timeout=seconds)
     except subprocess.TimeoutExpired:
         # ponytail: on Windows only the direct child is stopped, to be settled when the suite runs there.
-        if hasattr(os, "killpg"):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        _signal_group(process, signal.SIGTERM if hasattr(signal, "SIGKILL") else None)
+        try:
+            process.wait(timeout=STOP_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass
+        _signal_group(process, getattr(signal, "SIGKILL", None))
         process.kill()
         process.wait()
         raise
@@ -424,6 +456,52 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
             out[name] = Family(name, Pattern(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]), (bases or {}).get("self"))
         except (regex.error, TypeError) as error:
             problems.append(f"{where}: family '{name}' has a pattern that does not compile: {error}")
+    return out
+
+
+def _moves(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -> list[Move]:
+    """The ``[[projects.moves]]`` of a project. Each problem is reported and the entry dropped."""
+    out: list[Move] = []
+    for spec in raw or []:
+        spec = spec if isinstance(spec, dict) else {}
+        family, to, commit, rows = spec.get("family"), spec.get("to"), spec.get("commit"), spec.get("rows", {})
+        here = f"{where}: move of '{family}'"
+        issues = []
+        if not isinstance(family, str) or not FAMILY_RE.match(family):
+            issues.append(f"{where}: a move needs a family name")
+        if not isinstance(to, str) or not NAME_RE.match(to):
+            issues.append(f"{here} needs the domain it went to, as 'to'")
+        if not isinstance(commit, str) or not COMMIT_RE.match(commit):
+            issues.append(f"{here} needs a 'commit' in hexadecimal, at least 7 characters")
+        if not isinstance(spec.get("source"), str):
+            issues.append(f"{here} needs a 'source' path")
+        if not isinstance(rows, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in rows.items()) or ("rows" in spec and not rows):
+            issues.append(f"{here} has 'rows' that is not a table of local identifiers to identifiers in '{to}'")
+        if issues:
+            problems += issues
+            continue
+        if any(m.family == family and (not m.rows or not rows) for m in out):
+            problems.append(f"{here} is declared twice, and a whole family cannot also be moved row by row")
+            continue
+        source = _expand(spec["source"], bases, where, problems)
+        out.append(Move(family, to, source, commit.lower(), dict(rows)))
+    return out
+
+
+def _move_problems(config: Config, project: Scope) -> list[str]:
+    """A move to a domain outside the project's stack, or a row whose target no family of the domain matches."""
+    out = []
+    stack = config.domain_order(project)
+    for move in project.moves:
+        where = f"project '{project.name}': move of '{move.family}'"
+        if move.to not in stack:
+            out.append(f"{where} goes to '{move.to}', which is not in its stack of domains")
+            continue
+        families = config.domains[move.to].families
+        if not move.rows and move.family not in families:
+            out.append(f"{where} goes to '{move.to}', which declares no such family")
+        out += [f"{where} sends {key} to {target}, which no family of '{move.to}' matches"
+                for key, target in move.rows.items() if not any(f.pattern.fullmatch(target) for f in families.values())]
     return out
 
 
@@ -746,6 +824,7 @@ def load(path: Path | None = None) -> Config:
         for domain, kinds in p.get("uses", {}).items():
             for kind, settings in kinds.items():
                 problems += credential_problems(settings, f"{where}, uses {domain}.{kind}")
+        moves = [m for m in _moves(p.get("moves"), bases, where, problems) if m.to not in set_aside]
         projects[name] = Scope(
             name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
             remotes=[remotes] if isinstance(remotes, str) else list(remotes),
@@ -756,7 +835,7 @@ def load(path: Path | None = None) -> Config:
             register_types=_paths(p.get("register_types"), bases, where, problems),
             vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
             families=_families(p.get("families"), where, problems, bases),
-            delegates=dict(p.get("delegates", {})),
+            delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
             extractors=_extractors(p.get("extractors"), where, problems, own=True),
             uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
             specialises={k: v for k, s in p.get("specialises", {}).items()
@@ -784,6 +863,7 @@ def load(path: Path | None = None) -> Config:
                 extractor_runs(config, project)
             except ConfigError as error:
                 problems += error.problems
+            problems += _move_problems(config, project)
     if problems:
         raise ConfigError(problems)
     return config
@@ -825,7 +905,7 @@ def _check(config: Config) -> list[str]:
                 problems.append(f"{s.kind} '{s.name}': delegates '{family}' to '{target}', which is no scope")
             elif family not in other.families:
                 problems.append(f"{s.kind} '{s.name}': delegates '{family}' to '{target}', which declares no such family")
-            if family in s.families:
+            if family in s.families and not any(m.family == family and not m.rows for m in s.moves):
                 problems.append(f"{s.kind} '{s.name}': both declares and delegates '{family}'")
     # A cycle among domains is refused: depth-first, colouring each domain as it is entered and left.
     state: dict[str, int] = {}

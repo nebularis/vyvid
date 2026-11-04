@@ -15,7 +15,7 @@ import subprocess
 from dataclasses import replace
 from pathlib import Path
 
-from .config import Config, Family, Scope
+from .config import Config, Family, Move, Scope
 from .model import normalise
 
 QUALIFIED_RE = re.compile(r"^(?P<scope>[a-z][a-z0-9-]*):(?P<local>.+)$")
@@ -114,6 +114,7 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
 
     moved = replace(
         project, code=root, docs=move(project.docs), checkout=root,
+        moves=[replace(m, source=move(m.source)) for m in project.moves],
         rules=[move(p) for p in project.rules], skills=[move(p) for p in project.skills],
         facets=[move(p) for p in project.facets], register_types=[move(p) for p in project.register_types],
         vocabulary=[move(p) for p in project.vocabulary], specialises={k: move(p) for k, p in project.specialises.items()},
@@ -141,24 +142,42 @@ def layers(config: Config, project: Scope | None) -> list[Scope]:
     return [config.general, *(config.domains[n] for n in config.domain_order(project)), project]
 
 
-def resolve(config: Config, mention: str, scope: Scope) -> str:
+def resolve(config: Config, mention: str, scope: Scope, how: list[str] | None = None) -> str:
     """The canonical ``scope:LOCAL`` an identifier names, written in ``scope``.
 
     A qualified mention names its own scope. A bare one means the scope it is written in, through a
-    family that scope declares, or one it delegates to another scope. A mention no family matches,
-    or more than one does, is refused rather than guessed."""
+    family that scope declares, or one it delegates to another scope. A project's move comes first,
+    whether the project still holds the entry or not. A mention no family matches, or more than one
+    does, is refused rather than guessed. ``how`` collects a line for each move followed."""
     if (q := QUALIFIED_RE.match(mention)) is not None:
         target = config.scope(q.group("scope"))
         if target is None:
             raise Unresolved(f"'{mention}' names the scope '{q.group('scope')}', which is not configured")
-        return _within(config, q.group("local"), target, seen=set())
-    return _within(config, mention, scope, seen=set())
+        return _within(config, q.group("local"), target, set(), how)
+    return _within(config, mention, scope, set(), how)
 
 
-def _within(config: Config, local: str, scope: Scope, seen: set[str]) -> str:
+def moved(config: Config, scope: Scope, local: str) -> tuple[Move, str] | None:
+    """The move of ``scope`` that covers ``local`` and the identifier it has in the domain, else None."""
+    for move in scope.moves:
+        if move.rows:
+            for key, target in move.rows.items():
+                if normalise(key) == normalise(local):
+                    return move, target
+        elif (family := config.domains[move.to].families.get(move.family)) is not None and family.pattern.fullmatch(local):
+            return move, local
+    return None
+
+
+def _within(config: Config, local: str, scope: Scope, seen: set[str], how: list[str] | None = None) -> str:
     if scope.name in seen:
         raise Unresolved(f"'{local}' is delegated in a circle through '{scope.name}'")
     seen.add(scope.name)
+    if (hit := moved(config, scope, local)) is not None:
+        move, target = hit
+        if how is not None:
+            how.append(f"{scope.name}:{local} moved to {move.to}:{target} (family {move.family}, from {move.source} at {move.commit})")
+        return f"{move.to}:{target}"
     own = [f for f in scope.families.values() if f.pattern.fullmatch(local)]
     delegated = []
     for family, target in scope.delegates.items():

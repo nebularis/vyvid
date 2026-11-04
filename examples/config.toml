@@ -65,6 +65,22 @@ ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architectur
 [projects.uses.owl.owl-terms]
 paths = ["code:ontology/**/*.ttl"]
 
+# What the project gave to a domain, so its mentions resolve there with no rewriting of its text.
+# A whole family resolves a bare TSD-42 to triple-stores:TSD-42. The project's own definition of the family may stay until its copy is removed.
+# [[projects.moves]]
+# family = "TSD"
+# to = "triple-stores"
+# source = "code:docs/architecture/triple-store-discovery.md"
+# commit = "4b94c0f0"
+#
+# Some rows of a family that stays, each to its identifier in the domain, so STD-030 resolves to triple-stores:RDF-5.
+# [[projects.moves]]
+# family = "STD"
+# to = "triple-stores"
+# source = "code:docs/developer/standards.md"
+# commit = "4b94c0f0"
+# rows = { "STD-030" = "RDF-5", "STD-031" = "RDF-6" }
+
 [[projects.recipes]]
 name = "sparql-for-studio"
 description = "When writing or generating SPARQL for the studio"

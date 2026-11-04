@@ -21,6 +21,10 @@
     the questions the index answered weakly, the gaps found by reading, and closing them
 ``vyd check citations [--staged] [paths ...] [--in folder]``
     refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
+``vyd move check [--ref <git ref>] [--json] [folder]``
+    compare, by identifier, what the folder's project moved to a domain as it stood at the move's commit
+    with the source file at the ref, the working tree by default. Exits 1 when something differs, 2 when a
+    rev or the file cannot be read
 ``vyd recipe list [--in folder]`` and ``vyd recipe run <name> "<question>" [--in folder] [--all] [--json] [--stop-at-glue]``
     the named chains of queries the folder's stack declares, and one run as a briefing within its budget.
     A run that stops at a glue step exits 3, and ``vyd recipe run --resume <state> --glue-output <file>`` goes on
@@ -49,7 +53,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, citations, install, kb, recipes
+from . import __version__, ask, audit, citations, install, kb, moves, recipes
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -444,6 +448,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("paths", nargs="*", help="files or folders whose every line is checked")
     p.add_argument("--staged", action="store_true", help="the lines staged in the project's code and documents repositories")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
+    p = sub.add_parser("move", help="what a project moved to a domain").add_subparsers(dest="move_command", required=True)
+    p = p.add_parser("check", help="compare each moved source file at its commit with a ref, by identifier")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--ref", help="a git ref, the working tree by default")
+    p.add_argument("--json", action="store_true")
     p = sub.add_parser("recipe", help="the named chains of queries of a folder's stack").add_subparsers(dest="recipe_command", required=True)
     p.add_parser("list", help="each recipe of the stack, its scope and when to use it").add_argument("--in", dest="folder", default=".")
     r = p.add_parser("run", help="run one recipe for a question and print its briefing")
@@ -463,6 +472,7 @@ def main(argv: list[str] | None = None) -> int:
     p = d.add_parser("audit", help="report links, file types, paths, patterns, hidden text and commands in a folder, and run nothing from it")
     p.add_argument("folder", type=Path)
     p.add_argument("--json", action="store_true")
+    p.add_argument("--allow", action="append", default=[], metavar="SCOPE", help="a scope the domain may cite, such as a parent. Repeat for several")
     p = d.add_parser("review-path", help="where the review of a domain at a commit is recorded")
     p.add_argument("domain")
     p.add_argument("commit")
@@ -482,9 +492,12 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "resolve":
             config = load()
             scope = bind_in(config, Path(arguments.folder))[1] or config.general
+            how: list[str] = []
             try:
-                print(resolve(config, arguments.identifier, scope))
+                print(resolve(config, arguments.identifier, scope, how))
             finally:
+                for line in how:
+                    print(f"vyd: {line}", file=sys.stderr)
                 for line in timeouts([config.general, *config.domains.values(), *config.projects.values()]):
                     print(f"vyd: {line}", file=sys.stderr)
             return 0
@@ -492,13 +505,16 @@ def main(argv: list[str] | None = None) -> int:
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
         if arguments.command == "check":
             return check_citations(arguments)
+        if arguments.command == "move":
+            config, project = bind_in(load(), Path(arguments.folder))
+            return moves.command(config, project, arguments.ref, arguments.json)
         if arguments.command == "recipe":
             return recipe_command(arguments, parser)
         if arguments.command == "store":
             return store_command(arguments)
         if arguments.command == "domain":
             if arguments.domain_command == "audit":
-                return audit.command(arguments.folder, arguments.json)
+                return audit.command(arguments.folder, arguments.json, tuple(arguments.allow))
             try:
                 print(audit.review_path(arguments.domain, arguments.commit))
             except ValueError as error:

@@ -31,6 +31,7 @@ from .config import Config, Scope, extractor_runs, refusals, timeouts
 from .credentials import private_dir
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
+from .citations import domain_citations
 from .resolve import layers
 
 # The text of every node with a claim: an entry by its name, claim, problem shape and the case it does
@@ -165,6 +166,11 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         discoveries(ctx)
         questions(ctx)
     out.problems += refusals(stack) + timeouts(stack)
+    for key in [k for k in out.counts if k.startswith("moved:")]:
+        name, to = key.removeprefix("moved:").split(">")
+        out.problems.append(f"{out.counts[key]} entries of '{name}' moved to '{to}', which answers for them, so the copies in '{name}' are not indexed")
+    for domain in (s for s in stack if s.kind == "domain"):
+        out.problems += domain_citations(config, domain)
     store.bulk_extend(out.quads)
     # After the extractors, because a Bears on may name a term.
     dangling(store, out)
