@@ -64,6 +64,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import pyoxigraph as ox
 
@@ -862,6 +863,22 @@ def private_note(a: Asker) -> str:
     return "Private, so this project's public text never cites it." if a.public_text else "Private."
 
 
+def answer_from_sections(row: dict, sections: list[dict], meaning: Callable[[str], float | None]) -> None:
+    """A decision's claim is its first numbered decision, so the row carries what reverses or narrows that
+    section. An entry is as close as its closest section and then points at it, after the name, so that a
+    named entry keeps its whole-file pointer, and it carries what reverses or narrows that section alone,
+    with the narrowing its own row states. The order the sections arrive in changes none of this."""
+    own = row.get("narrowed")
+    first = next((x for x in sections if x["s"].endswith("/section-1")), None)
+    if first:
+        row["reversed"], row["narrowed"] = first["reversed"], first["narrowed"] or own
+    scored = [(m, s["s"], s) for s in sections if (m := meaning(s["s"])) is not None and m > row["meaning"]]
+    if scored:
+        row["meaning"], _, closest = max(scored, key=lambda x: (x[0], x[1]))
+        row["pointer"], row["section"] = closest["pointer"], closest["text"]
+        row["reversed"], row["narrowed"] = closest["reversed"], closest["narrowed"] or own
+
+
 def rank(
     a: Asker, words: str, kinds: set[str], phases: set[str], audiences: set[str],
     facets: dict[str, set[str]] | None = None, model=None,
@@ -888,16 +905,7 @@ def rank(
             r["meaning"] = 1.0
         # A decision's claim is its first numbered decision, so the row carries what reverses or
         # narrows that section even when no section outranks the claim.
-        first = next((x for x in sections.get(r["n"], []) if x["s"].endswith("/section-1")), None)
-        if first:
-            r["reversed"], r["narrowed"] = first["reversed"], first["narrowed"] or r.get("narrowed")
-        # An entry is as close as its closest section and then points at it. After the name, so that
-        # a named entry keeps its whole-file pointer.
-        for section in sections.get(r["n"], []):
-            if section["s"] in index and (m := float(vectors[index[section["s"]]] @ question)) > r["meaning"]:
-                r["meaning"], r["pointer"] = m, section["pointer"]
-                r["reversed"], r["narrowed"] = section["reversed"], section["narrowed"] or r.get("narrowed")
-                r["section"] = section["text"]
+        answer_from_sections(r, sections.get(r["n"], []), lambda s: float(vectors[index[s]] @ question) if s in index else None)
         r["facets"] = sum(bool(wanted & set((r.get(c) or "").split())) for c, wanted in facets.items())
         r["score"] = r["meaning"] + boost * r["facets"]
         if r["kind"] == "Decision" and (r.get("successor") or r.get("status") == "Superseded"):

@@ -676,3 +676,21 @@ def test_a_stale_index_is_rebuilt_before_it_answers(built, capsys):
     assert "building it" in capsys.readouterr().err
     assert ask.find(a, "ledger period", set(), set(), set(), 8) == 0
     assert "per period" in capsys.readouterr().out
+
+
+def test_what_narrows_an_answer_is_that_sections_and_not_one_passed_on_the_way():
+    """A section narrowed by a later one scores above the claim, and the later one scores above it. The
+    answer is the later one, which nothing narrows, in whichever order the store returns them."""
+    from itertools import permutations
+    sections = [{"s": "n/section-1", "pointer": "a:1", "text": "one", "reversed": None, "narrowed": None},
+                {"s": "n/section-20", "pointer": "a:20", "text": "twenty", "reversed": None, "narrowed": "a:22"},
+                {"s": "n/section-22", "pointer": "a:22", "text": "twenty-two", "reversed": None, "narrowed": None}]
+    scores = {"n/section-1": 0.1, "n/section-20": 0.6, "n/section-22": 0.8}
+    for order in permutations(sections):
+        row = {"meaning": 0.5, "pointer": "a", "narrowed": None}
+        ask.answer_from_sections(row, list(order), scores.get)
+        assert (row["pointer"], row["narrowed"], row["meaning"]) == ("a:22", None, 0.8)
+        row = {"meaning": 0.5, "pointer": "a", "narrowed": "register"}
+        ask.answer_from_sections(row, list(order), scores.get)
+        assert row["narrowed"] == "register", "the narrowing the row itself states is kept"
+
