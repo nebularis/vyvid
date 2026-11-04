@@ -271,11 +271,11 @@ def test_install_writes_the_rule_file_and_a_skill_per_domain(tmp_path):
     rule = (target / "rules" / "vyvid.md").read_text(encoding="utf-8")
     assert rule.splitlines()[0] == install.MARK
     assert "run `vyd context`" in rule and "`vyd find`" in rule and "vyd recipe run" in rule and "vyd misses --near" in rule
-    wide = (target / "skills" / "vyvid-wide" / "SKILL.md").read_text(encoding="utf-8")
-    assert wide.startswith("---\nname: vyvid-wide\ndescription: \"Notes on wide things\"\n---\n" + install.MARK)
+    wide = (target / "skills" / "vyvid-domain-wide" / "SKILL.md").read_text(encoding="utf-8")
+    assert wide.startswith("---\nname: vyvid-domain-wide\ndescription: \"Notes on wide things\"\n---\n" + install.MARK)
     assert wide.index("Keep it wide.") < wide.index("## Recipes") < wide.index("## Registers")
     assert 'vyd recipe run notes "<question>"`. When a note decides it' in wide and "- NOTE (note) in " in wide
-    tools = (target / "skills" / "vyvid-tools" / "SKILL.md").read_text(encoding="utf-8")
+    tools = (target / "skills" / "vyvid-domain-tools" / "SKILL.md").read_text(encoding="utf-8")
     assert 'description: "Use when working on tools"' in tools and "## Recipes" not in tools
     assert install.install(w.config, "claude-code", target, dry_run=False) == 0, "a file it generated is written again"
 
@@ -287,7 +287,7 @@ def test_install_never_overwrites_a_file_it_did_not_generate(tmp_path, capsys):
     (target / "rules" / "vyvid.md").write_text("my own rule\n", encoding="utf-8")
     assert install.install(w.config, "claude-code", target, dry_run=False) == 1
     assert (target / "rules" / "vyvid.md").read_text(encoding="utf-8") == "my own rule\n"
-    assert "left " in capsys.readouterr().out and (target / "skills" / "vyvid-wide" / "SKILL.md").exists(), "the rest is still written"
+    assert "left " in capsys.readouterr().out and (target / "skills" / "vyvid-domain-wide" / "SKILL.md").exists(), "the rest is still written"
 
 
 def test_install_dry_run_writes_nothing(tmp_path, capsys):
@@ -295,7 +295,7 @@ def test_install_dry_run_writes_nothing(tmp_path, capsys):
     target = tmp_path / "client"
     assert install.install(w.config, "claude-code", target, dry_run=True) == 0
     out = capsys.readouterr().out
-    assert not target.exists() and f"would write {target / 'rules' / 'vyvid.md'}" in out and "vyvid-wide" in out and "vyvid-tools" in out
+    assert not target.exists() and f"would write {target / 'rules' / 'vyvid.md'}" in out and "vyvid-domain-wide" in out and "vyvid-domain-tools" in out
 
 
 def test_install_writes_nothing_into_a_projects_folder(tmp_path, capsys):
@@ -309,3 +309,10 @@ def test_an_unknown_client_is_an_argument_error_naming_the_supported_ones(tmp_pa
     with pytest.raises(SystemExit) as exit:
         cli.main(["install", "--client", "cursor", "--target", str(tmp_path)])
     assert exit.value.code == 2 and "claude-code" in capsys.readouterr().err
+
+
+def test_a_domain_cannot_take_a_core_skill_name():
+    """A domain's name is its author's choice, so its skill's name must not reach the core namespace."""
+    for name in ("core-domain-review", "domain-review", "core"):
+        assert not f"{install.DOMAIN_SKILL}{name}".startswith(install.CORE_SKILL)
+

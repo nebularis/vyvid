@@ -116,7 +116,7 @@ def prose(text: str) -> str:
 
 
 def user_facing(path: str) -> bool:
-    return path == "README.md" or path.startswith("src/") or (
+    return path in ("README.md", "SECURITY.md") or path.startswith("src/") or (
         path.endswith(".md") and path.startswith("docs/") and not path.startswith("docs/developer/"))
 
 

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+# Register types this project adds. A security finding is kept here until a security domain exists,
+# and its rows are then promoted to that domain.
+
+[values.severity]
+high = "HighSeverity"
+medium = "MediumSeverity"
+low = "LowSeverity"
+
+[columns]
+"Finding" = { property = "claim", kind = "claim" }
+"Severity" = { property = "severity", kind = "controlled", values = "severity" }
+"Surface" = { property = "surface", kind = "text" }
+"Evidence" = { property = "evidence", kind = "text" }
+"Remediation" = { property = "remediation", kind = "text" }
+"Fixed in" = { property = "fixedIn", kind = "text", status = "Fixed" }
+
+[types.security-finding]
+class = "SecurityFinding"
