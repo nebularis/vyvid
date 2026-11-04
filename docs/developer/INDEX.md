@@ -24,6 +24,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-5 | vyvid-framework | the store across scopes | built 2026-11-03 |
 | VYD-6 | vyvid-framework | recipes and contracts | built 2026-11-04 |
 | VYD-6b | vyvid-framework | containing a domain | built 2026-11-04 |
+| VYD-6c | vyvid-framework | checkouts and glue's reach | building 2026-11-04 |
 | VYD-7 | vyvid-framework | the triple-store domain | planned |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | planned |
 | VYD-9 | vyvid-framework | a project with private docs | planned |
