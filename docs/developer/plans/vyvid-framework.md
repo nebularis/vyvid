@@ -30,6 +30,7 @@ gantt
   VYD-4 managed assets and git        :s4, 14, 17
   VYD-5 the store across scopes       :s5, 17, 21
   VYD-6 recipes and contracts         :s6, 21, 25
+  VYD-6b containing a domain          :s6b, 25, 25
   section first moves
   VYD-7 the triple-store domain       :s7, 25, 27
   VYD-8 the Tools and Haskell domains :s8, 27, 30
@@ -41,6 +42,8 @@ gantt
   VYD-12 agent coordination           :s12, 38, 42
   section trackers
   VYD-13 work tracked in a tracker    :s13, 42, 47
+  section portability
+  VYD-14 Linux and Windows in Docker  :s14, 47, 49
 ```
 
 Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, since VYD-0's result may change VYD-2 and VYD-5, and VYD-0b's decides how VYD-3 builds extractors.
@@ -58,6 +61,7 @@ Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, 
 | **VYD-4** | Managed assets under `kb`: clone, pull on the policy's schedule, commit and push by each domain's policy, conflicts reported and never merged | A row added by an agent to a managed register is committed and pushed under `auto`, and left staged under `manual` |
 | **VYD-5** | One store outside git, one named graph per source, nodes with scope, source and visibility, `find` filtered to the bound scopes and ranked project first, a specialising row above the row it specialises, and the public-private citation check | A question in `lattice` never returns a private domain's entry unless `--scope` names it, a public diff citing one is refused, and a project's row ranks above a domain row of equal meaning |
 | **VYD-6** | Recipes, chains of queries with glue scripts, declared by domains and projects. The generated per-domain skills and the user-level rule file | LATTICE's recipe for the studio's SPARQL returns the query-writing rules, their decisions and the persistence compiler's capability in under 1,000 tokens |
+| **VYD-6b** | A domain contained: every path a manifest names stays inside its folder, symlinks leaving it are refused, a manifest cannot set its own `git` policy or `remote`, family patterns run on the `regex` package with a time limit, a domain holds text only, a domain's generated skill cannot take a core skill's name, `vyd domain audit` reports what it finds as facts, the core skill `vyvid-core-domain-review` reviews an external domain read-only, a glue step may set its own time limit, and `vyd recipe run --dry-run` prints each step and glue command without running it | The hostile domain of SEC-1 to SEC-5 is refused, and a review of a quarantined clone records its findings per commit and grants no trust |
 | **VYD-7** | `vyvid-triple-stores`, a public domain of Markdown knowledge at `kb:domains/triple-stores`, that cites no project: the record's findings keep their `TSD` numbers, with what each means for LATTICE and how to reproduce it left out, and the query-writing rules in a family of the domain's own, `RDF-nn`. `vyd move register` copies a register's selected rows and records the commit they came from, `--check --ref <branch>` compares a branch's copy with the domain by identifier, and a project's configuration maps an identifier it has written to one in a domain, such as `STD-030` to `triple-stores:RDF-5`, written through to resolution, with no rewriting of its text | The domain is published and tagged, a domain citing a project is refused, every `TSD-nn` and mapped `STD` mention in LATTICE resolves through a configuration in a scratch knowledge base, and LATTICE is unchanged |
 | **VYD-8** | `vyd domain new`, the Tools domain with its notes register, LATTICE's specialisation of it in `docs/developer/tools.md`, and a Haskell domain with the extractor VYD-0b chose | In `~/work/lattice`, "how do I run the knowledge tests" returns LATTICE's `mise run check:knowledge` row first with the domain's `mise run` note beneath it, the same question elsewhere returns only the domain's, and a Haskell module's exports are found with `--kind term` |
 | **VYD-9** | `distributed-process` bound as a project, its code in one folder and its development documents in a private one, with a contract of its own | Its plans and registers are indexed and its board works, and nothing is written into its code repository but code |
@@ -65,6 +69,7 @@ Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, 
 | **VYD-11** | `vyvid`'s own repository worked under a contract that `vyvid` resolves: its rules, skills and recipes in this repository's project scope, its registers indexed by itself, bound by a folder-local configuration rather than an AGENTS.md written by hand | An agent in this repository runs `vyd context` and gets this repository's contract, and `vyd find` answers from this repository's own registers |
 | **VYD-12** | Optional agent coordination, as the [agent coordination sketch](../sketches/agent-coordination.md) answers it: claims of slices, units and next identifiers granted or refused atomically, held as leases renewed by every `vyd` command, logged as events, behind one interface with three choices, `none` by default, a local SQLite store, or a shared server | With `local`, two agents claiming one slice on one machine get one grant and one refusal naming the holder, a lapsed lease shows as stale, and two branches never take the same next identifier. With `none`, nothing changes from today |
 | **VYD-13** | Work tracked in a tracker, as the [work-tracking sketch](../sketches/work-tracking-domains.md) answers it: a domain manifest's `requires`, `vyd doctor`, packages installed only with consent and never by a pull, an extractor run in a separate process, in Вивід's environment by default or in one a project names, the `work-tracking` domain with `jira` and `azure-devops` under it, and work items as a kind of record of their own beside the entries | A project on Jira sees its work items on `vyd board`, a missing package or credential is named by `vyd doctor`, a pull raising a requirement installs nothing until the user agrees, and two projects pinning different versions of one tracker package both build |
+| **VYD-14** | The whole suite run in a Linux container and on Windows, once everything else is built, clearing TD-3. Linux containers run on any host. Windows containers need a Windows host, so the slice chooses between a Windows machine, a hosted Windows runner and a virtual machine | `mise run check` passes on Linux and on Windows, and a family pattern's time limit is shown to fire on both |
 
 ## VYD-0, the spike, in detail
 
