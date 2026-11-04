@@ -34,6 +34,7 @@ import platformdirs
 import regex
 
 from . import extractors
+from .credentials import credential_problems, host_of, remote_problem
 from .embed import ModelSpec
 from .patterns import SECONDS as PATTERN_SECONDS, Pattern
 
@@ -202,6 +203,7 @@ class Config:
     store: Path | None = None  # where the index is built, else the platform's data folder
     commit_trailers: tuple[str, ...] = ()  # appended to every message ``vyd kb record`` commits
     glue: str = "run"  # ``stop`` means vyd never runs glue itself, one of GLUE_CHOICES
+    logs: bool = True  # false means no question is written to the ask and miss logs
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -378,6 +380,7 @@ def _extractors(raw, where, problems, own=False) -> list[dict]:
             if not isinstance(kind, str) or not NAME_RE.match(kind):
                 problems.append(f"{where}: a command extractor needs a lower-case kind")
             settings = {k: v for k, v in item.items() if k != "kind"}
+            problems += credential_problems(settings, f"{where}, extractor '{kind}'")
             for key in given:
                 try:
                     settings[key] = _step_value(key, [item[key]] if key == "code" and isinstance(item[key], str) else item[key])
@@ -389,7 +392,15 @@ def _extractors(raw, where, problems, own=False) -> list[dict]:
             problems.append(f"{where}: an extractor needs an installed kind of {', '.join(extractors.kinds()) or 'none installed'}, not '{kind}'")
         else:
             out.append({"kind": kind, "settings": {k: v for k, v in item.items() if k != "kind"}})
+            problems += credential_problems(out[-1]["settings"], f"{where}, extractor '{kind}'")
     return out
+
+
+def _remotes(urls, where: str, problems: list[str]) -> None:
+    """A remote that holds a credential, named by its host and never its URL."""
+    for url in [urls] if isinstance(urls, str) else (urls if isinstance(urls, list) else []):
+        if isinstance(url, str) and (why := remote_problem(url)):
+            problems.append(f"{where}: the remote at {host_of(url)} {why}")
 
 
 def _git_policy(raw, where: str, problems: list[str]) -> GitPolicy:
@@ -436,6 +447,7 @@ def _step(raw, where: str, problems: list[str]) -> dict | None:
     required, optional = STEPS[name]
     here = f"{where}, step '{name}'"
     before = len(problems)
+    problems += credential_problems({k: v for k, v in raw.items() if k != "env"}, here)
     problems += [f"{here}: needs '{k}'" for k in required if k not in raw]
     if unknown := sorted(set(raw) - {"step", *required, *optional}):
         problems.append(f"{here}: unknown keys {', '.join(unknown)}")
@@ -573,6 +585,7 @@ def load(path: Path | None = None) -> Config:
         if unknown := sorted(set(merged) - DOMAIN_KEYS):
             problems.append(f"{where}: unknown keys {', '.join(unknown)}")
         bases = {"kb": kb, "self": root}
+        _remotes(merged.get("remote"), where, problems)
         domains[name] = Scope(
             name, "domain", _visibility(merged, "private", where, problems), path=root, parents=list(merged.get("parents", [])),
             description=" ".join(str(merged.get("description", "")).split()), recipes=_recipes(merged.get("recipes"), name, "domain", where, problems),
@@ -602,6 +615,10 @@ def load(path: Path | None = None) -> Config:
         bases = {"code": code, "docs": docs, "kb": kb}
         match = p.get("match", {})
         remotes = match.get("remote", [])
+        _remotes(remotes, where, problems)
+        for domain, kinds in p.get("uses", {}).items():
+            for kind, settings in kinds.items():
+                problems += credential_problems(settings, f"{where}, uses {domain}.{kind}")
         projects[name] = Scope(
             name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
             remotes=[remotes] if isinstance(remotes, str) else list(remotes),
@@ -627,8 +644,12 @@ def load(path: Path | None = None) -> Config:
     if glue not in GLUE_CHOICES:
         problems.append(f"[framework]: glue must be one of {', '.join(GLUE_CHOICES)}")
         glue = "run"
+    logs = framework.get("logs", True)
+    if not isinstance(logs, bool):
+        problems.append("[framework]: logs must be true or false")
+        logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue)
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs)
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

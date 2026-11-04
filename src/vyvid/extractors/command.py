@@ -14,6 +14,7 @@ from pathlib import Path
 import pyoxigraph as ox
 
 from ..config import COMMAND_KEYS, Run, glue_env, run_limited
+from ..credentials import redact
 from . import COMMAND_SECONDS, PROTOCOL, Context, Result
 
 STDERR = 2000  # the most of a command's standard error a problem keeps
@@ -51,10 +52,11 @@ def _collect(run: Run, context: Context, output: Path) -> Result:
     except OSError as error:
         raise Failed(f"cannot run. {error}") from error
     if done.returncode:
-        raise Failed(f"exited {done.returncode}. {done.stderr.strip()[:STDERR]}")
+        raise Failed(f"exited {done.returncode}. {redact(done.stderr.strip())[:STDERR]}")
     data = _result(output / "result.json")
     quads = _quads(output / "quads.nq", allowed)
     out = Result(quads, **{k: data[k] for k in SHAPES if k != "texts"})
+    out.problems, out.findings = [redact(p) for p in out.problems], [redact(f) for f in out.findings]
     subjects = {q.subject.value for q in quads if isinstance(q.subject, ox.NamedNode)}
     out.texts = {k: v for k, v in data["texts"].items() if k in subjects}
     out.problems += [f"extractor '{run.kind}' gave a text for {k}, which it wrote no quad about, so it is not embedded" for k in data["texts"] if k not in subjects]

@@ -43,6 +43,7 @@ import pyoxigraph as ox
 from . import ask, embed
 from .config import GLUE_ENV, Recipe, Scope, glue_env, run_limited  # noqa: F401  GLUE_ENV stays importable from here
 from .build import store_dir
+from .credentials import private_dir, redact
 from .model import node_of
 from .resolve import Unresolved, resolve
 
@@ -197,7 +198,7 @@ def _check_glue(declaring: Scope) -> None:
 def _entries(text: str, what: str) -> list[dict]:
     """The entries a glue command printed, each filled in. Raises RecipeError for text that is not a list of them."""
     try:
-        replaced = json.loads(text)
+        replaced = json.loads(redact(text))
     except json.JSONDecodeError as error:
         raise RecipeError(f"{what} did not print JSON. {error}") from error
     if not isinstance(replaced, list) or not all(isinstance(e, dict) and isinstance(e.get("id"), str) for e in replaced):
@@ -217,14 +218,14 @@ def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
     except OSError as error:
         raise RecipeError(f"glue {shown} cannot run. {error}") from error
     if done.returncode:
-        raise RecipeError(f"glue {shown} exited {done.returncode}. {done.stderr.strip()[:GLUE_STDERR]}")
+        raise RecipeError(f"glue {shown} exited {done.returncode}. {redact(done.stderr.strip())[:GLUE_STDERR]}")
     return _entries(done.stdout, f"glue {shown}")
 
 
 def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: GlueStop) -> str:
     """Write the entries so far and the state of the run under the store base, and say what to run and how to resume."""
     step, base = recipe.steps[stopped.index], store_dir(a.config) / "glue"
-    base.mkdir(parents=True, exist_ok=True)
+    private_dir(base)
     where = Path(tempfile.mkdtemp(prefix=f"{recipe.name}-", dir=base))
     given, output, state = where / "input.json", where / "output.json", where / "state.json"
     given.write_text(json.dumps(stopped.result, ensure_ascii=False), encoding="utf-8", newline="\n")

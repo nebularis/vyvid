@@ -6,6 +6,8 @@ kb = "~/work/vyvid/kb"
 commit_trailers = ["Co-Authored-By: Your Agent <agent@example.com>"]
 # "stop" means vyd never runs glue itself. It prints each glue command for your client to run, and nothing else overrides it.
 # glue = "stop"
+# Set to false to write no log of the questions asked.
+# logs = false
 
 [general]
 rules = "kb:general/rules.md"

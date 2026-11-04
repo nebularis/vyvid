@@ -69,6 +69,7 @@ import pyoxigraph as ox
 from . import anchors, embed, registers
 from .build import build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
+from .credentials import private_dir, private_file
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
 from .resolve import Unresolved, bind_in, layers, resolve
 
@@ -1009,8 +1010,11 @@ def lookup(a: Asker, verb: str, argument: str) -> int:
     if not rows:
         log_miss(a, question)
         print(f"nothing found for: {question}")
-        print(f"logged to {a.miss_log}, which is what decides whether the")
-        print("vocabulary needs a new concept or a register needs a new row.")
+        if a.config.logs:
+            print(f"logged to {a.miss_log}, which is what decides whether the")
+            print("vocabulary needs a new concept or a register needs a new row.")
+        else:
+            print("logging is off ([framework] logs = false), so this was not logged")
         return 0
     show(rows, columns)
     print(f"\n{len(rows)} row(s)")
@@ -1023,7 +1027,10 @@ def lookup(a: Asker, verb: str, argument: str) -> int:
 def log_miss(a: Asker, question: str) -> None:
     """A question that returns nothing names a gap in the vocabulary or the registers, and the log
     of them is what decides what to write next."""
-    a.logs.mkdir(parents=True, exist_ok=True)
+    if not a.config.logs:
+        return
+    private_dir(a.logs)
+    private_file(a.miss_log)
     with a.miss_log.open("a", encoding="utf-8") as handle:
         handle.write(f"{dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\t{question}\n")
 
@@ -1031,7 +1038,10 @@ def log_miss(a: Asker, question: str) -> None:
 def log_ask(a: Asker, verb: str, text: str, best: float | None, ids: list[str], asked: str | None = None) -> None:
     """One line per find, read or gap: when, which, the best meaning score, what it showed, the text,
     and for a gap the question asked just before it."""
-    a.logs.mkdir(parents=True, exist_ok=True)
+    if not a.config.logs:
+        return
+    private_dir(a.logs)
+    private_file(a.ask_log)
     score = "" if best is None else f"{best:.2f}"
     tail = "" if asked is None else f"\t{asked}"
     with a.ask_log.open("a", encoding="utf-8") as handle:
@@ -1107,6 +1117,9 @@ def recheck(a: Asker) -> int:
 def gap(a: Asker, text: str, extras: list[str]) -> int:
     """Record what was found by reading and that the index did not say, with the entry it qualifies
     and the line it was read from, at the moment it is found."""
+    if not a.config.logs:
+        print("logging is off ([framework] logs = false), so the gap was not recorded")
+        return 0
     where = [e for e in extras if anchors.LINE_NUMBER_RE.search(e) or "/" in e]
     ids = [e for e in extras if e not in where]
     asked = next((r["text"] for r in reversed(asks(a)) if r["verb"] == "find"), "")
@@ -1132,6 +1145,8 @@ def misses(a: Asker, limit: int, near: bool = False, again: bool = False) -> int
     if again:
         recheck(a)
     weak, near_score = a.config.embedding.weak, a.config.embedding.near
+    if not a.config.logs:
+        print("logging is off ([framework] logs = false), so nothing new is recorded")
     logged = asks(a)
     if a.miss_log.exists():
         lines = [line.partition("\t") for line in a.miss_log.read_text(encoding="utf-8").splitlines()]

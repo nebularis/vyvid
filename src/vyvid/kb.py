@@ -11,17 +11,21 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from .build import store_dir
-from .config import Config, GitPolicy, Scope
+from .config import Config, GitPolicy, Scope, glue_env, run_limited
+from .credentials import private_dir, redact, scan_file
 from .resolve import normalise_remote
 
 DAY = 24 * 60 * 60
+GITLEAKS_SECONDS = 30
 STAMPS = "kb-pulls.json"
 
 
@@ -87,7 +91,7 @@ def _stamps(config: Config) -> dict[str, float]:
 def _stamp(config: Config, name: str, when: float) -> None:
     stamps = {**_stamps(config), name: when}
     path = store_dir(config) / STAMPS
-    path.parent.mkdir(parents=True, exist_ok=True)
+    private_dir(path.parent)
     path.write_text(json.dumps(stamps, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
@@ -164,10 +168,51 @@ def pull_due(config: Config, stack: list[Scope], clock: Callable[[], float] = ti
     return pull(config, [s for s in stack if s.name in ours], due=True, clock=clock)
 
 
+def _files(paths: list[Path]) -> list[Path]:
+    """The files a stage of these paths could take: each file, and the files under each folder but its .git."""
+    return [f for p in paths for f in ([p] if p.is_file() else sorted(p.rglob("*")) if p.is_dir() else []) if f.is_file() and ".git" not in f.parts]
+
+
+def _gitleaks(file: Path) -> tuple[list[tuple[int, str]], str | None]:
+    """What ``gitleaks`` finds in one file, as line and rule, and a note if it could not run.
+
+    It runs in an empty folder under the minimal environment, so no ignore file or configuration of the
+    domain's is read, and ``gitleaks:allow`` comments are ignored. Its own redaction keeps the secret out of the report."""
+    with tempfile.TemporaryDirectory() as work:
+        report = Path(work) / "report.json"
+        command = ["gitleaks", "dir", "--no-banner", "--no-color", "--redact", "--ignore-gitleaks-allow", "--exit-code", "2",
+                   "--log-level", "error", "--report-format", "json", "--report-path", str(report), str(file)]
+        try:
+            done = run_limited(command, "", Path(work), glue_env({}), GITLEAKS_SECONDS)
+            found = json.loads(report.read_text(encoding="utf-8")) if done.returncode == 2 else []
+        except subprocess.TimeoutExpired:
+            return [], f"gitleaks did not finish within {GITLEAKS_SECONDS} seconds"
+        except (OSError, ValueError) as error:
+            return [], f"gitleaks could not be run or read ({error.__class__.__name__})"
+        if done.returncode not in (0, 2):
+            return [], f"gitleaks exited {done.returncode}: {redact(done.stderr.strip())[:200]}"
+    return [(int(f["StartLine"]), str(f["RuleID"])) for f in found], None
+
+
+def leaks(folder: Path, files: list[Path]) -> tuple[list[str], list[str]]:
+    """``path:line rule`` for each credential found in the files, by the built-in scan and by ``gitleaks``
+    where it is installed, and a note for each time ``gitleaks`` failed. Never the matched text."""
+    found: dict[str, None] = {}
+    notes: list[str] = []
+    for file in files:
+        hits = scan_file(file)
+        if shutil.which("gitleaks"):
+            more, note = _gitleaks(file)
+            hits, notes = hits + more, notes + ([note] if note else [])
+        shown = file.relative_to(folder).as_posix() if file.is_relative_to(folder) else file.name
+        found.update(dict.fromkeys(f"{shown}:{line} {rule}" for line, rule in hits))
+    return list(found), list(dict.fromkeys(notes))
+
+
 def record(config: Config, paths: list[str], message: str) -> list[Result]:
     """Stage the paths in the managed domains holding them, and by each domain's policy commit and push.
 
-    Nothing is staged unless every path is acceptable. A path outside every managed domain belongs to a
+    Nothing is staged unless every path is acceptable, and nothing of a domain whose files hold what looks like a credential. A path outside every managed domain belongs to a
     project, whose own contract governs its commits."""
     domains = managed(config)
     grouped: dict[str, list[Path]] = {}
@@ -189,6 +234,12 @@ def record(config: Config, paths: list[str], message: str) -> list[Result]:
     for name, files in grouped.items():
         folder = config.domains[name].path
         policy = config.domains[name].git
+        found, notes = leaks(folder.resolve(), _files(files))
+        results += [Result(name, True, f"{note}, so only the built-in scan was done") for note in notes]
+        if found:
+            results.append(Result(name, False, "refused, nothing staged, since these look like credentials: " + ", ".join(found)
+                                  + ". Remove them. If one is a false positive, stage the file with git yourself, since vyd has no flag to skip this scan"))
+            continue
         added = git(folder, "add", "--", *map(str, files))
         if added.returncode:
             results.append(Result(name, False, added.stderr.strip()))

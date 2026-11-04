@@ -27,6 +27,7 @@ from . import embed as vectors
 from . import extractors, facets, registers
 from .extractors import command
 from .config import Config, Scope, extractor_runs, refusals, timeouts
+from .credentials import private_dir
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
 from .resolve import layers
@@ -129,7 +130,10 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
     out = Extract()
     start = time.perf_counter()
     built_from = time.time()
-    store_path = store_path or store_dir(config, project) / "store"
+    if store_path is None:  # the store's own folders are owner-only, the base and a checkout's
+        store_path = store_dir(config, project) / "store"
+        for owned in (store_dir(config), store_path.parent):
+            private_dir(owned)
     stack = scopes or (layers(config, project) if project else [config.general, *config.domains.values(), *config.projects.values()])
     schemes, values = facets.merge(facets.registers([config.general, *(s for s in stack if s is not config.general)]))
     taggable = facets.taggable(values)

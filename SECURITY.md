@@ -23,8 +23,12 @@ Anything Вивід runs on your behalf can reach what you can reach.
 
 - **The environment.** Tokens in environment variables and your SSH agent are the easiest to reach, since a command can use them to act as you. Glue is given only a short list of variables by exact name, such as `PATH` and `HOME`, and any its step names in `env`. Tokens, `SSH_AUTH_SOCK` and `VIRTUAL_ENV` are not passed unless a step names them. A command you run yourself when a recipe stops at glue has your whole environment.
 - **Your files.** `~/.ssh`, cloud credentials and browser profiles cannot be protected without a sandbox, and Вивід has none that works on every platform.
-- **What is printed.** A command's output goes to the agent, and so to your model provider and your transcript.
-- **What is committed.** A domain under an automatic push publishes what is staged, so keep automatic push to domains you own.
+- **What is printed.** A command's output goes to the agent, and so to your model provider and your transcript. Text that matches a known credential format, such as a GitHub, GitLab, AWS, Slack or Anthropic token, a private key block or a bearer token, is replaced with `[redacted]` in the output of glue and of a command extractor, and in their error text.
+- **What is committed.** A domain under an automatic push publishes what is staged, so keep automatic push to domains you own. `vyd kb record` scans each file it is about to stage for the same formats, and when it finds one it stages nothing in that domain and says which file, which line and which rule, never the text. It has no option to skip the scan, since an agent chooses its options. A false positive is yours to stage with git. Where `gitleaks` is installed it is run over each file as well, and when it cannot run you are told and the built-in scan goes on alone.
+- **What your configuration holds.** A remote URL with a password, with a user part on http or https, or with a query or fragment is refused, and the message names the host and not the URL. A setting named `credential`, `credentials`, `token`, `password`, `secret` or `api_key`, or ending `_token`, `_password`, `_secret` or `_key`, must start with `env:` or `keychain:`.
+- **What is kept on disk.** The index folder is readable by you alone. So are the logs of questions, and `logs = false` in `[framework]` stops them being written.
+
+Scanning catches an accident. It looks for known formats and for nothing else, so it does not catch a secret in an unknown format, and it cannot stop someone who encodes a secret to get past it.
 
 Keep a credential out of your configuration by naming an environment variable or a keychain entry, and never write one into a domain.
 
