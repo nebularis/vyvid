@@ -95,3 +95,99 @@
 2026-11-04T12:01:53+00:00	find	0.79	BUN-Q6,CAP-86,STD-240,ADR-A78,CAP-105,PRI-03,ADR-A129,CD-Q2	how does an applied ontology build on top of the existing substrates?
 2026-11-04T12:01:53+00:00	find	0.66	STD-162,STD-040,STD-155,STD-158,STD-179,PRI-66,CAP-20,STD-150	we have slow running tests, what already exists to improve them?
 2026-11-04T12:01:54+00:00	find	0.74	CAP-72,LF-Q19,ADR-A84,MEC-63,CAP-47,PAT-45,PRI-53,STD-234	is there an IRI minting capability I can use in my java service code?
+2026-11-04T14:15:54+00:00	find	0.70	PRI-07,ADR-A104,MEC-61,PM-Q3,BL-12,ADR-A16,ADR-A106,PRI-33	how do I keep track of what state a contract is in over time
+2026-11-04T14:15:54+00:00	find	0.78	PRI-02,MEC-01,PRI-06,STD-284,ADR-A82,ADR-A141,VH-Q3,ADR-A12	give an object a stable identity that survives each revision of it
+2026-11-04T14:15:54+00:00	find	0.74	MEC-03,STD-016,STD-014,PRI-31,MEC-02,STD-294,ADR-A134,STD-210	how do we tell from the data when a fact started to hold, separately from when it was recorded
+2026-11-04T14:15:55+00:00	find	0.66	WF-Q2,MEC-56,LG-Q8,ADR-A131,CAP-58,MEC-36,PRI-43,C9b-Q5	a running balance that gets drawn down and then topped back up
+2026-11-04T14:15:55+00:00	find	0.81	ADR-A-CAP1,CAP-76,PDD-17,MEC-81,CAP-85,CAP-45,TSD-14,PDD-12	reading the graph quickly at runtime without scanning every version
+2026-11-04T14:15:55+00:00	find	0.79	CAP-57,STD-027,STD-020,STD-128,TSD-Q14,ADR-A128,TD-11,STD-063	my SHACL SPARQL constraint is slow, how should I write it
+2026-11-04T14:15:56+00:00	find	0.71	STD-016,STD-294,MEC-59,PAT-23,PAT-05,ADR-A149,PAT-04,FS-Q3	two writers update the same record at the same moment
+2026-11-04T14:15:56+00:00	find	0.76	STD-243,H2-Q4,PRI-55,ADR-A103,TD-72,TSD-22,PAT-20,ADR-A123	safely put a value from the caller into a query
+2026-11-04T14:15:56+00:00	find	0.75	STD-006,STD-258,PRI-17,MEC-83,CAP-22,ADR-A-FM2,ADR-A-C2,PRI-67	may this layer use a term from the layer next to it
+2026-11-04T14:15:57+00:00	find	0.73	ADR-A122,STD-234,ADR-A82,PAT-01,ADR-A147,PAT-46,MEC-62,KC-Q6	identifiers computed from the content, so the same input gives the same IRI
+2026-11-04T14:15:57+00:00	find	0.67	PRI-73,STD-295,PRI-08,MEC-14,ADR-A103,PRI-36,IR-Q4,OR-Q14	a value nobody knows yet that someone supplies later
+2026-11-04T14:15:57+00:00	find	0.69	MEC-27,MEC-25,ADR-A87,HQ6a-Q3,MEC-85,MEC-20,MEC-28,ADR-A103	a condition can be met, not met, or not decidable from what we know
+2026-11-04T14:15:58+00:00	find	0.74	MEC-31,ADR-A116,MEC-27,ADR-A87,ADR-A103,ADR-A126,ADR-A105,MB-Q3	how do we say a list is complete under the open world assumption
+2026-11-04T14:15:58+00:00	find	0.69	PAT-12,TSD-38,TD-77,CAP-57,TSD-Q20,ADR-A67,PRI-57,PAT-16	page through a large result set
+2026-11-04T14:15:58+00:00	find	0.72	PAT-38,MEC-65,STD-066,ADR-A68,ADR-A51,ADR-A117,PRI-72,STD-138	remove someone's personal data on request
+2026-11-04T14:15:59+00:00	find	0.72	STD-294,MEC-61,STD-075,PAT-36,STD-156,PAT-31,ADR-A128,STD-016	keep a history of every change to a record
+2026-11-04T14:15:59+00:00	find	0.74	MEC-16,EV-Q7,ADR-A93,MEC-17,LF-Q4,MEC-12,ADR-A95,ADR-A131	amounts in different units and converting between them
+2026-11-04T14:15:59+00:00	find	0.72	ADR-A139,ADR-A99,PDD-05,PRI-20,ADR-A144,ADR-A-FM3,TD-62,VH-Q2	a clause that cites another document at a particular edition
+2026-11-04T14:16:00+00:00	find	0.75	ADR-A139,ADR-A104,IT-Q7,MEC-42,RE-Q3,MEC-53,LE-Q3,PDD-16	changing the wording of a policy after it was agreed
+2026-11-04T14:16:00+00:00	find	0.73	ADR-A144,MEC-50,MEC-24,C7c-Q3,ADR-A104,CC-Q4,ADR-A102,MEC-44	someone acts for another party, who is answerable
+2026-11-04T14:16:00+00:00	find	0.78	ADR-A144,MEC-44,ADR-A104,C6-Q4,ADR-A102,MEC-50,C9b-Q3,MEC-78	rights, duties and powers between the parties
+2026-11-04T14:16:01+00:00	find	0.74	MEC-43,PRI-04,ADR-A112,MEC-50,ADR-A104,PDD-05,PRI-05,P7-Q7	what the contract text says versus what it means once filled in for a case
+2026-11-04T14:16:01+00:00	find	0.73	PRI-34,PRI-33,ADR-A116,MEC-55,IX-Q1,MEC-09,ADR-A130,MEC-77	how several contracts in one programme relate to each other
+2026-11-04T14:16:01+00:00	find	0.71	MEC-33,CAP-63,ADR-A07,MEC-25,ADR-A20,ADR-A67,ADR-A68,MEC-76	modelling an exchange of messages between parties as a process
+2026-11-04T14:16:02+00:00	find	0.75	PRI-60,MEC-57,ADR-A123,ADR-A79,ADR-A149,STD-310,TSD-Q20,CAP-52	generate the database writes from a declared profile instead of hand writing them
+2026-11-04T14:16:02+00:00	find	0.80	CAP-17,STD-117,CAP-18,CAP-105,PRI-03,ADR-A86,STD-222,STD-181	I edited an ontology file, what version do I change
+2026-11-04T14:16:02+00:00	find	0.74	STD-005,RC-Q4,ADR-A77,CAP-22,STD-006,TD-54,STD-192,CAP-82	can I create a new top-level folder
+2026-11-04T14:16:03+00:00	find	0.79	STD-022,PRI-63,PRI-69,STD-002,STD-057,STD-180,STD-127,STD-169	how do I know a new check would actually catch a problem
+2026-11-04T14:16:03+00:00	find	0.83	TSD-07,TSD-37,STD-054,TSD-35,TSD-Q2,CAP-57,TSD-61,TSD-60	rdflib and oxigraph disagree about number datatypes
+2026-11-04T14:16:03+00:00	find	0.72	STD-105,ADR-A133,STD-060,STD-057,STD-301,STD-055,CAP-05,STD-074	what should I run before committing
+2026-11-04T14:16:04+00:00	find	0.79	PRI-66,STD-150,CAP-65,STD-162,STD-161,STD-038,STD-037,STD-158	the test suite is slow, how many parallel workers can I use
+2026-11-04T14:16:04+00:00	find	0.81	CAP-28,CAP-33,ADR-A-FM1,ADR-A-FM2,CAP-32,ADR-A97,FM-Q1,EV-Q5	machine-checked proofs of the layer laws
+2026-11-04T14:16:04+00:00	find	0.76	CAP-69,MEC-74,CAP-53,ADR-A79,ADR-A07,ADR-A88,ADR-A137,WF-Q1	map a source data schema onto the ontology and compile it to RML
+2026-11-04T14:16:05+00:00	find	0.75	STD-244,PRI-56,ADR-A67,ADR-A104,ADR-A94,ADR-A123,MEC-46,CC-Q1	using the current time inside a guard or an identifier
+2026-11-04T14:16:05+00:00	find	0.87	CAP-46,CAP-92,ADR-A90,STD-241,CAP-64,CAP-86,CAP-60,CAP-93	running OWL inference in tests
+2026-11-04T14:16:05+00:00	find	0.76	ADR-A99,MEC-79,W-Q1,TP-Q1,MB-Q1,C8b-Q1,ADR-A120,MB-Q3	a reference list of perils
+2026-11-04T14:16:06+00:00	find	0.72	MEC-18,CC-Q3,ADR-A94,C7b-Q4,PDD-15,MEC-33,MEC-03,MEC-46	dates that repeat every quarter
+2026-11-04T14:16:06+00:00	find	0.70	MEC-46,ADR-A105,C7a-Q4,ADR-A104,CL-Q2,C11a-Q2,ADR-A81,HQ6a-Q4	a deadline for giving notice, and when the clock stops
+2026-11-04T14:16:06+00:00	find	0.71	PRI-78,STD-004,STD-159,XS-Q1,STD-161,TSD-44,ADR-A74,STD-162	should I add a cache or a server to make this faster
+2026-11-04T14:16:07+00:00	find	0.75	MEC-37,PAT-20,MEC-19,STD-251,TSD-01,PAT-42,ADR-A90,TSD-19	ordering siblings so that inserting one does not renumber the rest
+2026-11-04T14:16:07+00:00	find	0.75	STD-016,ADR-A114,PAT-03,MEC-62,STD-254,PAT-04,ADR-A68,TSD-29	two records must never share the same key
+2026-11-04T14:16:07+00:00	find	0.77	PAT-17,PAT-01,ADR-A67,MEC-33,CAP-64,PAT-15,CAP-83,PB-Q7	hybrid logical clock
+2026-11-04T14:16:08+00:00	find	0.58	MEC-44,ADR-A-FM1,ADR-A104,MEC-32,MEC-35,H2-Q5,MEC-34,TY-Q3	Hohfeld
+2026-11-04T14:16:08+00:00	find	0.78	MS-Q6,MEC-56,PAT-25,MEC-61,PAT-11,CL-Q4,LG-Q1,PRI-54	how can we track credits that go back into a ledger account (such as write-backs to a limit)?
+2026-11-04T14:16:08+00:00	find	0.78	ADR-A118,CAP-94,CAP-93,TSD-Q25,ADR-A136,TSD-Q31,CAP-85,TSD-53	find any rules for adding a new graph store backend - can we consider adding Jena?
+2026-11-04T14:16:08+00:00	find	0.79	BUN-Q6,CAP-86,STD-240,ADR-A78,CAP-105,PRI-03,ADR-A129,CD-Q2	how does an applied ontology build on top of the existing substrates?
+2026-11-04T14:16:09+00:00	find	0.66	STD-162,STD-040,STD-155,STD-158,STD-179,PRI-66,CAP-20,STD-150	we have slow running tests, what already exists to improve them?
+2026-11-04T14:16:09+00:00	find	0.74	CAP-72,LF-Q19,ADR-A84,MEC-63,CAP-47,PAT-45,PRI-53,STD-234	is there an IRI minting capability I can use in my java service code?
+2026-11-04T14:16:45+00:00	find	0.70	PRI-07,ADR-A104,MEC-61,PM-Q3,BL-12,ADR-A16,ADR-A106,PRI-33	how do I keep track of what state a contract is in over time
+2026-11-04T14:16:45+00:00	find	0.78	PRI-02,MEC-01,PRI-06,STD-284,ADR-A82,ADR-A141,VH-Q3,ADR-A12	give an object a stable identity that survives each revision of it
+2026-11-04T14:16:46+00:00	find	0.74	MEC-03,STD-016,STD-014,PRI-31,MEC-02,STD-294,ADR-A134,STD-210	how do we tell from the data when a fact started to hold, separately from when it was recorded
+2026-11-04T14:16:46+00:00	find	0.66	WF-Q2,MEC-56,LG-Q8,ADR-A131,CAP-58,MEC-36,PRI-43,C9b-Q5	a running balance that gets drawn down and then topped back up
+2026-11-04T14:16:46+00:00	find	0.81	ADR-A-CAP1,CAP-76,PDD-17,MEC-81,CAP-85,CAP-45,TSD-14,PDD-12	reading the graph quickly at runtime without scanning every version
+2026-11-04T14:16:47+00:00	find	0.79	CAP-57,STD-027,STD-020,STD-128,TSD-Q14,ADR-A128,TD-11,STD-063	my SHACL SPARQL constraint is slow, how should I write it
+2026-11-04T14:16:47+00:00	find	0.71	STD-016,STD-294,MEC-59,PAT-23,PAT-05,ADR-A149,PAT-04,FS-Q3	two writers update the same record at the same moment
+2026-11-04T14:16:47+00:00	find	0.76	STD-243,H2-Q4,PRI-55,ADR-A103,TD-72,TSD-22,PAT-20,ADR-A123	safely put a value from the caller into a query
+2026-11-04T14:16:47+00:00	find	0.75	STD-006,STD-258,PRI-17,MEC-83,CAP-22,ADR-A-FM2,ADR-A-C2,PRI-67	may this layer use a term from the layer next to it
+2026-11-04T14:16:48+00:00	find	0.73	ADR-A122,STD-234,ADR-A82,PAT-01,ADR-A147,PAT-46,MEC-62,KC-Q6	identifiers computed from the content, so the same input gives the same IRI
+2026-11-04T14:16:48+00:00	find	0.67	PRI-73,STD-295,PRI-08,MEC-14,ADR-A103,PRI-36,IR-Q4,OR-Q14	a value nobody knows yet that someone supplies later
+2026-11-04T14:16:48+00:00	find	0.69	MEC-27,MEC-25,ADR-A87,HQ6a-Q3,MEC-85,MEC-20,MEC-28,ADR-A103	a condition can be met, not met, or not decidable from what we know
+2026-11-04T14:16:49+00:00	find	0.74	MEC-31,ADR-A116,MEC-27,ADR-A87,ADR-A103,ADR-A126,ADR-A105,MB-Q3	how do we say a list is complete under the open world assumption
+2026-11-04T14:16:49+00:00	find	0.69	PAT-12,TSD-38,TD-77,CAP-57,TSD-Q20,ADR-A67,PRI-57,PAT-16	page through a large result set
+2026-11-04T14:16:49+00:00	find	0.72	PAT-38,MEC-65,STD-066,ADR-A68,ADR-A51,ADR-A117,PRI-72,STD-138	remove someone's personal data on request
+2026-11-04T14:16:50+00:00	find	0.72	STD-294,MEC-61,STD-075,PAT-36,STD-156,PAT-31,ADR-A128,STD-016	keep a history of every change to a record
+2026-11-04T14:16:50+00:00	find	0.74	MEC-16,EV-Q7,ADR-A93,MEC-17,LF-Q4,MEC-12,ADR-A95,ADR-A131	amounts in different units and converting between them
+2026-11-04T14:16:50+00:00	find	0.72	ADR-A139,ADR-A99,PDD-05,PRI-20,ADR-A144,ADR-A-FM3,TD-62,VH-Q2	a clause that cites another document at a particular edition
+2026-11-04T14:16:51+00:00	find	0.75	ADR-A139,ADR-A104,IT-Q7,MEC-42,RE-Q3,MEC-53,LE-Q3,PDD-16	changing the wording of a policy after it was agreed
+2026-11-04T14:16:51+00:00	find	0.73	ADR-A144,MEC-50,MEC-24,C7c-Q3,ADR-A104,CC-Q4,ADR-A102,MEC-44	someone acts for another party, who is answerable
+2026-11-04T14:16:51+00:00	find	0.78	ADR-A144,MEC-44,ADR-A104,C6-Q4,ADR-A102,MEC-50,C9b-Q3,MEC-78	rights, duties and powers between the parties
+2026-11-04T14:16:52+00:00	find	0.74	MEC-43,PRI-04,ADR-A112,MEC-50,ADR-A104,PDD-05,PRI-05,P7-Q7	what the contract text says versus what it means once filled in for a case
+2026-11-04T14:16:52+00:00	find	0.73	PRI-34,PRI-33,ADR-A116,MEC-55,IX-Q1,MEC-09,ADR-A130,MEC-77	how several contracts in one programme relate to each other
+2026-11-04T14:16:52+00:00	find	0.71	MEC-33,CAP-63,ADR-A07,MEC-25,ADR-A20,ADR-A67,ADR-A68,MEC-76	modelling an exchange of messages between parties as a process
+2026-11-04T14:16:53+00:00	find	0.75	PRI-60,MEC-57,ADR-A123,ADR-A79,ADR-A149,STD-310,TSD-Q20,CAP-52	generate the database writes from a declared profile instead of hand writing them
+2026-11-04T14:16:53+00:00	find	0.80	CAP-17,STD-117,CAP-18,CAP-105,PRI-03,ADR-A86,STD-222,STD-181	I edited an ontology file, what version do I change
+2026-11-04T14:16:53+00:00	find	0.74	STD-005,RC-Q4,ADR-A77,CAP-22,STD-006,TD-54,STD-192,CAP-82	can I create a new top-level folder
+2026-11-04T14:16:54+00:00	find	0.79	STD-022,PRI-63,PRI-69,STD-002,STD-057,STD-180,STD-127,STD-169	how do I know a new check would actually catch a problem
+2026-11-04T14:16:54+00:00	find	0.83	TSD-07,TSD-37,STD-054,TSD-35,TSD-Q2,CAP-57,TSD-61,TSD-60	rdflib and oxigraph disagree about number datatypes
+2026-11-04T14:16:54+00:00	find	0.72	STD-105,ADR-A133,STD-060,STD-057,STD-301,STD-055,CAP-05,STD-074	what should I run before committing
+2026-11-04T14:16:55+00:00	find	0.79	PRI-66,STD-150,CAP-65,STD-162,STD-161,STD-038,STD-037,STD-158	the test suite is slow, how many parallel workers can I use
+2026-11-04T14:16:55+00:00	find	0.81	CAP-28,CAP-33,ADR-A-FM1,ADR-A-FM2,CAP-32,ADR-A97,FM-Q1,EV-Q5	machine-checked proofs of the layer laws
+2026-11-04T14:16:55+00:00	find	0.76	CAP-69,MEC-74,CAP-53,ADR-A79,ADR-A07,ADR-A88,ADR-A137,WF-Q1	map a source data schema onto the ontology and compile it to RML
+2026-11-04T14:16:56+00:00	find	0.75	STD-244,PRI-56,ADR-A67,ADR-A104,ADR-A94,ADR-A123,MEC-46,CC-Q1	using the current time inside a guard or an identifier
+2026-11-04T14:16:56+00:00	find	0.87	CAP-46,CAP-92,ADR-A90,STD-241,CAP-64,CAP-86,CAP-60,CAP-93	running OWL inference in tests
+2026-11-04T14:16:56+00:00	find	0.76	ADR-A99,MEC-79,W-Q1,TP-Q1,MB-Q1,C8b-Q1,ADR-A120,MB-Q3	a reference list of perils
+2026-11-04T14:16:57+00:00	find	0.72	MEC-18,CC-Q3,ADR-A94,C7b-Q4,PDD-15,MEC-33,MEC-03,MEC-46	dates that repeat every quarter
+2026-11-04T14:16:57+00:00	find	0.70	MEC-46,ADR-A105,C7a-Q4,ADR-A104,CL-Q2,C11a-Q2,ADR-A81,HQ6a-Q4	a deadline for giving notice, and when the clock stops
+2026-11-04T14:16:57+00:00	find	0.71	PRI-78,STD-004,STD-159,XS-Q1,STD-161,TSD-44,ADR-A74,STD-162	should I add a cache or a server to make this faster
+2026-11-04T14:16:58+00:00	find	0.75	MEC-37,PAT-20,MEC-19,STD-251,TSD-01,PAT-42,ADR-A90,TSD-19	ordering siblings so that inserting one does not renumber the rest
+2026-11-04T14:16:58+00:00	find	0.75	STD-016,ADR-A114,PAT-03,MEC-62,STD-254,PAT-04,ADR-A68,TSD-29	two records must never share the same key
+2026-11-04T14:16:58+00:00	find	0.77	PAT-17,PAT-01,ADR-A67,MEC-33,CAP-64,PAT-15,CAP-83,PB-Q7	hybrid logical clock
+2026-11-04T14:16:59+00:00	find	0.58	MEC-44,ADR-A-FM1,ADR-A104,MEC-32,MEC-35,H2-Q5,MEC-34,TY-Q3	Hohfeld
+2026-11-04T14:16:59+00:00	find	0.78	MS-Q6,MEC-56,PAT-25,MEC-61,PAT-11,CL-Q4,LG-Q1,PRI-54	how can we track credits that go back into a ledger account (such as write-backs to a limit)?
+2026-11-04T14:16:59+00:00	find	0.78	ADR-A118,CAP-94,CAP-93,TSD-Q25,ADR-A136,TSD-Q31,CAP-85,TSD-53	find any rules for adding a new graph store backend - can we consider adding Jena?
+2026-11-04T14:17:00+00:00	find	0.79	BUN-Q6,CAP-86,STD-240,ADR-A78,CAP-105,PRI-03,ADR-A129,CD-Q2	how does an applied ontology build on top of the existing substrates?
+2026-11-04T14:17:00+00:00	find	0.66	STD-162,STD-040,STD-155,STD-158,STD-179,PRI-66,CAP-20,STD-150	we have slow running tests, what already exists to improve them?
+2026-11-04T14:17:00+00:00	find	0.74	CAP-72,LF-Q19,ADR-A84,MEC-63,CAP-47,PAT-45,PRI-53,STD-234	is there an IRI minting capability I can use in my java service code?

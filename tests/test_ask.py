@@ -251,7 +251,7 @@ def test_the_filters_are_the_values_the_stack_declares(w):
 def test_a_kind_can_be_excluded_and_every_other_kept(w):
     """Questions cost some ranking, so an agent whose answers are crowded by them leaves them out
     without naming every other kind, and terms stay out unless they are named."""
-    every = set(w.ask.kinds().values()) - {"Term"}
+    every = set(w.ask.kinds().values()) - ask.asked_for(w.ask)
     assert ask.without(w.ask, set(), {"Question"}) == every - {"Question"}
     assert ask.without(w.ask, {"Standard", "Question"}, {"Question"}) == {"Standard"}
     assert ask.without(w.ask, set(), set()) == set()

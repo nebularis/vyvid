@@ -90,6 +90,8 @@ class Extract:
     findings: list[str] = field(default_factory=list)
     # (scope, normalised decision, day) -> the addendum's section node
     addenda: dict[tuple[str, str, str], ox.NamedNode] = field(default_factory=dict)
+    # scope -> the units its extractors declared, each name to the units it stands for
+    units: dict[str, dict[str, list[str]]] = field(default_factory=dict)
 
     def bump(self, key: str, by: int = 1) -> None:
         self.counts[key] = self.counts.get(key, 0) + by
@@ -460,13 +462,23 @@ def register_rows(ctx: Context) -> None:
                             ctx.add(subject, ki(prop), target)
                             out.bump(prop)
                 elif column.kind in ("names", "module"):
-                    # A name stays a literal here. What a name or a module means belongs to the
-                    # project that declares them, so it is not resolved. A module loses its code
-                    # quotes and any annotation in parentheses.
+                    # A name stays a literal unless an extractor of the project declared units. What a name
+                    # or a module means belongs to the project, so it is resolved only through those, and a
+                    # name they do not know is reported and kept. A module loses its code quotes and any
+                    # annotation in parentheses.
+                    units = out.units.get(scope.name) if column.kind == "module" else None
                     for name in (re.sub(r"\s*\(.*?\)", "", n).strip(" `") if column.kind == "module" else n.strip() for n in cell.split(",")):
-                        if name:
-                            ctx.add(subject, ki(prop), ox.Literal(name))
-                            out.bump(prop)
+                        if not name:
+                            continue
+                        if units and name in units:
+                            for unit in units[name]:
+                                ctx.add(subject, ki(prop), ox.NamedNode(f"{KI}module/{scope.name}/{unit}"))
+                                out.bump(prop)
+                            continue
+                        if units:
+                            out.problems.append(f"{here} has {prop} '{name}', which names no unit an extractor declared")
+                        ctx.add(subject, ki(prop), ox.Literal(name))
+                        out.bump(prop)
                 else:
                     ctx.add(subject, ki(prop), ox.Literal(cell))
                     if prop == "problemShape":

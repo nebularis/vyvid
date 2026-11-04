@@ -110,15 +110,19 @@ continual = "Continual"
 "Scope" = { property = "scope", kind = "text" }
 "Unit" = { property = "unit", kind = "text" }
 "State" = { property = "state", kind = "text" }
+"Slice" = { property = "identifier", kind = "id" }
+"Deliverable" = { property = "claim", kind = "claim" }
+"Blocked on" = { property = "waitsOn", kind = "ids" }
 
 [unmapped]
 columns = [
-  "Blocked on", "Conf", "Cost of deferring", "Cost while it stays", "Likely home", "Next step",
+  "Conf", "Cost of deferring", "Cost while it stays", "Likely home", "Next step",
   "Options known", "Raised", "Reuse note", "Spotted", "Status", "What exists", "Why we want it",
 ]
 
 # A register type names the class its rows become and, by default, the status a row has when it
-# carries no Ratified column.
+# carries no Ratified column. A type with shown = "asked" is left out of find unless --kind names it or
+# the question names the entry by its identifier.
 [types.standard]
 class = "Standard"
 
@@ -142,6 +146,13 @@ class = "PendingDecision"
 
 [types.backlog]
 class = "Backlog"
+
+# A slice of a unit, on the board of the unit's status record. find leaves slices out unless asked for,
+# since ranked among the entries they take the places of the entries that answer. A State cell is read as
+# written, such as "built 2026-11-03, building 2026-11-03".
+[types.slice]
+class = "Slice"
+shown = "asked"
 
 # Types whose entries are not table rows. A decision is a file, a discovery a heading and a question
 # a bold lead or a row of a plan or sketch, each read by its family's rule.

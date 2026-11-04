@@ -62,6 +62,17 @@ PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-
 TSD = { pattern = 'TSD-\d+[a-z]?', defined = "docs:architecture/triple-store-discovery.md" }
 ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architecture/decisions/" }
 
+# For `vyd check identifiers`. An unresolved mention of a family with `removable = true` is reported and never failed, since the entry is
+# meant to disappear. `exceptions` lists identifiers mentioned and defined nowhere, one per line with a reason after `#`. `defined_only = true`
+# reads a bare match of a loose pattern as a mention only where the family's source defines it, so `UTF-8` is not read as a slice.
+# TD = { defined = "docs:developer/technical-debt.md", type = "debt", removable = true }
+# SL = { pattern = '[A-Z][A-Z0-9]*-\d[\w.]*', defined = "docs:developer/status/*.md", type = "slice", defined_only = true, exceptions = "docs:developer/slice-exceptions.txt" }
+#
+# [projects.identifiers]
+# exceptions = "docs:developer/identifier-exceptions.txt"   # one baseline for every family of the project
+# skip = ["slice-crosswalk-*"]                                # tracked files to leave out, by glob on the path or the name
+# generated = '\A\{% comment %\}Copied from'                  # a file whose first 200 characters match is a generated copy
+
 [projects.uses.owl.owl-terms]
 paths = ["code:ontology/**/*.ttl"]
 

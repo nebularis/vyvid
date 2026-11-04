@@ -21,6 +21,8 @@
     the questions the index answered weakly, the gaps found by reading, and closing them
 ``vyd check citations [--staged] [paths ...] [--in folder]``
     refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
+``vyd check identifiers [--json] [--all] [folder]``
+    fail on an identifier the folder's tracked Markdown mentions and nothing defines, or that a family defines twice
 ``vyd move check [--ref <git ref>] [--json] [folder]``
     compare, by identifier, what the folder's project moved to a domain as it stood at the move's commit
     with the source file at the ref, the working tree by default. Exits 1 when something differs, 2 when a
@@ -53,7 +55,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, citations, install, kb, moves, recipes
+from . import __version__, ask, audit, citations, identifiers, install, kb, moves, recipes
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -448,6 +450,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("paths", nargs="*", help="files or folders whose every line is checked")
     p.add_argument("--staged", action="store_true", help="the lines staged in the project's code and documents repositories")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
+    p = c.add_parser("identifiers", help="fail on a mentioned identifier nothing defines, or one a family defines twice")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--all", action="store_true", help="also list each variant and each removable entry no longer defined")
     p = sub.add_parser("move", help="what a project moved to a domain").add_subparsers(dest="move_command", required=True)
     p = p.add_parser("check", help="compare each moved source file at its commit with a ref, by identifier")
     p.add_argument("folder", nargs="?", default=".")
@@ -504,6 +510,9 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "build":
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
         if arguments.command == "check":
+            if arguments.check_command == "identifiers":
+                config, project = bind_in(load(), Path(arguments.folder))
+                return identifiers.command(config, project, arguments.json, arguments.all)
             return check_citations(arguments)
         if arguments.command == "move":
             config, project = bind_in(load(), Path(arguments.folder))

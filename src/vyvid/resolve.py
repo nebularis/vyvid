@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .config import Config, Family, Move, Scope
 from .model import normalise
+from .registers import _cells
 
 QUALIFIED_RE = re.compile(r"^(?P<scope>[a-z][a-z0-9-]*):(?P<local>.+)$")
 
@@ -110,7 +111,7 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
             return path
 
     def family(f: Family) -> Family:
-        return replace(f, defined=move(f.defined), also=tuple(move(p) for p in f.also))
+        return replace(f, defined=move(f.defined), also=tuple(move(p) for p in f.also), exceptions=move(f.exceptions))
 
     moved = replace(
         project, code=root, docs=move(project.docs), checkout=root,
@@ -118,7 +119,8 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
         rules=[move(p) for p in project.rules], skills=[move(p) for p in project.skills],
         facets=[move(p) for p in project.facets], register_types=[move(p) for p in project.register_types],
         vocabulary=[move(p) for p in project.vocabulary], specialises={k: move(p) for k, p in project.specialises.items()},
-        families={k: family(f) for k, f in project.families.items()})
+        families={k: family(f) for k, f in project.families.items()},
+        identifiers=replace(project.identifiers, exceptions=move(project.identifiers.exceptions)))
     return replace(config, projects={**config.projects, project.name: moved})
 
 
@@ -169,6 +171,53 @@ def moved(config: Config, scope: Scope, local: str) -> tuple[Move, str] | None:
     return None
 
 
+_SITES: dict[Family, dict[str, list[tuple[Path, int, str]]]] = {}
+
+
+def forget() -> None:
+    """Drop the definitions read so far, so the next call reads the files again. A build and a check do."""
+    _SITES.clear()
+
+
+def definition_sites(family: Family) -> dict[str, list[tuple[Path, int, str]]]:
+    """Every site that defines an identifier of ``family``, as normalised key -> ``(path, line, spelling)``,
+    line 0 for a file named by it. Read once per run, by the family's rule. The identifier is the first cell
+    of a table row, the start of a heading or a file's name, or the lead of a question."""
+    if (found := _SITES.get(family)) is not None:
+        return found
+    from .extract import head, questions_in  # extract imports this module
+
+    found = _SITES[family] = {}
+    for path in family.paths():
+        if family.rule == "file":
+            if match := head(family.pattern, path.stem):
+                found.setdefault(normalise(match.group(0)), []).append((path, 0, match.group(0)))
+            continue
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if family.rule == "question":
+            for q in questions_in(lines, family.pattern):
+                found.setdefault(normalise(q.identifier), []).append((path, q.start, q.identifier))
+            continue
+        for number, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if family.rule == "table" and stripped.startswith("|"):
+                cells = _cells(stripped)
+                spelling = cells[0] if cells and family.pattern.fullmatch(cells[0]) else None
+            elif family.rule == "heading" and stripped.startswith("#"):
+                spelling = match.group(0) if (match := head(family.pattern, stripped.lstrip("#").strip())) else None
+            else:
+                spelling = None
+            if spelling:
+                found.setdefault(normalise(spelling), []).append((path, number, spelling))
+    return found
+
+
+def live(family: Family, local: str) -> bool:
+    """Whether ``local`` names something in ``family``: it matches the pattern, and for a family that is
+    ``defined_only``, its source defines it. A loose pattern then does not read ``UTF-8`` as an entry."""
+    return family.pattern.fullmatch(local) is not None and (not family.defined_only or normalise(local) in definition_sites(family))
+
+
 def _within(config: Config, local: str, scope: Scope, seen: set[str], how: list[str] | None = None) -> str:
     if scope.name in seen:
         raise Unresolved(f"'{local}' is delegated in a circle through '{scope.name}'")
@@ -178,11 +227,11 @@ def _within(config: Config, local: str, scope: Scope, seen: set[str], how: list[
         if how is not None:
             how.append(f"{scope.name}:{local} moved to {move.to}:{target} (family {move.family}, from {move.source} at {move.commit})")
         return f"{move.to}:{target}"
-    own = [f for f in scope.families.values() if f.pattern.fullmatch(local)]
+    own = [f for f in scope.families.values() if live(f, local)]
     delegated = []
     for family, target in scope.delegates.items():
         other = config.scope(target)
-        if other is not None and family in other.families and other.families[family].pattern.fullmatch(local):
+        if other is not None and family in other.families and live(other.families[family], local):
             delegated.append(other)
     if len(own) + len(delegated) > 1:
         names = [f.name for f in own] + [f"{o.name} by delegation" for o in delegated]

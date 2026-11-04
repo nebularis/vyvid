@@ -74,10 +74,10 @@
   "H2-Q4",
   "PRI-55",
   "ADR-A103",
-  "TSD-Q20",
   "TD-72",
   "TSD-22",
-  "PAT-20"
+  "PAT-20",
+  "ADR-A123"
  ],
  "questions|Q10": [
   "STD-006",
@@ -134,10 +134,10 @@
   "TSD-38",
   "TD-77",
   "CAP-57",
+  "TSD-Q20",
   "ADR-A67",
   "PRI-57",
-  "PAT-16",
-  "XJ-Q8"
+  "PAT-16"
  ],
  "questions|Q16": [
   "PAT-38",
@@ -246,8 +246,8 @@
   "ADR-A79",
   "ADR-A149",
   "STD-310",
-  "CAP-52",
-  "CAP-54"
+  "TSD-Q20",
+  "CAP-52"
  ],
  "questions|Q27": [
   "CAP-17",
@@ -281,8 +281,8 @@
  ],
  "questions|Q30": [
   "TSD-07",
-  "STD-054",
   "TSD-37",
+  "STD-054",
   "TSD-35",
   "TSD-Q2",
   "CAP-57",

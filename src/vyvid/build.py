@@ -32,7 +32,7 @@ from .credentials import private_dir
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
 from .citations import domain_citations
-from .resolve import layers
+from .resolve import forget, layers
 
 # The text of every node with a claim: an entry by its name, claim, problem shape and the case it does
 # not cover, and a decision's section by its own. An extractor gives the text of its own nodes.
@@ -123,6 +123,8 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
             for key, count in result.counts.items():
                 out.bump(key, count)
             texts.update(result.texts)
+            for name, listed in result.units.items():
+                out.units.setdefault(scope.name, {}).setdefault(name, listed)
             for prefix, namespace in result.prefixes.items():
                 prefixes.setdefault(scope.name, {}).setdefault(prefix, namespace)
     return prefixes, texts
@@ -134,6 +136,7 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
     no project, into ``store_path`` (default: the store of ``store_dir`` for the project). ``scopes`` names the stack
     outright. Returns what was extracted, with its counts, problems and findings."""
     out = Extract()
+    forget()
     start = time.perf_counter()
     built_from = time.time()
     if store_path is None:  # the store's own folders are owner-only, the base and a checkout's

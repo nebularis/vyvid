@@ -118,6 +118,9 @@ class Family:
     rule: str = "table"  # one of RULES
     also: tuple[Path, ...] = ()  # more places it is defined, after ``defined``
     root: Path | None = None  # the folder of the domain that declares it, whose links may not leave it
+    removable: bool = False  # its entries are meant to disappear, so an unresolved mention is reported and never failed
+    defined_only: bool = False  # a bare match of the pattern is a mention only where its source defines the identifier
+    exceptions: Path | None = None  # a baseline of identifiers mentioned and defined nowhere, each with its reason
 
     def paths(self) -> list[Path]:
         """The files that define this family, minus any that escape its domain's folder (``refused``)."""
@@ -142,6 +145,16 @@ class Family:
                 names = [str(place)]
             found += [p for n in names if (p := Path(n)).is_file() and p not in found]
         return found
+
+
+@dataclass(frozen=True)
+class Scan:
+    """What ``vyd check identifiers`` reads of a project: the tracked files to leave out, by glob on the
+    path or the name, the pattern a generated copy's first 200 characters match, and a baseline file."""
+
+    skip: tuple[str, ...] = ()
+    generated: Pattern | None = None
+    exceptions: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -206,6 +219,7 @@ class Scope:
     domains: list[str] = field(default_factory=list)
     specialises: dict[str, Path] = field(default_factory=dict)
     checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
+    identifiers: Scan = field(default_factory=Scan)  # projects only
 
     @property
     def standing(self) -> str:
@@ -418,7 +432,7 @@ def leaving(manifest: dict, root: Path) -> list[tuple[str, str]]:
         check(key, manifest.get(key))
     families = manifest.get("families")
     for name, spec in (families.items() if isinstance(families, dict) else []):
-        for key in ("defined", "also"):
+        for key in ("defined", "also", "exceptions"):
             check(f"families.{name}.{key}", spec.get(key) if isinstance(spec, dict) else None)
     for item in manifest.get("extractors") if isinstance(manifest.get("extractors"), list) else []:
         check("extractors.paths", item.get("paths") if isinstance(item, dict) else None)
@@ -451,12 +465,36 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
         if rule not in RULES:
             problems.append(f"{where}: family '{name}' has the rule '{rule}', not one of {', '.join(RULES)}")
             continue
+        flags = {k: spec.get(k, False) for k in ("removable", "defined_only")}
+        if not all(isinstance(v, bool) for v in flags.values()):
+            problems.append(f"{where}: family '{name}' needs removable and defined_only to be true or false")
+            continue
         try:
             places = _paths(spec.get("defined"), bases or {}, where, problems)
-            out[name] = Family(name, Pattern(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]), (bases or {}).get("self"))
+            baseline = _paths(spec.get("exceptions"), bases or {}, where, problems)
+            out[name] = Family(name, Pattern(pattern), places[0] if places else None, spec.get("type"), rule, tuple(places[1:]),
+                               (bases or {}).get("self"), flags["removable"], flags["defined_only"], baseline[0] if baseline else None)
         except (regex.error, TypeError) as error:
             problems.append(f"{where}: family '{name}' has a pattern that does not compile: {error}")
     return out
+
+
+def _scan(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -> Scan:
+    """The ``identifiers`` table of a project: ``skip``, ``generated`` and ``exceptions``."""
+    raw = raw if isinstance(raw, dict) else {}
+    if unknown := sorted(set(raw) - {"skip", "generated", "exceptions"}):
+        problems.append(f"{where}: identifiers has unknown keys {', '.join(unknown)}")
+    skip, generated = raw.get("skip", []), raw.get("generated")
+    if not isinstance(skip, list) or not all(isinstance(g, str) for g in skip):
+        problems.append(f"{where}: identifiers.skip must be a list of globs")
+        skip = []
+    try:
+        pattern = Pattern(generated) if isinstance(generated, str) else None
+    except regex.error as error:
+        problems.append(f"{where}: identifiers.generated does not compile: {error}")
+        pattern = None
+    baseline = _paths(raw.get("exceptions"), bases, where, problems)
+    return Scan(tuple(skip), pattern, baseline[0] if baseline else None)
 
 
 def _moves(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -> list[Move]:
@@ -834,7 +872,7 @@ def load(path: Path | None = None) -> Config:
             facets=_paths(p.get("facets"), bases, where, problems),
             register_types=_paths(p.get("register_types"), bases, where, problems),
             vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
-            families=_families(p.get("families"), where, problems, bases),
+            families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
             delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
             extractors=_extractors(p.get("extractors"), where, problems, own=True),
             uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},

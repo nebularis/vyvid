@@ -21,7 +21,8 @@ The questions agents actually ask:
 ``find <words> [--kind k,...] [--phase p,...] [--audience a,...]``
     what does the project already have for this problem? Ranks every decision, register entry,
     store finding and plan question by how close its text is in meaning to the words, and the
-    declared ontology terms only when ``--kind term`` asks for them, after filtering exactly on the
+    declared ontology terms and the entries of a type declared ``shown = "asked"``, such as slices, only when
+    ``--kind`` names them or, for an entry, the question names it by its identifier, after filtering exactly on the
     facets given, and says so when nothing is close. Each row is flagged with what its own columns
     do not show, and the line under it holds the whole claim and names each flag's reason. The
     question to ask first, before a design, modelling, code or efficiency decision
@@ -621,12 +622,17 @@ def phase_matches(a: Asker, given: set[str]) -> set[str]:
     return out
 
 
+def asked_for(a: Asker) -> set[str]:
+    """The classes find shows only when asked for: terms, and the types the stack declares ``shown = "asked"``."""
+    return {"Term"} | a.types.asked
+
+
 def without(a: Asker, kinds: set[str], excluded: set[str]) -> set[str]:
     """The kinds left once ``excluded`` are taken out: of those named, or of every entry kind when
-    none is. Terms stay out unless named, so excluding nothing leaves the default."""
+    none is. What is asked for stays out unless named, so excluding nothing leaves the default."""
     if not excluded:
         return kinds
-    return (kinds or set(a.kinds().values()) - {"Term"}) - excluded
+    return (kinds or set(a.kinds().values()) - asked_for(a)) - excluded
 
 
 def filters(a: Asker, kind: str = "", exclude: str = "", phase: str = "", audience: str = "",
@@ -676,17 +682,21 @@ def linked(a: Asker, top: list[dict], shown: set[str], limit: int = 8) -> list[d
     return list(out.values())[:limit]
 
 
-def candidates(a: Asker, kinds: set[str], phases: set[str], audiences: set[str]) -> list[dict]:
-    """Every entry the filters admit, and the declared terms only when ``--kind`` names ``term``.
+def candidates(a: Asker, kinds: set[str], phases: set[str], audiences: set[str], named: frozenset[str] = frozenset()) -> list[dict]:
+    """Every entry the filters admit, the declared terms only when ``--kind`` names ``term``, and an entry of
+    a type declared ``shown = "asked"`` only when ``--kind`` names it or the question names the entry.
 
     Ranked among the entries, thousands of terms crowded the entries out of questions about a
     design, and no bias kept both kinds of question answered, so a term is asked for or not shown.
-    A term states no phase or audience, so a filter on either hides it."""
-    rows = []
+    A slice board does the same. ``named`` holds the normalised words of the question, which name an entry
+    by its identifier, bare or as ``scope:LOCAL``. A term states no phase or audience, so a filter on
+    either hides it."""
+    rows, asked = [], asked_for(a)
     for r in a.rows(CANDIDATES):
-        if (not kinds or r["kind"] in kinds) and (not phases or phases & set((r["phases"] or "").split())) \
+        r["scope"] = scope_of(r["n"])
+        if (r["kind"] in kinds if kinds else (r["kind"] not in asked or {normalise(r["id"]), normalise(f"{r['scope']}:{r['id']}")} & named)) \
+                and (not phases or phases & set((r["phases"] or "").split())) \
                 and (not audiences or audiences & set((r["audiences"] or "").split())):
-            r["scope"] = scope_of(r["n"])
             for key in ("debts", "ideas", "successor"):
                 r[key] = " ".join(a.qualified(q) for q in (r[key] or "").split())
             rows.append(r)
@@ -860,18 +870,18 @@ def rank(
     embed.Unavailable where the vectors or the model are missing."""
     facets = facets or {}
     boost = a.config.embedding.facet_boost
-    rows = candidates(a, kinds, phases, audiences)
+    # An identifier written in the question names one entry outright, which no amount of meaning can
+    # beat and which the embedding scores poorly, since a name carries no sense of its own. Ranking it
+    # first stops a question for an identifier reporting that the index may not hold it. A qualified
+    # spelling, scope:LOCAL, names the entry of that scope alone.
+    named = frozenset(normalise(word) for word in words.split())
+    rows = candidates(a, kinds, phases, audiences, named)
     nodes, vectors = embed.load(a.directory, a.config.embedding)
     question = (model or a.model or embed.Model(a.config.embedding)).question(words)
     index = {n: i for i, n in enumerate(nodes)}
     sections: dict[str, list[dict]] = {}
     for section in a.rows(SECTIONS):
         sections.setdefault(section["n"], []).append(section)
-    # An identifier written in the question names one entry outright, which no amount of meaning can
-    # beat and which the embedding scores poorly, since a name carries no sense of its own. Ranking it
-    # first stops a question for an identifier reporting that the index may not hold it. A qualified
-    # spelling, scope:LOCAL, names the entry of that scope alone.
-    named = {normalise(word) for word in words.split()}
     for r in rows:
         r["meaning"] = float(vectors[index[r["n"]]] @ question) if r["n"] in index else -1.0
         if r["kind"] != "Term" and (normalise(r["id"]) in named or normalise(f"{r['scope']}:{r['id']}") in named):

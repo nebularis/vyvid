@@ -19,7 +19,7 @@ from . import COMMAND_SECONDS, PROTOCOL, Context, Result
 
 STDERR = 2000  # the most of a command's standard error a problem keeps
 # The fields of result.json: a list of strings, or a mapping of one type to another.
-SHAPES = {"problems": [str], "findings": [str], "texts": {str: str}, "prefixes": {str: str}, "counts": {str: int}}
+SHAPES = {"problems": [str], "findings": [str], "texts": {str: str}, "prefixes": {str: str}, "counts": {str: int}, "units": {str: [str]}}
 
 
 class Failed(Exception):
@@ -84,9 +84,11 @@ def _result(path: Path) -> dict:
 
 def _typed(value, shape) -> bool:
     if isinstance(shape, list):
-        return isinstance(value, list) and all(type(v) is shape[0] for v in value)
-    [(key, item)] = shape.items()
-    return isinstance(value, dict) and all(type(k) is key and type(v) is item for k, v in value.items())
+        return isinstance(value, list) and all(_typed(v, shape[0]) for v in value)
+    if isinstance(shape, dict):
+        [(key, item)] = shape.items()
+        return isinstance(value, dict) and all(type(k) is key and _typed(v, item) for k, v in value.items())
+    return type(value) is shape
 
 
 def _quads(path: Path, allowed: tuple) -> list[ox.Quad]:

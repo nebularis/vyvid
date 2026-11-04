@@ -26,6 +26,8 @@ from pathlib import Path
 from . import anchors
 from .patterns import Pattern
 
+# Whether a type's entries are shown by find unconditionally, or only when it is asked for.
+SHOWN = ("always", "asked")
 KINDS = {"id", "claim", "label", "text", "ids", "targets", "addenda", "names", "module", "controlled", "facet", "status"}
 SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|?$")
 BOLD_RE = re.compile(r"\*\*(?P<claim>.+?)\*\*")
@@ -55,8 +57,14 @@ class RegisterTypes:
     columns: dict[str, Column] = field(default_factory=dict)
     values: dict[str, dict[str, str]] = field(default_factory=dict)
     types: dict[str, str] = field(default_factory=dict)  # type name -> class
+    shown: dict[str, str] = field(default_factory=dict)  # type name -> "asked", for a type find leaves out unless asked for
     unmapped: set[str] = field(default_factory=set)
     claim_limit: int = 200
+
+    @property
+    def asked(self) -> set[str]:
+        """The classes find leaves out unless ``--kind`` names the type or a question names the entry."""
+        return {self.types[t] for t, how in self.shown.items() if how == "asked"}
 
     @property
     def trailing(self) -> set[str]:
@@ -90,8 +98,13 @@ def declarations(sources: list[tuple[str, str]]) -> RegisterTypes:
         for type_name, spec in raw.get("types", {}).items():
             if "class" not in spec:
                 problems.append(f"{name}: type '{type_name}' names no class")
+            elif spec.get("shown", "always") not in SHOWN:
+                problems.append(f"{name}: type '{type_name}' is shown '{spec['shown']}', not one of {', '.join(SHOWN)}")
             else:
                 out.types[type_name] = spec["class"]
+                out.shown.pop(type_name, None)
+                if spec.get("shown", "always") == "asked":
+                    out.shown[type_name] = "asked"
     for column in out.columns.values():
         if column.kind in ("controlled", "status") and column.values not in out.values:
             problems.append(f"column '{column.header}' takes values from '{column.values}', which is declared nowhere")

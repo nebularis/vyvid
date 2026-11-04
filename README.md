@@ -40,6 +40,7 @@ vyd kb clone [domain ...]              # clone the named domains, or every manag
 vyd kb pull [domain ...] [--due]       # fast-forward pull, only the domains whose policy says one is due with --due
 vyd kb record <path> ... -m <message>  # stage changed register files, then commit and push as the domain's policy says
 vyd check citations [--staged] [paths ...] # refuse lines a public project adds that cite an entry of a private scope
+vyd check identifiers [--json] [--all] [folder] # fail on an identifier the tracked Markdown mentions and nothing defines, or one a family defines twice
 vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
 vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
@@ -55,6 +56,10 @@ A domain gives knowledge alone unless its entry in your configuration says `trus
 
 A project that gave a family, or some rows of one, to a domain declares it with `[[projects.moves]]` in your configuration (see `examples/config.toml`). Its mentions then resolve through the domain with no rewriting of its text, `vyd resolve` prints the canonical target, and the project's copies leave the index. A domain may cite itself, its ancestors and the general scope alone, and a build reports a domain that cites a project or any other domain.
 
+`vyd check identifiers` reads the Markdown that `git ls-files` lists in the project's repository, never a folder walk, so an ignored folder is not read. A mention resolves on a normalised key, so another spelling of a defined identifier is a variant and is reported. A family with `removable = true` has its unresolved mentions reported and never failed. A family's `exceptions` file, or `identifiers.exceptions` for the project, lists identifiers mentioned and defined nowhere, one per line with a reason after `#`, and an entry nothing needs any longer is reported as stale. An identifier a family defines twice fails, and the line committed earlier keeps the number. A mention covered by a move resolves only if the domain defines it. A family with `defined_only = true` reads a bare match of its pattern as a mention only where its source defines the identifier, so a loose pattern does not read `UTF-8` as an entry. The exit code is 1 on an unresolved or twice-defined identifier and 0 otherwise, and `--json` prints everything found.
+
+A register type declared with `shown = "asked"` is left out of `find` unless `--kind` names it or the question names an entry by its identifier, as declared terms are. The packaged `slice` type is one, and reads a board of `Slice`, `Deliverable`, `State` and `Blocked on`.
+
 A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only your own configuration declares one.
 
 ```toml
@@ -65,7 +70,7 @@ paths = ["docs:notes/*.md"]   # the files it reads, which decide when the index 
 code = ["code:tools/my_extractor.py"]   # its own files, which also decide when the index is stale
 ```
 
-It runs in the checkout's root with a minimal environment, `seconds` (default 300) as its time limit and the variables `env` names. It reads one JSON request on standard input, with its settings, the expanded `paths`, an output folder and the two graph IRIs it may write to. It writes `quads.nq` (N-Quads in those graphs) and `result.json` (problems, findings, texts to embed, prefixes, counts and an optional version) into the output folder. A failure is reported and costs only its own entries.
+It runs in the checkout's root with a minimal environment, `seconds` (default 300) as its time limit and the variables `env` names. It reads one JSON request on standard input, with its settings, the expanded `paths`, an output folder and the two graph IRIs it may write to. It writes `quads.nq` (N-Quads in those graphs) and `result.json` (problems, findings, texts to embed, prefixes, counts, units and an optional version). `units` maps a name to the units it stands for, and an `Owner` or `Provided by` cell that names one becomes an edge to each, while a name no extractor declared is reported and kept as written into the output folder. A failure is reported and costs only its own entries.
 
 A managed domain is a domain whose folder lies under the knowledge base, and it is a git clone of its `remote`. Its `git` policy sets when it is pulled (`on-start`, `daily` or `manual`), and whether a recorded change is committed and pushed (`auto`) or left staged (`manual`), and `commit_trailers` in `[framework]` are added to every commit `vyd kb record` makes. A pull never merges or stashes, and `vyd context` pulls what is due before it answers unless given `--no-pull`. A project's own files are never committed or pushed by `vyd`. `vyd kb record` stages nothing in a domain whose files hold what looks like a credential, using `gitleaks` as well when it is installed, which is optional.
 
