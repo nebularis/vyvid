@@ -21,7 +21,10 @@
 | VYD-6 | recipes and contracts | built 2026-11-04 | |
 | VYD-6b | containing a domain | built 2026-11-04 | |
 | VYD-6c | checkouts and glue's reach | built 2026-11-04 | |
-| VYD-7 | the triple-store domain | planned | VYD-6b |
+| VYD-6d | extractors run as commands | building 2026-11-04 | |
+| VYD-6e | credentials and scanning | planned | VYD-6d |
+| VYD-6f | trust and held updates | planned | VYD-6e |
+| VYD-7 | the triple-store domain | planned | VYD-6f |
 | VYD-8 | the Tools and Haskell domains | planned | VYD-3, VYD-5 |
 | VYD-9 | a project with private docs | planned | VYD-6 |
 | VYD-10 | an overlay as a domain | planned | VYD-6 |
