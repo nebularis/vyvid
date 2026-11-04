@@ -33,7 +33,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | planned |
 | VYD-9 | vyvid-framework | a project with private docs | planned |
 | VYD-10 | vyvid-framework | an overlay as a domain | planned |
-| VYD-11 | vyvid-framework | vyvid's own contract | planned |
+| VYD-11 | vyvid-framework | vyvid's own contract | building 2026-11-04 |
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
 | VYD-13 | vyvid-framework | work tracked in a tracker | planned |
 | VYD-14 | vyvid-framework | Linux and Windows in Docker | planned |
