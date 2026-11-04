@@ -5,3 +5,4 @@ __pycache__/
 *.egg-info/
 # Notes true of one machine.
 .local/
+bench-out/
