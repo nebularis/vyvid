@@ -27,8 +27,8 @@
 | VYD-6g | identifiers, slices and units | built 2026-11-04 | |
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
 | VYD-8 | the Tools and Haskell domains | built 2026-11-04 | |
-| VYD-8b | documentation beside symbols | building 2026-11-04 | |
-| VYD-8c | the Python domain and test bed | planned | VYD-8b |
+| VYD-8b | documentation beside symbols | built 2026-11-04 | |
+| VYD-8c | the Python domain and test bed | building 2026-11-04 | |
 | VYD-9 | a project with private docs | built 2026-11-04 | |
 | VYD-10 | private rules as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
@@ -69,3 +69,4 @@
 - 2026-11-04. The [code intelligence sketch](../sketches/code-intelligence.md) records an experiment on `distributed-process-client-server` with `hiedb`, which answers across packages exactly, and the maintainer's decisions from it: Вивід tells the agent about a tool and never calls one, code symbols stay out of the graph, and definitions are not imported for now. VYD-Q33 and VYD-Q34 wait, and so does VYD-8's Haskell half.
 - 2026-11-04. VYD-8 built: symbols from tree-sitter in a SQLite store per checkout, `find --kind symbol`, `vyd handoff` with templates of our own and a guard for each silent failure, and the `vyvid-haskell` domain of measured findings. No symbol enters the graph, and the bake-off is unchanged. By measurement every symbol is embedded with its doc first, at 6.18 MB and 29.6 s for 3,415 symbols, on 16 questions in two languages. All 7 Python questions were answered, and 5 of 9 Haskell questions lost every expected symbol from the top five. The handoff's silent failures were each shown firing, and an untrusted file now gets neither a database opened nor a command printed. The condition on LATTICE's own row waits for its switch.
 - 2026-11-04. VYD-9 built: a project's documents may sit outside its code, and an entry defined there is private to it, so `vyd check citations` refuses it in the code repository, in staged lines or in a commit message or pull request text. `vyd docs record` keeps those documents by their own git policy, and `vyd board` shows a project's slices. Run on a real project and its linked worktree, each answered from its own code and the one set of documents, and neither checkout changed.
+- 2026-11-04. VYD-8b built: module headers, named sections and block comments sit in the symbol store as documentation, and `find --kind symbol` gives them at most two fifths of its places. Measured on 19 Haskell questions, one list by raw similarity displaced two symbol answers, and the cap displaced none and answered 12 against 10. No Python result yet. `bench:lattice` was not run, since LATTICE's branches are being merged, and is owed.

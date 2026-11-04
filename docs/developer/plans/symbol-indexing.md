@@ -63,6 +63,33 @@ The per-query time is mostly embedding the question (about 4.5 ms). Fusion adds 
 
 **The one-line hint** under a plain `find` appears when the best symbol scores the model's `near` score (0.74) or more. The best scores of the 16 questions were 0.666 to 0.834 and 11 of them reached it, and 5 questions about nothing in the code scored 0.487 to 0.693 and none did.
 
+## Measured: documentation beside symbols
+
+Measured 2026-11-04 on the same arm64 Mac with `benchmark/symbols`, on the Haskell corpus alone. The Python corpus was not run, since its checkout was not to be read on that day, so what follows says nothing of Python. The corpus is the 108 files and 3,415 symbols above, and 274 chunks of documentation, which are the module headers, the `[Heading]` sections of them, `-- $name` sections, block comments and runs of three or more `--` lines at the left margin, cut at `[Heading]` lines and into windows of about 900 characters with 150 of overlap. A licence and the `Copyright`, `License`, `Maintainer`, `Stability`, `Portability` and `Module` lines are dropped, and so is a chunk under 80 characters.
+
+The 19 Haskell questions are the 9 above and the 10 the maintainer wrote. For 9 of the 10, the file and lines where the source answers it were written into `questions.json` as `expect_doc` before the first run, by reading the source, and the tenth has none, since its answer is a symbol. A question counts as answered when an expected symbol or a chunk overlapping an expected range is among the places shown. Part of the `expect_doc` of three questions is the doc of a symbol, which is no chunk, so only a module header, a section or a note can meet the rest.
+
+| Way | Places | Answered by a symbol | Answered by either | MRR | Lost | Gained | Per query beyond the question |
+|---|---|---|---|---|---|---|---|
+| symbols alone, the default until now | 5 | 10 of 19 | 10 of 19 | 0.344 | 0 | 0 | 0.6 ms |
+| chunks alone | 5 | 0 | 6 of 19 | 0.281 | 10 | 2 | 0.5 ms |
+| both in one list by cosine | 5 | 8 of 19 | 12 of 19 | 0.458 | 2 | 2 | 0.5 ms |
+| **both, at most two of five places for chunks** | 5 | 10 of 19 | 12 of 19 | 0.458 | 0 | 2 | 0.4 ms |
+| three symbols, then two chunks | 5 | 9 of 19 | 11 of 19 | 0.360 | 1 | 2 | 0.4 ms |
+| five symbols, then three chunks | 8 | 10 of 19 | 12 of 19 | 0.361 | 0 | 2 | 0.4 ms |
+
+Lost is a symbol the default found that the way no longer shows, and gained is a question answered only because of a chunk. The question embedding costs about 5 ms more for every way. The chunks cost 12.0 s to embed cold and 496,556 bytes, against 31.5 s and 6,175,484 for the symbols, and the parse took 0.59 s with them against 0.48 s before.
+
+**Where the losses are.** Chunks alone lose ten symbol answers, and they answer six questions only. The one list by cosine loses two, the ordering guarantees and the strict variants, and in both a chunk takes the place and also answers. Three symbols and two chunks loses the question about waiting with a time limit, whose symbol was fifth. The cap and the eight-place list lose none, so all ten symbol answers kept their places, four of the first nine and six of the maintainer's.
+
+**Where the gains are.** Two of the maintainer's questions are answered only by a chunk in every combined way, starting a prioritised process and how a prioritised mailbox orders messages, whose first place is `[Prioritised Mailboxes]` for the second. The ordering guarantees and the strict variants have both a symbol and a chunk in the cap and the two lists, the chunk being the notes in the main module and `[Evaluation Strategies and Support for NFData]`. Of the ten, 6 were answered by a symbol and 8 are by the cap. The two left, starting a process on a remote node and passing initial data to it, are answered by no way. The `[Closures]` section of `Closure.hs` is a chunk, and several note chunks and sections of the simple local network backend rank above it, and `spawn`'s doc is a symbol doc and not a chunk.
+
+**A long passage did not crowd out a function here, but it could.** With the cosine alone, chunks took a place on 8 of the 19 questions, 3 or more on 4 and all five on 3, and displaced a symbol answer twice, each time with a chunk that also answered. The cap of two in five holds a question to two chunks by construction, and the 8 questions with a chunk among the five all kept their symbol answers. It could cost a question that three chunks would answer, which none here showed.
+
+**The default** is both in one list with at most two of five places for chunks, scaled to `limit` as two fifths. It ties the five-then-three list at 12 of 19 and loses no symbol, and it has the best MRR with the cosine list, 0.458, since a chunk that answers is shown at the top and not after the symbols. It shows five rows where the other shows eight. It rests on 19 questions in one library, a cap fixed beforehand and not tuned, and no Python. Where the model cannot run, symbols are ranked by word search as before and no chunk is shown, since chunks have no word index.
+
+**The one-line hint** under a plain `find` and every path of a plain `find` are unchanged. The hint reads the symbol vectors, which hold no chunk, and a test shows a plain `find` shows none.
+
 ## Questions for the maintainer
 
 - **VYD-Q28. Which extractor?** Leaning the general tree-sitter extractor above, with no compiler index until a question needs one.

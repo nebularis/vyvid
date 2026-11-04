@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: MIT
 """``find --kind symbol`` and ``read`` of a symbol, over the symbol store of the question's project.
 
-Symbols rank by the fusion of two lists: BM25 over name, signature and doc, and meaning over the vectors of the kinds
-that are embedded. Both lists are read from the store the build wrote, which a question first brings up to date
-(only a file whose hash changed is parsed again). Nothing here reads the graph, and no symbol enters it.
+Symbols rank by meaning over their vectors, and by BM25 over name, signature and doc where there are none. The chunks of
+documentation around the code rank by meaning over theirs, and ``METHOD`` says how the two lists are shown together
+(``store.combine``, chosen by ``benchmark/symbols``). Both are read from the store the build wrote, which a question first brings
+up to date (only a file whose hash changed is parsed again). Nothing here reads the graph, and nothing enters it.
 """
 
 from __future__ import annotations
@@ -12,7 +13,10 @@ import sqlite3
 
 from .. import ask, embed
 from ..handoff import registered
-from . import store
+from . import extract, store
+
+METHOD = "capped"
+SHOWN = 200
 
 
 def fresh(a) -> list[str]:
@@ -27,10 +31,10 @@ def symbol_db(a) -> sqlite3.Connection | None:
     return store.connect(a.directory / store.DB)
 
 
-def vectors(a):
-    """The rowids and vectors of the symbols, or None where they cannot be had here."""
+def vectors(a, name: str = store.VECTORS):
+    """The rowids and vectors of the symbols, or with ``store.DOC_VECTORS`` of the documentation, or None where they cannot be had here."""
     try:
-        return store.load_vectors(a.directory, a.config.embedding)
+        return store.load_vectors(a.directory, a.config.embedding, name)
     except embed.Unavailable:
         return None
 
@@ -48,11 +52,17 @@ def ranked(a, db: sqlite3.Connection, words: str, limit: int) -> tuple[list[dict
     else:
         note = "ranked by word alone, since there are no symbol vectors. vyd build says why"
     order = list(dict.fromkeys([*store.named_rank(db, words), *ranking]))[:limit]
+    if METHOD != "symbols" and note == "" and (docs := vectors(a, store.DOC_VECTORS)) is not None and len(docs[0]):
+        named = store.named_rank(db, words)
+        scored = [(i, 1.0) for i in named] + [m for m in meaning if m[0] not in named]
+        order = store.combine(METHOD, scored, store.collapse(db, store.meaning_rank(*docs, a.model.question(words))), limit)
     by_rowid = {r["rowid"]: r for r in store.rows(db, f"WHERE rowid IN ({','.join('?' * len(order))})", tuple(order))} if order else {}
     return [by_rowid[i] for i in order if i in by_rowid], best, note
 
 
 def under(row: dict) -> str:
+    if row["kind"] == "doc":
+        return f"[{row['name']}]  " + extract.clip(row["doc"], SHOWN)
     first = (row["doc"] or "").strip().splitlines()[0] if (row["doc"] or "").strip() else ""
     return f"{row['signature']}" + (f"  -- {first}" if first else "")
 
@@ -82,7 +92,11 @@ def find_symbols(a, words: str, limit: int) -> int:
     for r in found:  # a long path loses its front and never its line
         pointer = f"{r['file']}:{r['line']}"
         r["pointer"] = pointer if len(pointer) <= 90 else "..." + pointer[-87:]
-    ask.show(found, ("id", "kind", "module", "pointer"), lambda r: under(r)[:240] + _data(a, r))
+    around = [r for r in found if r["kind"] == "doc"] if METHOD in ("split", "fit") else []
+    ask.show([r for r in found if r not in around], ("id", "kind", "module", "pointer"), lambda r: under(r)[:240] + _data(a, r))
+    if around:
+        print("\nwritten around this code")
+        ask.show(around, ("id", "kind", "module", "pointer"), lambda r: under(r)[:240] + _data(a, r))
     if note:
         print(f"\n{note}")
     if best != -1.0 and best < a.config.embedding.weak:
@@ -94,7 +108,7 @@ def find_symbols(a, words: str, limit: int) -> int:
 
 
 def _data(a, row: dict) -> str:
-    note = ask.data_note(a, a.project.name, row["signature"], row["doc"])
+    note = ask.data_note(a, a.project.name, row["name"] if row["kind"] == "doc" else row["signature"], row["doc"])
     return f"\n    {note}" if note else ""
 
 
@@ -122,7 +136,7 @@ def read_symbol(a, identifier: str) -> int | None:
         return None
     fenced = a.project.name in a.unmarked
     if fenced:
-        print(ask.data_note(a, a.project.name, *(r["signature"] for r in found), *(r["doc"] for r in found)))
+        print(ask.data_note(a, a.project.name, *(r["signature"] or r["name"] for r in found), *(r["doc"] for r in found)))
         print(f"----- begin data from project {a.project.name} -----")
     print(f"{identifier}  {found[0]['kind']}" + (f"  ({len(found)} definitions)" if len(found) > 1 else ""))
     built = (a.directory / store.DB).stat().st_mtime

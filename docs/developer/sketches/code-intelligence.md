@@ -104,7 +104,9 @@ Ten questions the maintainer wrote about `distributed-process`, unprompted by it
 
 **Most of what was missed is written down, in a place symbols do not reach.** Module headers and sections such as `[Prioritised Mailboxes]` are not symbols. Embedded as 212 chunks of module documentation, they put that section first for the mailbox question, and `[Evaluation Strategies and Support for NFData]` first for the strict question. They gave nothing for starting a process or passing it data, whose answer turns on a word the question does not use, `spawn`, and `Closure`. The ordering guarantees are in a block comment neither reached.
 
-So there are three stores of answer, in the order to reach for them: what the code declares, what its authors wrote around it, and what a person records because neither says it. This is measured on one project, and the chunks were not ranked beside symbols.
+So there are three stores of answer, in the order to reach for them: what the code declares, what its authors wrote around it, and what a person records because neither says it.
+
+The chunks were then ranked beside symbols, and that was the risk, that a long passage would outscore the one function that answers. Measured on 2026-11-04 on 19 Haskell questions with the sections where the source answers each fixed beforehand, the chunks alone found 6 and lost 10 symbol answers, and one list by cosine found 12 but displaced a symbol twice. With at most two of five places for chunks the symbol answers all stayed, 10 of 19, and 12 of 19 were answered by a symbol or a chunk. Of the maintainer's ten, 6 were answered by a symbol and 8 are with the cap. Prioritised mailboxes and the strict variants now come first as sections, and starting a process remotely and passing it data are still not found by either, so the third store stays. The figures are in the [research](../plans/symbol-indexing.md). Python was not measured.
 
 ## 7. Questions for the maintainer
 

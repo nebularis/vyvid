@@ -329,3 +329,145 @@ def parse(language: str, src: bytes) -> tuple[str | None, list[dict]]:
         s["doc"] = clip(s["doc"], DOC_LIMIT) if s["doc"] else ""
         del s["node"]
     return module, symbols
+
+
+# ---- What authors wrote around the code --------------------------------------------------------
+
+DOC_WINDOW, DOC_OVERLAP, DOC_MIN = 900, 150, 80
+META = re.compile(r"^(module|copyright|licen[sc]e|maintainer|stability|portability|author|spdx-license-identifier)\s*:|^(copyright|spdx-license-identifier)\b", re.I)
+LICENCE = re.compile(r"licensed under|all rights reserved|permission is hereby granted|without warranty", re.I)
+HEADING = re.compile(r"^\[([^\]]{2,80})\]$")
+UNDERLINE = re.compile(r"^(={3,}|-{3,}|~{3,})$")
+RULE = re.compile(r"^[-=~#*_/\\ ]{3,}$")
+
+
+def hs_blocks(text: str) -> list[tuple[list[tuple[int, str]], bool]]:
+    """The comments at the left margin of a Haskell file that are not a declaration's Haddock, as numbered lines and whether the module follows.
+    A ``{- ... -}`` block, a run of ``--`` lines, or ``-- $name``. Nested block comments are not tracked."""
+    lines, out, i = text.splitlines(), [], 0
+
+    def header(end: int) -> bool:
+        rest = next((x for x in lines[end:] if x.strip() and not x.startswith("{-#")), "")
+        return rest.startswith("module ")
+
+    while i < len(lines):
+        if lines[i].startswith("{-") and not lines[i].startswith("{-#"):
+            j = i
+            while "-}" not in lines[j] and j + 1 < len(lines):
+                j += 1
+            body = [(n + 1, lines[n]) for n in range(i, j + 1)]
+            body[0] = (body[0][0], re.sub(r"^\{-\s*\|?\s?", "", body[0][1]))
+            body[-1] = (body[-1][0], body[-1][1].split("-}")[0])
+            out.append((body, header(j + 1)))
+            i = j + 1
+        elif lines[i].startswith("--"):
+            j = i
+            while j + 1 < len(lines) and lines[j + 1].startswith("--"):
+                j += 1
+            body = [(n + 1, re.sub(r"^--+ ?", "", lines[n])) for n in range(i, j + 1)]
+            is_header = header(j + 1)
+            first = next((t for _, t in body if t.strip() and not RULE.match(t.strip())), "").lstrip()
+            if first.startswith("|"):
+                at = next(k for k, (_, t) in enumerate(body) if t.strip().startswith("|"))
+                body[at] = (body[at][0], body[at][1].replace("|", "", 1))
+            if (is_header or (not first.startswith(("|", "^", "*")) and len(body) >= 3)):
+                if first.startswith("$"):
+                    body = [(n, t) if t.strip() != first.strip() else (n, f"[{first.strip()[1:]}]") for n, t in body]
+                out.append((body, is_header))
+            i = j + 1
+        else:
+            i += 1
+    return out
+
+
+def py_blocks(src: bytes) -> list[tuple[list[tuple[int, str]], bool]]:
+    """The module docstring and the runs of at least three ``#`` lines at the left margin of a Python file."""
+    _, parser, _ = _language("python")
+    root = parser.parse(src).root_node
+    out, run = [], []
+
+    def flush() -> None:
+        if len(run) >= 3:
+            out.append(([(c.start_point[0] + 1, re.sub(r"^#+ ?", "", txt(src, c))) for c in run], False))
+        run.clear()
+
+    first = next((c for c in root.named_children if c.type != "comment"), None)
+    if first is not None and first.type == "expression_statement" and first.named_children and first.named_children[0].type == "string":
+        s = first.named_children[0]
+        body = re.match(r"^[rRuUbB]*(\"\"\"|'''|\"|')(.*)\1$", txt(src, s), re.S)
+        if body:
+            out.append(([(s.start_point[0] + 1 + k, t) for k, t in enumerate(body.group(2).splitlines())], True))
+    for c in root.children:
+        if c.type == "comment" and c.start_point[1] == 0 and (not run or c.start_point[0] == run[-1].start_point[0] + 1):
+            run.append(c)
+        else:
+            flush()
+            if c.type == "comment" and c.start_point[1] == 0:
+                run.append(c)
+    flush()
+    return out
+
+
+def c_blocks(src: bytes, java: bool) -> list[tuple[list[tuple[int, str]], bool]]:
+    """The comment that opens a Java or TypeScript file, where it is followed by a package or an import and so is not a class's own doc."""
+    _, parser, _ = _language("typescript" if not java else "java")
+    kids = parser.parse(src).root_node.children
+    if len(kids) > 1 and kids[0].type in ("block_comment", "comment") and txt(src, kids[0]).startswith("/*") and kids[1].type in ("package_declaration", "import_declaration", "import_statement"):
+        return [([(kids[0].start_point[0] + 1 + k, re.sub(r"^\s*(/\*+|\*+/|\*)\s?", "", t)) for k, t in enumerate(txt(src, kids[0]).splitlines())], True)]
+    return []
+
+
+def split_sections(block: list[tuple[int, str]]) -> list[tuple[str, list[tuple[int, str]]]]:
+    """A block's lines without licence and metadata lines, cut into ``(heading, lines)`` at ``[Heading]`` lines and at underlined headings."""
+    sections: list[tuple[str, list[tuple[int, str]]]] = [("", [])]
+    for k, (n, t) in enumerate(block):
+        t = t.rstrip()
+        if (m := HEADING.match(t.strip())) or (t.strip() and k + 1 < len(block) and UNDERLINE.match(block[k + 1][1].strip()) and len(t.strip()) < 80):
+            sections.append((m.group(1) if m else t.strip(), [(n, "")]))
+        elif META.match(t.strip()) or RULE.match(t.strip()) or UNDERLINE.match(t.strip()):
+            continue
+        else:
+            sections[-1][1].append((n, t))
+    return [(h, lines) for h, lines in sections if any(t.strip() for _, t in lines)]
+
+
+def windows(lines: list[tuple[int, str]]) -> list[list[tuple[int, str]]]:
+    """Lines cut into windows of about ``DOC_WINDOW`` characters, each starting with the last lines of the one before, up to ``DOC_OVERLAP`` characters."""
+    out, cur, fresh = [], [], 0
+    for line in lines:
+        if cur and fresh and sum(len(t) + 1 for _, t in cur) + len(line[1]) > DOC_WINDOW:
+            out.append(cur)
+            tail, size = [], 0
+            for x in reversed(cur):
+                if size >= DOC_OVERLAP:
+                    break
+                tail.insert(0, x)
+                size += len(x[1]) + 1
+            cur, fresh = tail, 0
+        cur.append(line)
+        fresh += 1
+    return out + [cur] if fresh else out
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
+
+
+def docs(language: str, src: bytes) -> list[dict]:
+    """The prose around the code as chunks shaped like symbols, of kind ``doc``: ``name`` is the heading, ``qual`` is its slug or ``L<line>`` with ``+n`` for a later window,
+    and ``doc`` is the text. Haskell reads its module header, ``-- $name`` sections, block comments and runs of ``--`` lines, Python its module docstring and runs of
+    ``#`` lines, Java and TypeScript only a header comment followed by a package or an import. A chunk under ``DOC_MIN`` characters or holding a licence is dropped."""
+    blocks = hs_blocks(src.decode("utf-8", "replace")) if language == "haskell" else py_blocks(src) if language == "python" else c_blocks(src, language == "java")
+    out = []
+    for block, is_header in blocks:
+        for heading, lines in split_sections(block):
+            start = next((n for n, t in lines if t.strip()), lines[0][0])
+            base = slug(heading) or f"L{start}"
+            for k, window in enumerate(windows(lines), 1):
+                body = "\n".join(t.strip() for _, t in window).strip()
+                if len(body) < DOC_MIN or LICENCE.search(body):
+                    continue
+                shown = [n for n, t in window if t.strip()]
+                out.append({"kind": "doc", "name": heading or ("module header" if is_header else "note"), "qual": base if k == 1 else f"{base}+{k}",
+                            "sig": "", "doc": body, "line": shown[0], "end_line": shown[-1], "exported": None})
+    return out

@@ -138,7 +138,23 @@
           "spawnMonitor",
           "spawnAsync"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/Internal/Spawn.hs",
+            "lines": [
+              60,
+              65
+            ]
+          },
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/Closure.hs",
+            "lines": [
+              79,
+              158
+            ]
+          }
+        ]
       },
       {
         "q": "When starting a process on a remote node, how does one pass initial data to the process, not messaging data?",
@@ -146,7 +162,16 @@
           "mkClosure",
           "remotable"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/Closure.hs",
+            "lines": [
+              2,
+              158
+            ]
+          }
+        ]
       },
       {
         "q": "What guarantees does distributed process offer about the order in which messages will be delivered between two communicating processes?",
@@ -154,7 +179,30 @@
           "reconnect",
           "usend"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process.hs",
+            "lines": [
+              343,
+              366
+            ]
+          },
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/Internal/Primitives.hs",
+            "lines": [
+              266,
+              274
+            ]
+          },
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/Internal/Primitives.hs",
+            "lines": [
+              1288,
+              1308
+            ]
+          }
+        ]
       },
       {
         "q": "In the distributed-process-supervisor module, how do I stop a child process that has already been stopped?",
@@ -162,7 +210,8 @@
           "stopChild",
           "handleStopChild"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": []
       },
       {
         "q": "In the supervisor library, how can one add a new child process to an existing supervisor?",
@@ -170,7 +219,16 @@
           "addChild",
           "startNewChild"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-supervisor/src/Control/Distributed/Process/Supervisor.hs",
+            "lines": [
+              31,
+              42
+            ]
+          }
+        ]
       },
       {
         "q": "In the supervisor module, how do I ensure the order in which child processes are restarted?",
@@ -179,7 +237,16 @@
           "RestartMode",
           "RestartInOrder"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-supervisor/src/Control/Distributed/Process/Supervisor.hs",
+            "lines": [
+              43,
+              131
+            ]
+          }
+        ]
       },
       {
         "q": "In the distributed-process-client-server library, how do I start a prioritized process?",
@@ -187,7 +254,16 @@
           "pserve",
           "prioritised"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess.hs",
+            "lines": [
+              97,
+              148
+            ]
+          }
+        ]
       },
       {
         "q": "How does a prioritized process guarantee the ordering of messages sent to its mailbox?",
@@ -196,7 +272,23 @@
           "prioritised",
           "PrioritisedProcessDefinition"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess.hs",
+            "lines": [
+              97,
+              124
+            ]
+          },
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess.hs",
+            "lines": [
+              134,
+              139
+            ]
+          }
+        ]
       },
       {
         "q": "What is the difference between the call and the callSTM functions?",
@@ -204,7 +296,23 @@
           "callSTM",
           "call"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess/Client.hs",
+            "lines": [
+              200,
+              230
+            ]
+          },
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess.hs",
+            "lines": [
+              482,
+              572
+            ]
+          }
+        ]
       },
       {
         "q": "When is it important to use the strict versions of the distributed process client server library that ensure data has been fully evaluated before it is sent to a function or processed by a function?",
@@ -212,7 +320,37 @@
           "NFSerializable",
           "unsafeSend"
         ],
-        "from": "maintainer"
+        "from": "maintainer",
+        "expect_doc": [
+          {
+            "file": "packages/distributed-process-extras/src/Control/Distributed/Process/Extras.hs",
+            "lines": [
+              3,
+              35
+            ]
+          },
+          {
+            "file": "packages/distributed-process-client-server/src/Control/Distributed/Process/ManagedProcess/UnsafeClient.hs",
+            "lines": [
+              5,
+              31
+            ]
+          },
+          {
+            "file": "packages/distributed-process-extras/src/Control/Distributed/Process/Extras/UnsafePrimitives.hs",
+            "lines": [
+              1,
+              21
+            ]
+          },
+          {
+            "file": "packages/distributed-process/src/Control/Distributed/Process/UnsafePrimitives.hs",
+            "lines": [
+              1,
+              58
+            ]
+          }
+        ]
       }
     ]
   }

@@ -31,8 +31,8 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-6g | vyvid-framework | identifiers, slices and units | built 2026-11-04 |
 | VYD-7 | vyvid-framework | the triple-store domain | built 2026-11-04 |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | built 2026-11-04 |
-| VYD-8b | vyvid-framework | documentation beside symbols | building 2026-11-04 |
-| VYD-8c | vyvid-framework | the Python domain and test bed | planned |
+| VYD-8b | vyvid-framework | documentation beside symbols | built 2026-11-04 |
+| VYD-8c | vyvid-framework | the Python domain and test bed | building 2026-11-04 |
 | VYD-9 | vyvid-framework | a project with private docs | built 2026-11-04 |
 | VYD-10 | vyvid-framework | private rules as a domain | planned |
 | VYD-11 | vyvid-framework | vyvid's own contract | built 2026-11-04 |

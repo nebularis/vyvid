@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 """The symbol store: one SQLite file per checkout, ``symbols.sqlite`` in its store folder, with an FTS5 index.
 
-A row is one symbol, its ``id`` being ``package:Module.name``. The id may repeat, as a field shared by two
+A row is one symbol, its ``id`` being ``package:Module.name``, or one chunk of the prose around the code, of kind ``doc``, its ``id`` being
+``package:Module#heading``. A chunk is not in the word index, and its vectors sit in a file of their own. The id may repeat, as a field shared by two
 constructors or an overload does, so the rowid is the key. A build lists the files by ``git ls-files`` and never walks
 a folder, refuses a link that leaves the repository, and reparses only a file whose content hash changed. The vectors
 sit beside it, keyed by rowid and cached by the digest of each text as ``embed`` does.
@@ -28,7 +29,8 @@ from . import INSTALL, LANGUAGES, available
 
 DB = "symbols.sqlite"
 VECTORS = "symbols.npz"
-VERSION = 1
+DOC_VECTORS = "docs.npz"
+VERSION = 2
 MAX_BYTES = 2_000_000
 STOP = frozenset("a an and are as at be by can did do does for from how i if in into is it its me my no not of on or so than that the then this to what when where which who why with".split())
 COLUMNS = "id, name, kind, module, package, file, line, end_line, signature, doc, exported"
@@ -213,21 +215,25 @@ def build(project, directory: Path) -> tuple[Counter, list[str]]:
             _forget(db, file)
             try:
                 declared, symbols = extract.parse(language, src)
+                chunks = extract.docs(language, src)
             except Exception as error:  # a grammar or a deeply nested tree fails this file alone
                 problems.append(f"{file}: does not parse ({error.__class__.__name__}), so it has no symbols")
                 counts["failed"] += 1
                 continue
             module = module_of(language, declared, path.resolve().relative_to(base) if path.resolve().is_relative_to(base) else Path(file))
-            for s in symbols:
+            for s in symbols + chunks:
                 cursor = db.execute(f"INSERT INTO symbols ({COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-                    f"{package}:{module}.{s['qual']}", s["name"], s["kind"], module, package, file, s["line"], s["end_line"], s["sig"], s["doc"],
+                    f"{package}:{module}{'#' if s['kind'] == 'doc' else '.'}{s['qual']}", s["name"], s["kind"], module, package, file, s["line"], s["end_line"], s["sig"], s["doc"],
                     None if s["exported"] is None else int(s["exported"])))
+                if s["kind"] == "doc":
+                    continue
                 name = s["name"] if split_words(s["name"]) == s["name"].lower() else f"{s['name']} {split_words(s['name'])}"
                 db.execute("INSERT INTO words (rowid, name, signature, doc) VALUES (?, ?, ?, ?)", (cursor.lastrowid, name, s["sig"], s["doc"]))
             db.execute("INSERT INTO files (file, hash) VALUES (?, ?)", (file, digest))
             counts["parsed"] += 1
         db.commit()
-        counts["symbols"] = db.execute("SELECT count(*) FROM symbols").fetchone()[0]
+        counts["symbols"] = db.execute("SELECT count(*) FROM symbols WHERE kind != 'doc'").fetchone()[0]
+        counts["docs"] = db.execute("SELECT count(*) FROM symbols WHERE kind = 'doc'").fetchone()[0]
     finally:
         db.close()
     return counts, problems
@@ -235,6 +241,8 @@ def build(project, directory: Path) -> tuple[Counter, list[str]]:
 
 def vector_text(row: dict, docs_first: bool = True) -> str:
     """What is embedded for a symbol: its name as words, its kind and module, then its signature and doc (the doc first with ``docs_first``)."""
+    if row["kind"] == "doc":
+        return f"{row['name']}. Written in {row['module']}. {row['doc']}"
     head = f"{split_words(row['name'])}. {row['kind']} in {row['module']}"
     parts = (head, row["doc"], row["signature"]) if docs_first else (head, row["signature"], row["doc"])
     text = ". ".join(x.rstrip(".") for x in parts if x) + "."
@@ -248,13 +256,20 @@ def rows(db: sqlite3.Connection, where: str = "", args: tuple = ()) -> list[dict
 
 
 def embed_all(directory: Path, spec: embed.ModelSpec, model=None, warm: Path | None = None) -> int:
-    """Write the vectors of every symbol, embedding only text not seen before. Returns how many were embedded now."""
+    """Write the vectors of every symbol, and of every chunk of documentation in a file of its own, embedding only text not seen before.
+    Returns how many were embedded now."""
     db = connect(directory / DB)
     try:
-        entries = {str(r["rowid"]): vector_text(r) for r in rows(db)}
+        everything = rows(db)
     finally:
         db.close()
-    return embed.build(entries, directory, spec, model, warm, VECTORS)
+    try:
+        return sum(embed.build({str(r["rowid"]): vector_text(r) for r in everything if (r["kind"] == "doc") == is_doc}, directory, spec, model, warm, name)
+                   for is_doc, name in ((False, VECTORS), (True, DOC_VECTORS)))
+    except embed.Unavailable:
+        (directory / DOC_VECTORS).unlink(missing_ok=True)
+        (directory / VECTORS).unlink(missing_ok=True)
+        raise
 
 
 def refresh(project, directory: Path, spec: embed.ModelSpec, make_vectors: bool = True, model=None, warm: Path | None = None) -> tuple[Counter, list[str]]:
@@ -265,8 +280,9 @@ def refresh(project, directory: Path, spec: embed.ModelSpec, make_vectors: bool 
     target = directory / VECTORS
     if not make_vectors:
         target.unlink(missing_ok=True)
+        (directory / DOC_VECTORS).unlink(missing_ok=True)
         return counts, problems + ["no symbol embeddings, because the build was told not to make them"]
-    if target.exists() and not (counts["parsed"] or counts["removed"]):
+    if target.exists() and (directory / DOC_VECTORS).exists() and not (counts["parsed"] or counts["removed"]):
         return counts, problems  # nothing changed, so the vectors still match the rows
     try:
         counts["embedded"] = embed_all(directory, spec, model, warm)
@@ -297,14 +313,56 @@ def named_rank(db: sqlite3.Connection, words: str) -> list[int]:
     tokens = [t for t in dict.fromkeys(re.findall(r"[A-Za-z0-9_']+", words)) if "_" in t or re.search(r"[a-z0-9][A-Z]", t)]
     if not tokens:
         return []
-    return [r[0] for r in db.execute(f"SELECT rowid FROM symbols WHERE name IN ({','.join('?' * len(tokens))}) ORDER BY rowid", tokens)]
+    return [r[0] for r in db.execute(f"SELECT rowid FROM symbols WHERE kind != 'doc' AND name IN ({','.join('?' * len(tokens))}) ORDER BY rowid", tokens)]
 
 
 def meaning_rank(rowids: np.ndarray, vectors: np.ndarray, question: np.ndarray, limit: int = 100) -> list[tuple[int, float]]:
     """The rowids closest in meaning to the question, best first, with their cosine scores."""
+    if not len(rowids):
+        return []
     scores = vectors @ question
     order = np.argsort(-scores)[:limit]
     return [(int(rowids[i]), float(scores[i])) for i in order]
+
+
+def collapse(db: sqlite3.Connection, ranked: list[tuple[int, float]]) -> list[tuple[int, float]]:
+    """Documentation chunks with only the best window of each section kept, where windows of one section share a file and an id up to ``+n``."""
+    if not ranked:
+        return []
+    found = {r[0]: (r[1], re.sub(r"\+\d+$", "", r[2])) for r in db.execute(f"SELECT rowid, file, id FROM symbols WHERE rowid IN ({','.join('?' * len(ranked))})", [i for i, _ in ranked])}
+    seen, out = set(), []
+    for item in ranked:
+        if (key := found[item[0]]) not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def combine(method: str, symbols: list[tuple[int, float]], docs: list[tuple[int, float]], limit: int) -> list[int]:
+    """The rowids to show for ``limit`` places, symbols and documentation chunks being each a list of ``(rowid, cosine)``, best first.
+
+    ``symbols`` and ``docs`` are one list each. ``mixed`` sorts both by cosine, ``capped`` does so with at most two fifths of the places going to
+    documentation, ``fit`` puts symbols first and takes the places left to documentation, and ``split`` shows ``limit`` symbols, then
+    three fifths of ``limit`` documentation chunks beyond them."""
+    cap = max(1, limit * 2 // 5)
+    if method == "symbols":
+        return [i for i, _ in symbols[:limit]]
+    if method == "docs":
+        return [i for i, _ in docs[:limit]]
+    if method == "fit":
+        return [i for i, _ in symbols[:limit - cap]] + [i for i, _ in docs[:cap]]
+    if method == "split":
+        return [i for i, _ in symbols[:limit]] + [i for i, _ in docs[:max(1, limit * 3 // 5)]]
+    doc_ids = {i for i, _ in docs}
+    out, taken = [], 0
+    for i, _ in sorted(symbols + docs, key=lambda x: -x[1]):
+        if i in doc_ids and method == "capped" and taken >= cap:
+            continue
+        taken += i in doc_ids
+        out.append(i)
+        if len(out) == limit:
+            break
+    return out
 
 
 def fuse(*lists: list[int], k: int = 60) -> list[tuple[int, float]]:
@@ -316,9 +374,9 @@ def fuse(*lists: list[int], k: int = 60) -> list[tuple[int, float]]:
     return sorted(score.items(), key=lambda item: (-item[1], item[0]))
 
 
-def load_vectors(directory: Path, spec: embed.ModelSpec) -> tuple[np.ndarray, np.ndarray]:
-    """The rowids and vectors written beside the store. Raises ``embed.Unavailable`` where there are none or another model made them."""
-    nodes, vectors = embed.load(directory, spec, VECTORS)
+def load_vectors(directory: Path, spec: embed.ModelSpec, name: str = VECTORS) -> tuple[np.ndarray, np.ndarray]:
+    """The rowids and vectors written beside the store, of the symbols or with ``DOC_VECTORS`` of the documentation. Raises ``embed.Unavailable`` where there are none or another model made them."""
+    nodes, vectors = embed.load(directory, spec, name)
     return np.array([int(n) for n in nodes], dtype=np.int64), vectors
 
 
