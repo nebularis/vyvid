@@ -31,7 +31,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-6g | vyvid-framework | identifiers, slices and units | built 2026-11-04 |
 | VYD-7 | vyvid-framework | the triple-store domain | built 2026-11-04 |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | built 2026-11-04 |
-| VYD-9 | vyvid-framework | a project with private docs | planned |
+| VYD-9 | vyvid-framework | a project with private docs | building 2026-11-04 |
 | VYD-10 | vyvid-framework | private rules as a domain | planned |
 | VYD-11 | vyvid-framework | vyvid's own contract | built 2026-11-04 |
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
