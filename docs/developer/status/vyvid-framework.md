@@ -18,7 +18,7 @@
 | VYD-3 | domains, their graph and register types | built 2026-11-03, building 2026-11-03 | |
 | VYD-4 | managed assets and git policy | built 2026-11-03, building 2026-11-03 | |
 | VYD-5 | the store across scopes | built 2026-11-03, building 2026-11-03 | |
-| VYD-6 | recipes and contracts | planned | VYD-5 |
+| VYD-6 | recipes and contracts | building 2026-11-04 | |
 | VYD-7 | the triple-store domain | planned | VYD-5 |
 | VYD-8 | the Tools and Haskell domains | planned | VYD-3, VYD-5 |
 | VYD-9 | a project with private docs | planned | VYD-6 |
