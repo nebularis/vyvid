@@ -28,6 +28,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-6d | vyvid-framework | extractors run as commands | built 2026-11-04 |
 | VYD-6e | vyvid-framework | credentials and scanning | built 2026-11-04 |
 | VYD-6f | vyvid-framework | trust and held updates | built 2026-11-04 |
+| VYD-6g | vyvid-framework | identifiers, slices and units | building 2026-11-04 |
 | VYD-7 | vyvid-framework | the triple-store domain | built 2026-11-04 |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | planned |
 | VYD-9 | vyvid-framework | a project with private docs | planned |

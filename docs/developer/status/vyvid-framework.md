@@ -24,6 +24,7 @@
 | VYD-6d | extractors run as commands | built 2026-11-04 | |
 | VYD-6e | credentials and scanning | built 2026-11-04 | |
 | VYD-6f | trust and held updates | built 2026-11-04 | |
+| VYD-6g | identifiers, slices and units | building 2026-11-04 | |
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
 | VYD-8 | the Tools and Haskell domains | planned | VYD-3, VYD-5 |
 | VYD-9 | a project with private docs | planned | VYD-6 |
