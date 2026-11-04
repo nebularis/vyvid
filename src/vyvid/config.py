@@ -34,11 +34,29 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git"}
+DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
 # What each key of a managed domain's git policy may be, the first being the default.
 GIT_CHOICES = {"pull": ("on-start", "daily", "manual"), "commit": ("manual", "auto"), "push": ("manual", "auto")}
+# The edges a recipe's linked step may follow, which the index stores between entries.
+LINK_EDGES = ("supports", "refines", "decidedBy", "evidencedBy", "enforcedBy", "dependsOn", "waitsOn",
+              "distinguishedFrom", "bearsOn", "answers", "supersededBy")
+DIRECTIONS = ("out", "in", "both")
+FILTER_KEYS = ("kind", "exclude", "activity", "quality", "tech", "phase", "audience", "scope")
+# The steps of a recipe, each with the keys it requires and the keys it may also take.
+STEPS = {
+    "find": (("words",), (*FILTER_KEYS, "limit")),
+    "linked": (("edges",), ("direction",)),
+    "include": (("ids",), ()),
+    "take": (("n",), ("per_kind",)),
+    "glue": (("command",), ()),
+}
+EXPECTS = {"words": "a string", "limit": "a whole number above zero", "n": "a whole number above zero",
+           "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a list of strings",
+           "direction": f"one of {', '.join(DIRECTIONS)}", "per_kind": "true or false",
+           **dict.fromkeys(FILTER_KEYS, "a string or a list of strings")}
+DEFAULT_BUDGET = 1000
 
 
 class ConfigError(Exception):
@@ -86,6 +104,18 @@ class Family:
         return found
 
 
+@dataclass(frozen=True)
+class Recipe:
+    """A named chain of steps that narrows an answer to the work, declared by a domain or a project.
+    Each step is a table with a ``step`` key, its values checked at load. The budget is in tokens."""
+
+    name: str
+    description: str
+    steps: tuple[dict, ...]
+    budget: int = DEFAULT_BUDGET
+    scope: str = ""  # the scope that declares it, in which its identifiers are resolved
+
+
 @dataclass
 class Scope:
     """A layer of rules: the general scope, a domain or a project."""
@@ -100,6 +130,8 @@ class Scope:
     families: dict[str, Family] = field(default_factory=dict)
     delegates: dict[str, str] = field(default_factory=dict)
     parents: list[str] = field(default_factory=list)  # domains only
+    description: str = ""  # domains only: when to use the domain, for the skill generated from it
+    recipes: list[Recipe] = field(default_factory=list)
     remote: str | None = None  # domains only: the repository a managed domain is a clone of
     git: GitPolicy = field(default_factory=GitPolicy)  # domains only
     path: Path | None = None
@@ -240,6 +272,76 @@ def _git_policy(raw, where: str, problems: list[str]) -> GitPolicy:
     return policy
 
 
+def _step_value(key: str, value):
+    """The value a step key takes as a recipe stores it. Raises ValueError for one it cannot take."""
+    strings = isinstance(value, list) and bool(value) and all(isinstance(v, str) for v in value)
+    whole = isinstance(value, int) and not isinstance(value, bool) and value > 0
+    if (key in FILTER_KEYS or key == "words") and isinstance(value, str):
+        return value
+    if key in FILTER_KEYS and strings:
+        return ",".join(value)
+    if key in ("limit", "n") and whole:
+        return value
+    if key in ("edges", "ids", "command") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
+        return list(value)
+    if (key == "direction" and value in DIRECTIONS) or (key == "per_kind" and isinstance(value, bool)):
+        return value
+    raise ValueError(f"'{key}' must be {EXPECTS[key]}")
+
+
+def _step(raw, where: str, problems: list[str]) -> dict | None:
+    if not isinstance(raw, dict) or raw.get("step") not in STEPS:
+        problems.append(f"{where}: a step needs a 'step' of {', '.join(STEPS)}")
+        return None
+    name = raw["step"]
+    required, optional = STEPS[name]
+    here = f"{where}, step '{name}'"
+    before = len(problems)
+    problems += [f"{here}: needs '{k}'" for k in required if k not in raw]
+    if unknown := sorted(set(raw) - {"step", *required, *optional}):
+        problems.append(f"{here}: unknown keys {', '.join(unknown)}")
+    out = {"step": name}
+    for key in [k for k in raw if k in (*required, *optional)]:
+        try:
+            out[key] = _step_value(key, raw[key])
+        except ValueError as error:
+            problems.append(f"{here}: {error}")
+    return out if len(problems) == before else None
+
+
+def _recipes(raw, scope: str, kind: str, where: str, problems: list[str]) -> list[Recipe]:
+    """The recipes a domain or a project declares. A domain's may run no code, so a glue step in one is
+    a problem, since a cloned domain must not execute anything."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(r, dict) for r in raw):
+        problems.append(f"{where}: recipes must be an array of tables")
+        return []
+    out: list[Recipe] = []
+    for item in raw:
+        name = item.get("name", "")
+        here = f"{where}: recipe '{name}'"
+        if not isinstance(name, str) or not NAME_RE.match(name) or any(r.name == name for r in out):
+            problems.append(f"{where}: a recipe needs a unique lower-case name, not '{name}'")
+            continue
+        if unknown := sorted(set(item) - {"name", "description", "steps", "budget"}):
+            problems.append(f"{here}: unknown keys {', '.join(unknown)}")
+        description, budget, steps = item.get("description"), item.get("budget", DEFAULT_BUDGET), item.get("steps")
+        if not isinstance(description, str) or not description.strip():
+            problems.append(f"{here}: needs a description, saying when to use it")
+        if not isinstance(budget, int) or isinstance(budget, bool) or budget < 1:
+            problems.append(f"{here}: budget must be a whole number of tokens above zero")
+        if not isinstance(steps, list) or not steps:
+            problems.append(f"{here}: needs a list of steps")
+            continue
+        parsed = [_step(s, here, problems) for s in steps]
+        if kind != "project" and any(isinstance(s, dict) and s.get("step") == "glue" for s in steps):
+            problems.append(f"{here}: has a glue step, and a cloned domain runs no code. Only a project's recipe may")
+        if all(parsed) and isinstance(description, str) and isinstance(budget, int):
+            out.append(Recipe(name, description.strip(), tuple(parsed), budget, scope))
+    return out
+
+
 def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> dict:
     """A domain's ``domain.toml``. A missing one is no error, since the configuration may say it all."""
     if root is None or not (root / "domain.toml").is_file():
@@ -329,6 +431,7 @@ def load(path: Path | None = None) -> Config:
         bases = {"kb": kb, "self": root}
         domains[name] = Scope(
             name, "domain", _visibility(merged, "private", where, problems), path=root, parents=list(merged.get("parents", [])),
+            description=" ".join(str(merged.get("description", "")).split()), recipes=_recipes(merged.get("recipes"), name, "domain", where, problems),
             remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems),
             rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
             skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
@@ -358,7 +461,7 @@ def load(path: Path | None = None) -> Config:
         projects[name] = Scope(
             name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
             remotes=[remotes] if isinstance(remotes, str) else list(remotes),
-            domains=list(p.get("domains", [])),
+            domains=list(p.get("domains", [])), recipes=_recipes(p.get("recipes"), name, "project", where, problems),
             rules=_paths(p.get("contract"), bases, where, problems),
             skills=_paths(p.get("skills"), bases, where, problems),
             facets=_paths(p.get("facets"), bases, where, problems),

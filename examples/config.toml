@@ -54,6 +54,16 @@ ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architectur
 [projects.uses.owl.owl-terms]
 paths = ["code:ontology/**/*.ttl"]
 
+[[projects.recipes]]
+name = "sparql-for-studio"
+description = "When writing or generating SPARQL for the studio"
+steps = [
+  { step = "find", words = "{question}", kind = "standard", activity = "query-writing", tech = "sparql", limit = 6 },
+  { step = "linked", edges = ["decidedBy", "supports"], direction = "out" },
+  { step = "include", ids = ["CAP-52"] },
+  { step = "take", n = 3, per_kind = true },
+]
+
 [[projects]]
 name = "vyvid"
 visibility = "public"

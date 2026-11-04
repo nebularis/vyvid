@@ -68,7 +68,7 @@ import pyoxigraph as ox
 
 from . import anchors, embed, registers
 from .build import build, store_dir
-from .config import Config, Scope, extractor_runs
+from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
 from .resolve import Unresolved, bind, layers, resolve
 
@@ -328,8 +328,7 @@ LINKED = (
     PREFIXES
     + f"""
 SELECT DISTINCT ?subject ?o ?id ?kind ?status ?claim ?pointer ?edge ?direction WHERE {{
-  VALUES ?p {{ ki:supports ki:refines ki:decidedBy ki:evidencedBy ki:enforcedBy ki:dependsOn ki:waitsOn
-              ki:distinguishedFrom ki:bearsOn ki:answers ki:supersededBy }}
+  VALUES ?p {{ {" ".join("ki:" + e for e in LINK_EDGES)} }}
   {{ GRAPH ?ge {{ ?subject ?p ?o }} BIND ("out" AS ?direction) }} UNION {{ GRAPH ?ge {{ ?o ?p ?subject }} BIND ("in" AS ?direction) }}
   {IN_INDEX % "?ge"}
   GRAPH ?go {{
@@ -705,7 +704,13 @@ def flags(r: dict) -> str:
 
 def under(r: dict) -> str:
     """The line find prints under a row: the whole claim, then each signpost the flags mark."""
-    text = [r["claim"].rstrip()]
+    return " ".join([r["claim"].rstrip(), *notes(r)])
+
+
+def notes(r: dict) -> list[str]:
+    """The signposts that follow a row's claim: the section that answered, what the entry does not
+    cover, what superseded, reversed or narrowed it, the debts and ideas that bear on it, and the rest."""
+    text = []
     if r.get("section") and not r["section"].startswith(r["claim"].rstrip("…")):
         cut = r["section"] if len(r["section"]) <= 200 else r["section"][:199].rstrip() + "…"
         text.append(f"The section that answered: {cut}")
@@ -721,7 +726,7 @@ def under(r: dict) -> str:
         text.append(f"Open debt: {', '.join(sorted(r['debts'].split()))}.")
     if r.get("ideas"):
         text.append(f"On the backlog, not built: {', '.join(sorted(r['ideas'].split()))}.")
-    return " ".join(text + signposts(r))
+    return text + signposts(r)
 
 
 def signposts(r: dict) -> list[str]:
@@ -805,13 +810,18 @@ def find(
         print("Widen or drop a filter, or try other words.")
         print(FALLBACK)
         return 0
-    private = "Private, so this project's public text never cites it." if a.public_text else "Private."
+    private = private_note(a)
     for r in rows:
         r["score"] = f"{r['score']:.2f}" + ("+" * r["facets"])
         r["private"] = private if r["scope"] in a.private else ""
         r["flags"] = flags(r)
     _show_found(a, rows, facets, best)
     return 0
+
+
+def private_note(a: Asker) -> str:
+    """What is said under a row of a private scope."""
+    return "Private, so this project's public text never cites it." if a.public_text else "Private."
 
 
 def rank(

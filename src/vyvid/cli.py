@@ -18,6 +18,10 @@
     the questions the index answered weakly, the gaps found by reading, and closing them
 ``vyd check citations [--staged] [paths ...] [--in folder]``
     refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
+``vyd recipe list [--in folder]`` and ``vyd recipe run <name> "<question>" [--in folder] [--all] [--json]``
+    the named chains of queries the folder's stack declares, and one run as a briefing within its budget
+``vyd install --client claude-code [--target folder] [--dry-run]``
+    write the client's user-level rule file and one skill per configured domain
 
 ``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message>``
     the domains under the knowledge base, each a git clone of its remote, kept by its git policy
@@ -34,7 +38,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, ask, citations, kb
+from . import __version__, ask, citations, install, kb, recipes
 from .config import ConfigError, config_path, extractor_runs, load
 from .facets import RegisterError
 from .registers import DeclarationError
@@ -48,6 +52,7 @@ def _layer(config, scope) -> dict:
     out = {"scope": scope.name, "kind": scope.kind, "visibility": scope.visibility}
     for key in ("rules", "skills"):
         out[key] = [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
+    out["recipes"] = [{"name": r.name, "description": r.description} for r in scope.recipes]
     if scope.kind == "domain":
         out["brings"] = [e["kind"] for e in scope.extractors]
     if scope.kind == "project":
@@ -78,6 +83,8 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
+        for recipe in layer["recipes"]:
+            print(f"   recipe {recipe['name']}  {recipe['description']}")
         for kind in layer.get("brings", []):
             print(f"   brings extractor {kind}")
         for run in layer.get("runs", []):
@@ -175,6 +182,41 @@ def check_citations(arguments) -> int:
     return 1 if refused else 0
 
 
+def recipe_command(arguments, parser) -> int:
+    """List the recipes of the folder's stack, or run one as a briefing."""
+    config = load()
+    folder = Path(arguments.folder)
+    stack = layers(config, bind(config, folder))
+    found = recipes.available(stack)
+    if arguments.recipe_command == "list":
+        if found:
+            ask.show([{"name": r.name, "scope": r.scope, "description": r.description} for r in found.values()], ("name", "scope", "description"))
+        else:
+            print("no recipe is declared in this folder's stack")
+        return 0
+    recipe = found.get(arguments.name)
+    if recipe is None:
+        print(f"vyd: no recipe '{arguments.name}' in this folder's stack, which has {', '.join(found) or 'none'}", file=sys.stderr)
+        return 1
+    try:
+        a = ask.open_stack(config, folder, scope=recipes.extra_scopes(recipe))
+        entries = recipes.run(a, recipe, arguments.question)
+    except ValueError as error:
+        parser.error(str(error))
+    except recipes.RecipeError as error:
+        print(f"vyd: recipe {recipe.name}: {error}", file=sys.stderr)
+        return 1
+    text, size, dropped = recipes.briefing(recipe, arguments.question, entries, arguments.all)
+    if arguments.json:
+        shown = entries[: len(entries) - dropped]
+        print(json.dumps({"recipe": recipe.name, "scope": recipe.scope, "question": arguments.question, "budget": recipe.budget,
+                          "estimated_tokens": size, "dropped": dropped, "entries": shown}, indent=2, ensure_ascii=False))
+    else:
+        print(text)
+        print(f"\n(about {size} tokens)")
+    return 0
+
+
 def _question(arguments, parser) -> int:
     """Run one of the questions in ``ask`` for the stack of the folder named by ``--in``."""
     config = load()
@@ -266,6 +308,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("paths", nargs="*", help="files or folders whose every line is checked")
     p.add_argument("--staged", action="store_true", help="the lines staged in the project's code and documents repositories")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
+    p = sub.add_parser("recipe", help="the named chains of queries of a folder's stack").add_subparsers(dest="recipe_command", required=True)
+    p.add_parser("list", help="each recipe of the stack, its scope and when to use it").add_argument("--in", dest="folder", default=".")
+    r = p.add_parser("run", help="run one recipe for a question and print its briefing")
+    r.add_argument("name")
+    r.add_argument("question")
+    r.add_argument("--in", dest="folder", default=".", help="the folder whose stack the recipe is read from")
+    r.add_argument("--all", action="store_true", help="every entry, ignoring the recipe's budget")
+    r.add_argument("--json", action="store_true")
+    i = sub.add_parser("install", help="write a client's user-level rule file and one skill per configured domain")
+    i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
+    i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
+    i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
     sub.add_parser("config", help="where the configuration is read from, and whether it is sound")
     _questions(sub)
     arguments = parser.parse_args(argv)
@@ -283,6 +337,10 @@ def main(argv: list[str] | None = None) -> int:
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
         if arguments.command == "check":
             return check_citations(arguments)
+        if arguments.command == "recipe":
+            return recipe_command(arguments, parser)
+        if arguments.command == "install":
+            return install.install(load(), arguments.client, arguments.target, arguments.dry_run)
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
         config = load()
