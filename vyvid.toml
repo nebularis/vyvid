@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT
+# This repository declares its own project, so `vyd context` in a clone prints its contract once `vyd trust` has recorded this file.
+
+[project]
+name = "vyvid"
+visibility = "public"
+docs = "code:docs"
+contract = "docs:developer/contract.md"
+facets = ["docs:developer/facets.md"]
+register_types = ["docs:developer/register-types.toml"]
+
+[project.families]
+STD = { defined = "docs:developer/standards.md", type = "standard" }
+PRI = { defined = "docs:developer/principles.md", type = "principle" }
+CAP = { defined = "docs:developer/capabilities.md", type = "capability" }
+# A debt is removed when it is closed, so a mention of one that is gone is reported and never failed.
+TD = { defined = "docs:developer/technical-debt.md", type = "debt", removable = true }
+PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-decision" }
+BL = { defined = "docs:developer/backlog.md", type = "backlog" }
+SEC = { defined = "docs:developer/security.md", type = "security-finding" }
+# A slice is defined by its row in the index, and a bare match elsewhere is a mention only where the index defines it.
+VYD = { pattern = 'VYD-\d+[a-z]?', defined = "docs:developer/INDEX.md", type = "slice", defined_only = true }
+# A question is a bold lead or a table row of a plan or a sketch.
+VYDQ = { pattern = 'VYD-Q\d+', defined = ["docs:developer/plans", "docs:developer/sketches"], rule = "question", type = "question" }
+
+[project.identifiers]
+exceptions = "docs:developer/identifier-exceptions.txt"
+
+[[project.recipes]]
+name = "configuration-change"
+description = "When changing how a configuration, a vyvid.toml, trust, binding or a scope's rules are read or checked"
+budget = 1200
+steps = [
+  { step = "find", words = "{question}", kind = ["standard", "principle", "security-finding"], limit = 6 },
+  { step = "find", words = "configuration trust binding {question}", kind = "capability", limit = 3 },
+  { step = "linked", edges = ["decidedBy", "supports", "enforcedBy", "bearsOn"], direction = "both" },
+  { step = "take", n = 4, per_kind = true },
+]

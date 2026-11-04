@@ -6,6 +6,11 @@ winning, and otherwise to the project whose remote its git repository has. The l
 general scope, then the domains the project uses with all their ancestors, parents before children,
 then the project, so a later layer overrides an earlier one. A folder no project claims gets the
 general scope alone.
+
+A repository may declare its own project in a ``vyvid.toml`` at its root (``project_file``). It binds the folders
+inside it, ahead of a remote, and a configured project holding the folder more deeply still wins. The user's
+``[[projects]]`` entry of the same name overrides the file's keys one by one. A file that cannot be used sets
+its project aside and the folder gets the general scope (``bind_in``).
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ import subprocess
 from dataclasses import replace
 from pathlib import Path
 
-from .config import Config, Family, Move, Scope
+from .config import PROJECT_FILE, Config, Family, Move, Scope, file_project, read_project_file
 from .model import normalise
 from .registers import _cells
 
@@ -43,10 +48,8 @@ def remotes(folder: Path) -> list[str]:
     return [normalise_remote(line.split(None, 1)[1]) for line in found.stdout.splitlines() if " " in line]
 
 
-def bind(config: Config, folder: Path) -> Scope | None:
-    """The project a folder belongs to, by the deepest code or documents folder holding it, then by the
-    git repository it shares with a project's code folder, so a worktree may be anywhere, then by remote."""
-    folder = folder.expanduser().resolve()
+def _by_path(config: Config, folder: Path) -> tuple[Scope | None, int]:
+    """The project whose code or documents folder holds ``folder`` most deeply, and how deep that is."""
     best, depth = None, -1
     for project in config.projects.values():
         for root in (project.code, project.docs):
@@ -55,6 +58,14 @@ def bind(config: Config, folder: Path) -> Scope | None:
             root = root.resolve()
             if (folder == root or root in folder.parents) and len(root.parts) > depth:
                 best, depth = project, len(root.parts)
+    return best, depth
+
+
+def bind(config: Config, folder: Path) -> Scope | None:
+    """The project a folder belongs to, by the deepest code or documents folder holding it, then by the
+    git repository it shares with a project's code folder, so a worktree may be anywhere, then by remote."""
+    folder = folder.expanduser().resolve()
+    best, _ = _by_path(config, folder)
     if best is not None:
         return best
     common = _common(folder) if folder.exists() else None
@@ -124,9 +135,77 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
     return replace(config, projects={**config.projects, project.name: moved})
 
 
+def project_file(folder: Path) -> Path | None:
+    """The vyvid.toml that declares the project of ``folder``: at the git toplevel of the folder, else, where the
+    folder is not in git, in the nearest folder above it that has one. Nothing else reads it."""
+    folder = folder.expanduser().resolve()
+    if not folder.exists():
+        return None
+    folder = folder if folder.is_dir() else folder.parent
+    if (top := _git(folder, "rev-parse", "--show-toplevel")) is not None:
+        file = Path(top).resolve() / PROJECT_FILE
+        return file if file.is_file() else None
+    return next((p / PROJECT_FILE for p in (folder, *folder.parents) if (p / PROJECT_FILE).is_file()), None)
+
+
+def main_root(root: Path) -> Path:
+    """The folder of the repository's main checkout, else ``root`` itself."""
+    common = _common(root)
+    return common.parent if common is not None and common.name == ".git" else root
+
+
+def _same_repository(code: Path, root: Path) -> bool:
+    """Whether a configured code folder is ``root`` or another checkout of the repository ``root`` is in, as
+    ``checkout_of`` counts one, so its paths may be moved to ``root``."""
+    code = code.resolve()
+    if code == root:
+        return True
+    top = _git(code, "rev-parse", "--show-toplevel") if code.exists() else None
+    return top is not None and Path(top).resolve() == code and _common(code) is not None and _common(code) == _common(root)
+
+
+def _with_file(config: Config, folder: Path, file: Path) -> tuple[Config, Scope | None] | None:
+    """The configuration and project the vyvid.toml at ``file`` gives ``folder``. None when it is not the file's
+    to bind: a project the user configured holds the folder as deeply, under another name. A file that cannot
+    be used is recorded in ``files_aside`` and gives the general scope."""
+    root = file.parent.resolve()
+    table, problems = read_project_file(file)
+    name = table.get("name")
+    near, depth = _by_path(config, folder)
+    entry = config.entries.get(name) if isinstance(name, str) else None
+    same = entry is not None and "code" in entry and _same_repository(Path(entry["code"]).expanduser(), root)
+    if near is not None and near.name != name and depth >= len(root.parts):
+        return None
+    if entry is not None and not same:
+        problems.append(f"{file}: project '{name}' is configured with the code folder {entry.get('code')}, which is not this repository")
+    scope = None
+    if not problems:
+        code = Path(entry["code"]).expanduser() if same else main_root(root)
+        scope, problems = file_project(config, file, table, code, entry if same else None)
+    if scope is None:
+        return replace(config, files_aside={**config.files_aside, str(file): problems}), None
+    config = replace(config, projects={**config.projects, scope.name: scope})
+    if scope.code.resolve() != root:
+        config = rebase(config, scope, root)
+    return config, config.projects[scope.name]
+
+
+def file_scope(config: Config, file: Path) -> tuple[Scope | None, list[str]]:
+    """The project a vyvid.toml declares by itself, with the reasons it cannot be used. For ``vyd trust``, which
+    lists what the file would run."""
+    table, problems = read_project_file(file)
+    if problems:
+        return None, problems
+    return file_project(config, file, table, file.parent.resolve(), None)
+
+
 def bind_in(config: Config, folder: Path) -> tuple[Config, Scope | None]:
-    """The configuration to answer ``folder`` from and its project: ``bind``, with the project rebased
-    onto the folder's checkout when it is a linked one. Binding the result again changes nothing."""
+    """The configuration to answer ``folder`` from and its project: the project its repository's vyvid.toml
+    declares, else ``bind``, with the project rebased onto the folder's checkout when it is a linked one.
+    Binding the result again changes nothing."""
+    folder = folder.expanduser()
+    if (file := project_file(folder)) is not None and (decided := _with_file(config, folder.resolve(), file)) is not None:
+        return decided
     project = bind(config, folder)
     if project is not None and (root := checkout_of(project, folder)) is not None:
         config = rebase(config, project, root)

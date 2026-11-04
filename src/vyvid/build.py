@@ -112,8 +112,8 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
     for scope in (s for s in stack if s.kind == "project"):
         for run in extractor_runs(config, scope):
             context = extractors.Context(scope, scope.code or scope.path or Path.cwd(), config, taggable, store)
-            if "command" in run.settings and not cfg.trusted(config):
-                result = extractors.Result(problems=[f"extractor '{run.kind}' of project '{scope.name}' is a command, and this configuration is not trusted, "
+            if "command" in run.settings and not cfg.may_run(config, scope, "extractors"):
+                result = extractors.Result(problems=[f"extractor '{run.kind}' of project '{scope.name}' is a command, and {cfg.not_trusted(config, scope, 'extractors')}, "
                                                      "so its entries are absent. Run vyd trust in a terminal, then vyd build"])
             else:
                 result = command.extract(run, context, folder) if "command" in run.settings else extractors.load(run.kind)(context, run.settings)

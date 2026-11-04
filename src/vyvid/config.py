@@ -18,6 +18,11 @@ A manifest comes from whoever wrote the domain, so it is held to its folder. Eve
 stay inside the folder after symlinks are resolved, and it may not set ``git``, ``remote``, ``trust`` or
 ``commit``. The same keys in the user's configuration are the user's own and stay free. A file under a domain's folder that
 is a symlink leaving it is never read (``escapes``).
+
+A repository may declare its own project in a ``vyvid.toml`` at its root, under ``[project]``, with
+what a ``[[projects]]`` entry holds. It comes from whoever wrote the repository, so it is held to what a
+clone may be trusted with (``read_project_file``), and its glue and command extractors run only once a
+person has trusted its bytes (``file_trusted``, ``may_run``).
 """
 
 from __future__ import annotations
@@ -31,7 +36,7 @@ import shlex
 import signal
 import subprocess
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import platformdirs
@@ -52,6 +57,11 @@ RULES = ("table", "file", "heading", "question")
 DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
+# The file a repository names its own project in, and what it may not set or hold.
+PROJECT_FILE = "vyvid.toml"
+PROJECT_REFUSED = ("code", "git", "remote", "trust", "match")
+PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
+                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -220,10 +230,15 @@ class Scope:
     specialises: dict[str, Path] = field(default_factory=dict)
     checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
     identifiers: Scan = field(default_factory=Scan)  # projects only
+    file: Path | None = None  # projects only: the vyvid.toml this project was declared in, if any
+    file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
 
     @property
     def standing(self) -> str:
-        """What the domain gives now. A reviewed domain whose HEAD is not its commit gives knowledge alone."""
+        """What the scope gives now. A reviewed domain whose HEAD is not its commit gives knowledge alone, and so
+        does a project declared by a vyvid.toml whose bytes nobody has trusted."""
+        if self.kind == "project":
+            return "own" if self.file is None or file_trusted(self.file) else "knowledge"
         if self.kind != "domain" or self.trust == "own":
             return "own"
         if self.trust == "reviewed" and self.commit and self.path is not None:
@@ -262,6 +277,8 @@ class Config:
     glue: str = "run"  # ``stop`` means vyd never runs glue itself, one of GLUE_CHOICES
     logs: bool = True  # false means no question is written to the ask and miss logs
     set_aside: dict[str, list[str]] = field(default_factory=dict)  # domain -> why its manifest or a parent's was refused
+    entries: dict[str, dict] = field(default_factory=dict)  # the user's [[projects]] entries as written, by name
+    files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -374,20 +391,71 @@ def trusted(config: Config) -> bool:
     return path == own_config().resolve() or _recorded().get(str(path)) == _digest(path)
 
 
-def record_trust(path: Path) -> None:
-    """Record the hash of the file at ``path`` as trusted, in a file only the user can read."""
+def _git_out(folder: Path, *args: str) -> str:
+    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def file_key(path: Path) -> str:
+    """What a project file's trust is recorded under: the git common directory and the path from the
+    repository's root, so every worktree of one repository holding the same bytes shares a record, and
+    otherwise the resolved path."""
+    path = path.resolve()
+    common, top = _git_out(path.parent, "rev-parse", "--git-common-dir"), _git_out(path.parent, "rev-parse", "--show-toplevel")
+    if common and top:
+        try:
+            return f"git:{(path.parent / common).resolve()}:{path.relative_to(Path(top).resolve()).as_posix()}"
+        except ValueError:
+            pass
+    return str(path)
+
+
+def file_trusted(path: Path) -> bool:
+    """Whether the vyvid.toml at ``path`` is recorded as trusted with the hash of its bytes now."""
+    try:
+        return _recorded().get(file_key(path)) == _digest(path)
+    except OSError:
+        return False
+
+
+def may_run(config: Config, project: Scope, key: str) -> bool:
+    """Whether the glue (``recipes``) or command extractors (``extractors``) of ``project`` may run. A key
+    its vyvid.toml gave needs that file trusted, and the user's own entry or configuration needs that trusted."""
+    if project.file is not None and key in project.file_keys:
+        return file_trusted(project.file)
+    return trusted(config)
+
+
+def not_trusted(config: Config, project: Scope, key: str) -> str:
+    """Why ``may_run`` said no, as a clause."""
+    if project.file is not None and key in project.file_keys:
+        return f"the vyvid.toml at {project.file} is not trusted"
+    return "this configuration is not trusted"
+
+
+def _record(key: str, path: Path) -> None:
     file = trust_file()
     private_dir(file.parent)
     private_file(file)
-    file.write_text(json.dumps({**_recorded(), str(path.resolve()): _digest(path)}, indent=2) + "\n", encoding="utf-8", newline="\n")
+    file.write_text(json.dumps({**_recorded(), key: _digest(path)}, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
-def declared(config: Config) -> list[str]:
-    """A line for each glue command and command extractor the configuration declares."""
+def record_trust(path: Path) -> None:
+    """Record the hash of the file at ``path`` as trusted, in a file only the user can read."""
+    _record(str(path.resolve()), path)
+
+
+def record_file_trust(path: Path) -> None:
+    """Record the hash of the vyvid.toml at ``path`` as trusted, under its ``file_key``."""
+    _record(file_key(path), path)
+
+
+def declared(projects) -> list[str]:
+    """A line for each glue command and command extractor the projects declare."""
     lines = [f"project {p.name}, recipe {r.name}, glue in {p.code}: {shlex.join(s['command'])}"
-             for p in config.projects.values() for r in p.recipes for s in r.steps if s["step"] == "glue"]
+             for p in projects for r in p.recipes for s in r.steps if s["step"] == "glue"]
     return lines + [f"project {p.name}, extractor {e['kind']}: {shlex.join(e['settings']['command'])}"
-                    for p in config.projects.values() for e in p.extractors if "command" in e["settings"]]
+                    for p in projects for e in p.extractors if "command" in e["settings"]]
 
 
 def escapes(path: Path, root: Path | None) -> bool:
@@ -410,32 +478,48 @@ def timeouts(scopes: list[Scope]) -> list[str]:
             for s in scopes for f in s.families.values() if f.pattern.timed_out]
 
 
-def _inside(value: str, root: Path) -> bool:
-    """Whether a manifest's path stays in the domain's folder: relative or ``self:``, with no other
-    token, no ``~``, and not leaving through ``..`` or a symlink."""
-    rest = value.removeprefix("self:").replace("\\", "/")
+def _inside(value: str, root: Path, tokens: dict[str, Path] | None = None) -> bool:
+    """Whether a manifest's path stays in the folder: relative or starting with one of ``tokens`` (``self:``
+    by default, each naming the folder its rest is read from), with no other token, no ``~``, and not
+    leaving ``root`` through ``..`` or a symlink."""
+    rest, base = value.replace("\\", "/"), root
+    for token, folder in (tokens or {"self": root}).items():
+        if rest.startswith(token + ":"):
+            rest, base = rest[len(token) + 1 :], folder
+            break
     if rest.startswith(("~", "/")) or re.match(r"[A-Za-z][\w-]*:", rest):
         return False
-    return Path(os.path.realpath(root / rest)).is_relative_to(Path(os.path.realpath(root)))
+    return Path(os.path.realpath(base / rest)).is_relative_to(Path(os.path.realpath(root)))
 
 
-def leaving(manifest: dict, root: Path) -> list[tuple[str, str]]:
-    """The key and value of each path in a manifest that leaves the domain's folder."""
+def leaving(manifest: dict, root: Path, tokens: dict[str, Path] | None = None, paths: tuple[str, ...] = MANIFEST_PATHS,
+            project: bool = False) -> list[tuple[str, str]]:
+    """The key and value of each path in a manifest that leaves ``root``. For a project's file, ``paths`` are its
+    own keys and ``project`` adds the paths in its identifiers, specialises and moves."""
     found: list[tuple[str, str]] = []
 
     def check(key: str, values) -> None:
         for v in [values] if isinstance(values, str) else values if isinstance(values, list) else []:
-            if isinstance(v, str) and not _inside(v, root):
+            if isinstance(v, str) and not _inside(v, root, tokens):
                 found.append((key, v))
 
-    for key in MANIFEST_PATHS:
+    for key in paths:
         check(key, manifest.get(key))
     families = manifest.get("families")
     for name, spec in (families.items() if isinstance(families, dict) else []):
         for key in ("defined", "also", "exceptions"):
             check(f"families.{name}.{key}", spec.get(key) if isinstance(spec, dict) else None)
     for item in manifest.get("extractors") if isinstance(manifest.get("extractors"), list) else []:
-        check("extractors.paths", item.get("paths") if isinstance(item, dict) else None)
+        for key in ("paths", "code"):
+            check(f"extractors.{key}", item.get(key) if isinstance(item, dict) else None)
+    if project:
+        identifiers = manifest.get("identifiers")
+        check("identifiers.exceptions", identifiers.get("exceptions") if isinstance(identifiers, dict) else None)
+        specialises = manifest.get("specialises")
+        for domain, value in (specialises.items() if isinstance(specialises, dict) else []):
+            check(f"specialises.{domain}", value)
+        for item in manifest.get("moves") if isinstance(manifest.get("moves"), list) else []:
+            check("moves.source", item.get("source") if isinstance(item, dict) else None)
     return found
 
 
@@ -794,6 +878,85 @@ def extractor_runs(config: Config, project: Scope) -> list[Run]:
     return runs
 
 
+def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[str, list[str]], problems: list[str]) -> Scope:
+    """A project's scope from its entry ``p``: a ``[[projects]]`` entry, or a vyvid.toml merged under one."""
+    where = f"project '{name}'"
+    docs = _expand(p.get("docs", "code:docs"), {"code": code, "kb": kb}, where, problems)
+    bases = {"code": code, "docs": docs, "kb": kb}
+    match = p.get("match", {})
+    remotes = match.get("remote", [])
+    _remotes(remotes, where, problems)
+    for domain, kinds in p.get("uses", {}).items():
+        for kind, settings in kinds.items():
+            problems += credential_problems(settings, f"{where}, uses {domain}.{kind}")
+    moves = [m for m in _moves(p.get("moves"), bases, where, problems) if m.to not in set_aside]
+    return Scope(
+        name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
+        remotes=[remotes] if isinstance(remotes, str) else list(remotes),
+        domains=[d for d in p.get("domains", []) if d not in set_aside], recipes=_recipes(p.get("recipes"), name, "project", where, problems),
+        rules=_paths(p.get("contract"), bases, where, problems),
+        skills=_paths(p.get("skills"), bases, where, problems),
+        facets=_paths(p.get("facets"), bases, where, problems),
+        register_types=_paths(p.get("register_types"), bases, where, problems),
+        vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
+        families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
+        delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
+        extractors=_extractors(p.get("extractors"), where, problems, own=True),
+        uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
+        specialises={k: v for k, s in p.get("specialises", {}).items()
+                     if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
+    )
+
+
+def read_project_file(path: Path) -> tuple[dict, list[str]]:
+    """The ``[project]`` table of a repository's vyvid.toml, and each reason it cannot be used. The file comes
+    from whoever wrote the repository, so it may not set ``code``, ``git``, ``remote``, ``trust`` or ``match``, and
+    every path it names must stay inside its folder after symlinks are resolved, with ``code:`` and ``docs:``
+    allowed. The table is empty when the file cannot be read at all."""
+    root = path.parent
+    if not Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(root))):
+        return {}, [f"{path}: is a link that leaves the repository, so it is not read"]
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        return {}, [f"{path}: does not parse ({error})"]
+    table = raw.get("project")
+    if not isinstance(table, dict):
+        return {}, [f"{path}: needs a [project] table"]
+    problems = [f"{path}: has {k} outside [project]" for k in sorted(set(raw) - {"project"})]
+    problems += [f"{path}: sets '{k}', which only the user's configuration may" for k in PROJECT_REFUSED if k in table]
+    if unknown := sorted(set(table) - PROJECT_KEYS - set(PROJECT_REFUSED)):
+        problems.append(f"{path}: [project] has unknown keys {', '.join(unknown)}")
+    docs = table.get("docs", "code:docs")
+    docs_dir = root / (docs.removeprefix("code:") if isinstance(docs, str) else "docs")
+    names = ("docs", "contract", "skills", "facets", "register_types", "vocabulary")
+    problems += [f"{path}: {key} names '{value}', which leaves the repository" for key, value in
+                 leaving(table, root, {"code": root, "docs": docs_dir}, names, project=True)]
+    return table, problems
+
+
+def file_project(config: Config, path: Path, table: dict, code: Path, entry: dict | None) -> tuple[Scope | None, list[str]]:
+    """The project a vyvid.toml declares, with ``code`` as its code folder and the user's ``entry`` of that
+    name, if any, overriding the file's keys one by one. None, with every reason, when it cannot be used."""
+    name = table.get("name")
+    if not isinstance(name, str) or not NAME_RE.match(name) or name == "general" or name in config.domains or name in config.set_aside:
+        return None, [f"{path}: [project] needs a unique lower-case name, distinct from every domain and from general, not '{name}'"]
+    problems: list[str] = []
+    scope = _project({**table, **(entry or {}), "name": name, "code": str(code)}, name, code, config.kb, config.set_aside, problems)
+    scope.file, scope.file_keys = path, frozenset(k for k in table if k != "name" and k not in (entry or {}))
+    if "families" in scope.file_keys:
+        scope.families = {k: replace(f, root=path.parent) for k, f in scope.families.items()}
+    candidate = replace(config, projects={**config.projects, name: scope})
+    problems += _check(candidate)
+    if not problems:
+        try:
+            extractor_runs(candidate, scope)
+        except ConfigError as error:
+            problems += error.problems
+        problems += _move_problems(candidate, scope)
+    return (None, [f"{path}: {p}" for p in problems]) if problems else (scope, [])
+
+
 def load(path: Path | None = None) -> Config:
     """The configuration at ``path``, or at ``config_path()``. A missing file is an empty
     configuration with only the general scope, so an unconfigured machine still answers."""
@@ -844,6 +1007,7 @@ def load(path: Path | None = None) -> Config:
     _set_aside_descendants(domains, set_aside, unlisted)
 
     projects: dict[str, Scope] = {}
+    entries: dict[str, dict] = {}
     for p in raw.get("projects", []):
         name = p.get("name", "")
         where = f"project '{name}'"
@@ -853,32 +1017,8 @@ def load(path: Path | None = None) -> Config:
         if "code" not in p:
             problems.append(f"{where}: a project needs a code folder")
             continue
-        code = Path(p["code"]).expanduser()
-        docs = _expand(p.get("docs", "code:docs"), {"code": code, "kb": kb}, where, problems)
-        bases = {"code": code, "docs": docs, "kb": kb}
-        match = p.get("match", {})
-        remotes = match.get("remote", [])
-        _remotes(remotes, where, problems)
-        for domain, kinds in p.get("uses", {}).items():
-            for kind, settings in kinds.items():
-                problems += credential_problems(settings, f"{where}, uses {domain}.{kind}")
-        moves = [m for m in _moves(p.get("moves"), bases, where, problems) if m.to not in set_aside]
-        projects[name] = Scope(
-            name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
-            remotes=[remotes] if isinstance(remotes, str) else list(remotes),
-            domains=[d for d in p.get("domains", []) if d not in set_aside], recipes=_recipes(p.get("recipes"), name, "project", where, problems),
-            rules=_paths(p.get("contract"), bases, where, problems),
-            skills=_paths(p.get("skills"), bases, where, problems),
-            facets=_paths(p.get("facets"), bases, where, problems),
-            register_types=_paths(p.get("register_types"), bases, where, problems),
-            vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
-            families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
-            delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
-            extractors=_extractors(p.get("extractors"), where, problems, own=True),
-            uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
-            specialises={k: v for k, s in p.get("specialises", {}).items()
-                         if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
-        )
+        entries[name] = p
+        projects[name] = _project(p, name, Path(p["code"]).expanduser(), kb, set_aside, problems)
 
     trailers = framework.get("commit_trailers", [])
     if not isinstance(trailers, list) or not all(isinstance(t, str) for t in trailers):
@@ -893,7 +1033,7 @@ def load(path: Path | None = None) -> Config:
         problems.append("[framework]: logs must be true or false")
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside)
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries)
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

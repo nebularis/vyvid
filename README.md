@@ -32,7 +32,7 @@
 
 ```bash
 mise run install                       # uv tool install --editable, so vyd runs this working tree
-vyd config                             # where the configuration is read from, and whether it is sound
+vyd config [folder]                    # where the configuration is read from, whether it is sound, and the folder's own vyvid.toml
 vyd context ~/work/lattice             # the layers of rules that apply there, the project's last
 vyd resolve TSD-41 --in ~/work/lattice # the canonical scope:LOCAL an identifier names
 vyd kb status                          # each managed domain: clone, branch, ahead and behind, changes, last pull, policy
@@ -45,7 +45,7 @@ vyd recipe list [--in folder]          # the recipes of the folder's stack, with
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
 vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
 vyd kb accept <domain>                 # a person fast-forwards a domain whose pull was held, after reading what changed
-vyd trust [path]                       # a person trusts a configuration outside their own folder by its hash, so its glue and command extractors run
+vyd trust [path]                       # a person trusts a configuration outside their own folder, or this repository's vyvid.toml, by its hash, so its glue and command extractors run
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install --client claude-code [--target folder] [--dry-run] # write the user-level rule file and one skill per domain
 vyd domain audit <folder> [--json] [--allow <scope>] # list the links, files, paths, hidden text, commands and qualified mentions of other scopes in a domain you did not write, running nothing from it
@@ -54,13 +54,29 @@ vyd move check [--ref <git ref>] [--json] [folder] # compare what the project mo
 
 A domain gives knowledge alone unless its entry in your configuration says `trust = "own"`, or `trust = "reviewed"` with the `commit` you reviewed. A domain with a remote is knowledge by default and one with none is your own. A knowledge domain installs no rules or skills, its results are labelled as data, and a pull that changes its rules, skills or manifest is held until you run `vyd kb accept`. A configuration at a path other than your own, such as one named by `VYVID_CONFIG`, runs no glue and no command extractor until you run `vyd trust` in a terminal, and again after it changes.
 
+A repository can declare its own project, with no entry in your configuration, in a `vyvid.toml` at its root. It holds what a `[[projects]]` entry holds, under `[project]`, and the repository's folder is the project's code folder.
+
+```toml
+[project]
+name = "vyvid"
+visibility = "public"
+docs = "code:docs"
+contract = "docs:contract.md"
+register_types = ["docs:register-types.toml"]
+
+[project.families]
+STD = { defined = "docs:standards.md", type = "standard" }
+```
+
+The file is found at the git toplevel of a folder, or above it where the folder is not in git, and every checkout of the repository reads its own copy. It binds the folders inside it ahead of a remote, and a configured project that holds the folder more deeply still wins. An entry of the same name in your configuration overrides the file's keys one by one. It comes from whoever wrote the repository, so it may not set `code`, `git`, `remote`, `trust` or `match`, and every path it names must stay inside the repository, even through a link. A file that breaks this sets aside its project and gives the folder the general scope, and `vyd config` lists why. Until you run `vyd trust` in the repository, the project gives knowledge alone, as a knowledge domain does: its contract and skills are withheld, its entries are labelled as data and none of its glue or command extractors runs. To work on this repository, run `vyd trust` there, then `vyd context .` prints its contract.
+
 A project that gave a family, or some rows of one, to a domain declares it with `[[projects.moves]]` in your configuration (see `examples/config.toml`). Its mentions then resolve through the domain with no rewriting of its text, `vyd resolve` prints the canonical target, and the project's copies leave the index. A domain may cite itself, its ancestors and the general scope alone, and a build reports a domain that cites a project or any other domain.
 
 `vyd check identifiers` reads the Markdown that `git ls-files` lists in the project's repository, never a folder walk, so an ignored folder is not read. A mention resolves on a normalised key, so another spelling of a defined identifier is a variant and is reported. A family with `removable = true` has its unresolved mentions reported and never failed. A family's `exceptions` file, or `identifiers.exceptions` for the project, lists identifiers mentioned and defined nowhere, one per line with a reason after `#`, and an entry nothing needs any longer is reported as stale. An identifier a family defines twice fails, and the line committed earlier keeps the number. A mention covered by a move resolves only if the domain defines it. A family with `defined_only = true` reads a bare match of its pattern as a mention only where its source defines the identifier, so a loose pattern does not read `UTF-8` as an entry. The exit code is 1 on an unresolved or twice-defined identifier and 0 otherwise, and `--json` prints everything found.
 
 A register type declared with `shown = "asked"` is left out of `find` unless `--kind` names it or the question names an entry by its identifier, as declared terms are. The packaged `slice` type is one, and reads a board of `Slice`, `Deliverable`, `State` and `Blocked on`.
 
-A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only your own configuration declares one.
+A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only a project's entry in your own configuration, or a `vyvid.toml` you have trusted, declares one.
 
 ```toml
 [[projects.extractors]]

@@ -102,17 +102,6 @@ steps = [
   { step = "take", n = 3, per_kind = true },
 ]
 
-[[projects]]
-name = "vyvid"
-visibility = "public"
-code = "~/work/vyvid"
-match = { remote = "github.com/nebularis/vyvid" }
-docs = "code:docs"
-domains = ["software-engineering", "tools"]
-facets = ["docs:developer/facets.md"]
-
-[projects.families]
-STD = { defined = "docs:developer/standards.md", type = "standard" }
-PRI = { defined = "docs:developer/principles.md", type = "principle" }
-CAP = { defined = "docs:developer/capabilities.md", type = "capability" }
-ADR = { pattern = 'ADR-\d{3}', defined = "docs:architecture/decisions/" }
+# A repository can declare its own project in a vyvid.toml at its root, with no entry here. This repository does, so its families are
+# the file's. An entry here with the same name and the same code folder overrides the file's keys one by one, and a family set here
+# replaces all of the file's. `vyd trust`, run in the repository, lets the file's glue and command extractors run.

@@ -72,6 +72,13 @@ def test_a_resolved_mention_passes_and_an_unresolved_one_fails(tmp_path, monkeyp
     assert code == 1 and [(u["identifier"], len(u["sites"])) for u in report["unresolved"]] == [("STD-9", 2)]
 
 
+def test_a_qualified_mention_of_a_scope_nothing_configures_is_no_mention(tmp_path, monkeypatch, capsys):
+    repo = Repo(tmp_path, monkeypatch, notes="Derived from `elsewhere:STD-9` and (other:STD-10), and bare STD-1 and STD-9.\n")
+    code, report = repo.report(capsys)
+    assert code == 1 and [u["identifier"] for u in report["unresolved"]] == ["STD-9"], "only the bare mention counts"
+    assert [s["line"] for s in report["unresolved"][0]["sites"]] == [1]
+
+
 def test_another_spelling_of_a_defined_identifier_is_a_variant_and_never_fails(tmp_path, monkeypatch, capsys):
     repo = Repo(tmp_path, monkeypatch, notes="STD 1 and STD-1.\n", families='STD = { pattern = "STD[- ]\\\\d+", defined = "docs:standards.md", type = "standard" }\n')
     code, out = repo.check(capsys, "--all")

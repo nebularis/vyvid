@@ -106,8 +106,8 @@ def run(a: ask.Asker, recipe: Recipe, question: str, result: list[dict] | None =
             _check_glue(declaring)
             if stop:
                 raise GlueStop(index, result)
-            if not cfg.trusted(a.config):
-                raise RecipeError("this configuration is not trusted, so vyd runs no glue from it. Run vyd trust in a terminal to trust it, or stop at glue and run the command yourself")
+            if not cfg.may_run(a.config, declaring, "recipes"):
+                raise RecipeError(f"{cfg.not_trusted(a.config, declaring, 'recipes')}, so vyd runs no glue from it. Run vyd trust in a terminal to trust it, or stop at glue and run the command yourself")
             result = _glue(result, step, declaring)
             continue
         for entry in new:
@@ -236,7 +236,9 @@ def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: 
     state.write_text(json.dumps({"recipe": recipe.name, "question": question, "next": stopped.index + 1, "budget": recipe.budget,
                                  "folder": str(folder.resolve())}, indent=2) + "\n", encoding="utf-8", newline="\n")
     resume = shlex.join(["vyd", "recipe", "run", "--resume", str(state), "--glue-output", str(output)])
-    untrusted = [] if cfg.trusted(a.config) else ["This configuration is not trusted, so vyd would not run this glue itself. Your client approves the command."]
+    declaring = a.config.scope(recipe.scope)
+    why = cfg.not_trusted(a.config, declaring, "recipes")
+    untrusted = [] if cfg.may_run(a.config, declaring, "recipes") else [f"{why[0].upper()}{why[1:]}, so vyd would not run this glue itself. Your client approves the command."]
     return "\n".join([
         f"Recipe {recipe.name} stopped at step {stopped.index + 1} of {len(recipe.steps)}, a glue step. vyd runs no glue in this form.",
         f"command: {shlex.join(step['command'])}",

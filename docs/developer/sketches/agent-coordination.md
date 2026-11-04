@@ -24,7 +24,7 @@ It works, and it has four costs that follow from git being the medium:
 | Every claim is a commit | the mark-alone commit before the first edit exists only so the board can see the claim |
 | A crashed session's claim stays | a `building` row has no lease, so it reads as live until someone notices |
 
-LATTICE also renumbers register rows when two branches take the same next identifier, which is the same race at a finer grain (`lattice:STD-276` to `STD-278` and `TD-93` collided in October 2026).
+LATTICE also renumbers register rows when two branches take the same next identifier, which is the same race at a finer grain (`lattice:STD-276` to `lattice:STD-278`, and `lattice:TD-93`, collided in October 2026).
 
 ## 2. The proposal
 

@@ -59,6 +59,4 @@ This repository is public. User-facing text is the README, every document outsid
 
 ## The contract
 
-- A check is reported as passed only when it ran and passed, and what was not run is said (PRI-3).
-- Each kind of document keeps its role: a sketch changes freely, a plan only when the plan changes, a status record after every material action (STD-16).
-- When two standards conflict for a change, we stop and ask the maintainer, and record the conflict in the pending design decisions, so a conflict that recurs shows which standards to rework (STD-18).
+[contract.md](contract.md) holds the rules we work under here. `vyvid.toml` at the root declares it, so `vyd context` prints it for an agent.

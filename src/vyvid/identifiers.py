@@ -18,6 +18,9 @@ one identifier. A mention under another spelling than its definition's is a vari
 by a family's ``exceptions`` or the project's ``identifiers.exceptions``. Only an unresolved identifier not
 listed fails. An entry no mention needs any longer is reported as stale, never failed.
 
+*A qualified mention of a scope nothing configures*, such as ``other:STD-1``, is no mention here, since
+it names an entry that scope holds.
+
 *A mention covered by a move* resolves through the domain, and only if the domain defines it. A moved row's
 copy still in the project's register is not a duplicate.
 
@@ -41,6 +44,8 @@ from .model import normalise
 from .resolve import definition_sites, forget, moved, visible_families
 
 Site = tuple[Path, int]
+# The scope a mention is qualified with, written directly before it. One that nothing configures names an entry of no scope here.
+QUALIFIER = re.compile(r"(?<![\w-])[a-z][a-z0-9-]*:$")
 
 
 @dataclass
@@ -127,7 +132,7 @@ def mentions(config: Config, project: Scope, paths: list[Path]) -> dict[tuple[st
             for family, form in bare:
                 for match in form.finditer(line):
                     if match.group(0) not in claimed and not any(a <= match.start() and match.end() <= b for a, b in spans) \
-                            and add(project, family, match.group(0), path, number):
+                            and not QUALIFIER.search(line[: match.start()]) and add(project, family, match.group(0), path, number):
                         claimed.add(match.group(0))
     return found
 

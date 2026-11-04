@@ -7,11 +7,13 @@
     the folder's stack that are due, and prints a line for each pull that failed
 ``vyd resolve <identifier> [--in folder]``
     the canonical ``scope:LOCAL`` an identifier names, written in that folder's project
-``vyd config``
-    where the configuration is read from, whether it is sound and trusted, and the domains set aside
+``vyd config [folder]``
+    where the configuration is read from, whether it is sound and trusted, the domains set aside, and the
+    folder's own vyvid.toml
 ``vyd trust [path]``
-    trust a configuration outside your own folder by its hash, so glue and command extractors in it run.
-    It asks a person at a terminal to confirm
+    trust a configuration outside your own folder, or a repository's vyvid.toml (run in the repository, or
+    given its folder or the file), by its hash, so glue and command extractors in it run. It asks a person
+    at a terminal to confirm
 ``vyd build [folder] [--all] [--no-embed]``
     build the knowledge index for the folder's project stack, or for every scope, and print what it
     found and every problem
@@ -60,7 +62,7 @@ from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
-from .resolve import Unresolved, bind_in, layers, resolve
+from .resolve import Unresolved, bind_in, file_scope, layers, project_file, resolve
 
 
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
@@ -77,6 +79,10 @@ def _set_aside(config) -> None:
         print(f"vyd: domain {name} is set aside and read by nothing", file=sys.stderr)
         for problem in why:
             print(f"  {problem}", file=sys.stderr)
+    for file, why in config.files_aside.items():
+        print(f"vyd: the project declared in {file} is set aside, so the folder gets the general scope", file=sys.stderr)
+        for problem in why:
+            print(f"  {problem}", file=sys.stderr)
 
 
 def _layer(config, scope) -> dict:
@@ -86,11 +92,13 @@ def _layer(config, scope) -> dict:
         out[key] = [] if withheld else [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
     out["recipes"] = [{"name": r.name, "description": None if withheld else r.description} for r in scope.recipes]
     if withheld:
-        why = scope.trust if scope.trust != "reviewed" else f"reviewed at {scope.commit}, which HEAD has moved past"
+        why = ("a vyvid.toml nobody has trusted" if scope.kind == "project" else scope.trust if scope.trust != "reviewed"
+               else f"reviewed at {scope.commit}, which HEAD has moved past")
         out["withheld"] = {"trust": why, "rules": [str(p) for p in scope.rules], "skills": [str(p) for p in scope.skills], "recipes": [r.name for r in scope.recipes]}
     if scope.kind == "domain":
         out["brings"] = [e["kind"] for e in scope.extractors]
     if scope.kind == "project":
+        out["file"] = str(scope.file) if scope.file else None
         out["runs"] = [{"kind": r.kind, "domain": r.domain, "settings": {k: [str(p) for p in v] if k == "paths" else v for k, v in r.settings.items()},
                         "sources": r.sources} for r in extractor_runs(config, scope)]
         out["code"] = str(scope.code)
@@ -102,7 +110,7 @@ def _layer(config, scope) -> dict:
 def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     configured = load()
     config, project = bind_in(configured, folder)
-    _set_aside(configured)
+    _set_aside(config)
     if pull:
         for result in kb.pull_due(config, layers(config, project)):
             if not result.ok:
@@ -124,8 +132,12 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
         if "withheld" in layer:
             w = layer["withheld"]
+            since = (f"the vyvid.toml of project {layer['scope']} is not trusted" if layer["kind"] == "project"
+                     else f"domain {layer['scope']} has trust {w['trust']}")
             print(f"   withheld: {len(w['rules'])} rule file(s), {len(w['skills'])} skill path(s) and {len(w['recipes'])} recipe description(s), "
-                  f"since domain {layer['scope']} has trust {w['trust']}, which gives knowledge alone")
+                  f"since {since}, which gives knowledge alone")
+            if layer["kind"] == "project":
+                print(f"   no glue or command extractor of {layer['file']} runs. A person runs vyd trust in a terminal, in that repository, after reading what it declares")
         for recipe in layer["recipes"]:
             print(f"   recipe {recipe['name']}  {recipe['description'] or '(description withheld)'}")
         for kind in layer.get("brings", []):
@@ -219,20 +231,42 @@ def _typed(prompt: str) -> str:
 
 
 def trust_command(path: Path | None) -> int:
-    """Record the hash of a configuration, once a person has seen what it runs and typed yes."""
+    """Record the hash of a configuration, or of a repository's vyvid.toml, once a person has seen what it
+    runs and typed yes. With no path it is the vyvid.toml of the current folder's repository if there is one."""
     if not _person():
         print("vyd: a person must run vyd trust, in a terminal", file=sys.stderr)
         return 1
-    path = path or configuration.config_path()
-    config = load(path)
-    lines = configuration.declared(config)
-    print(f"{path.resolve()} declares " + ("these, which run with your privileges:" if lines else "no glue and no command extractor."))
+    file = None
+    if path is None or path.is_dir() or path.name == configuration.PROJECT_FILE:
+        file = project_file(path or Path("."))
+        if file is None and path is not None:
+            print(f"vyd: no {configuration.PROJECT_FILE} at or above {path}", file=sys.stderr)
+            return 1
+    path = file or path or configuration.config_path()
+    if not path.exists():
+        print(f"vyd: {path} does not exist, so there is nothing to trust", file=sys.stderr)
+        return 1
+    config = load(None if file else path)
+    if file:
+        scope, problems = file_scope(config, file)
+        if scope is None:
+            print(f"vyd: {file} cannot be used, so there is nothing to trust:", file=sys.stderr)
+            for problem in problems:
+                print(f"  {problem}", file=sys.stderr)
+            return 1
+        lines = [*configuration.declared([scope]), *(f"project {scope.name}, contract: {p}" for p in scope.rules),
+                 *(f"project {scope.name}, skills: {p}" for p in scope.skills)]
+    else:
+        lines = configuration.declared(config.projects.values())
+    says = ("these, which an agent reads or which run with your privileges:", "no glue, no command extractor, no contract and no skills.") if file else \
+           ("these, which run with your privileges:", "no glue and no command extractor.")
+    print(f"{path.resolve()} declares " + says[not lines])
     for line in lines:
         print(f"  {line}")
     if _typed("Type yes to trust this file as it is now: ") != "yes":
         print("not trusted")
         return 1
-    configuration.record_trust(path)
+    (configuration.record_file_trust if file else configuration.record_trust)(path)
     print(f"trusted {path.resolve()}, until it changes")
     return 0
 
@@ -486,8 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
-    sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, and the domains set aside")
-    sub.add_parser("trust", help="a person trusts a configuration outside their own folder by its hash").add_argument("path", nargs="?", type=Path)
+    sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
+    sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
     arguments = parser.parse_args(argv)
     try:
@@ -535,7 +569,8 @@ def main(argv: list[str] | None = None) -> int:
             return _question(arguments, parser)
         if arguments.command == "trust":
             return trust_command(arguments.path)
-        config = load()
+        configured = load()
+        config, project = bind_in(configured, Path(arguments.folder))
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
         print("trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
         print(f"domains: {', '.join(config.domains) or 'none'}")
@@ -544,7 +579,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"set aside: {name}")
             for problem in why:
                 print(f"  {problem}")
-        return 1 if config.set_aside else 0
+        file = project_file(Path(arguments.folder))
+        if file is not None:
+            print(f"project file: {file}")
+        for path, why in config.files_aside.items():
+            print(f"set aside: the project declared in {path}")
+            for problem in why:
+                print(f"  {problem}")
+        if project is not None and project.file is not None:
+            print(f"project {project.name} is declared in {project.file}, which is " + ("trusted" if project.trusted else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository"))
+        return 1 if config.set_aside or config.files_aside else 0
     except ConfigError as error:
         print(f"the configuration at {config_path()} cannot be used:", file=sys.stderr)
         for problem in error.problems:
