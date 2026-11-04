@@ -27,6 +27,8 @@
 | VYD-6g | identifiers, slices and units | built 2026-11-04 | |
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
 | VYD-8 | the Tools and Haskell domains | built 2026-11-04 | |
+| VYD-8b | documentation beside symbols | building 2026-11-04 | |
+| VYD-8c | the Python domain and test bed | planned | VYD-8b |
 | VYD-9 | a project with private docs | built 2026-11-04 | |
 | VYD-10 | private rules as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
