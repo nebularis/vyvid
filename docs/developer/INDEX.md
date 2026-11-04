@@ -15,7 +15,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | Slice | Unit | Deliverable | State |
 |---|---|---|---|
 | VYD-0 | vyvid-framework | the temporal reasoning spike | planned |
-| VYD-0b | vyvid-framework | symbol indexing research | building 2026-11-04 |
+| VYD-0b | vyvid-framework | symbol indexing research | built 2026-11-04 |
 | VYD-1 | vyvid-framework | configuration, binding and `vyd context` | built 2026-11-03 |
 | VYD-2 | vyvid-framework | the index core extracted from LATTICE | built 2026-11-03 |
 | VYD-2b | vyvid-framework | LATTICE switches to `vyvid` | planned |
@@ -30,7 +30,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-6f | vyvid-framework | trust and held updates | built 2026-11-04 |
 | VYD-6g | vyvid-framework | identifiers, slices and units | built 2026-11-04 |
 | VYD-7 | vyvid-framework | the triple-store domain | built 2026-11-04 |
-| VYD-8 | vyvid-framework | the Tools and Haskell domains | planned |
+| VYD-8 | vyvid-framework | the Tools and Haskell domains | building 2026-11-04 |
 | VYD-9 | vyvid-framework | a project with private docs | planned |
 | VYD-10 | vyvid-framework | an overlay as a domain | planned |
 | VYD-11 | vyvid-framework | vyvid's own contract | built 2026-11-04 |

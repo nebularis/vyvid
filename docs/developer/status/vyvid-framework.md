@@ -11,7 +11,7 @@
 | Slice | Deliverable | State | Blocked on |
 |---|---|---|---|
 | VYD-0 | the temporal reasoning spike | planned | |
-| VYD-0b | symbol indexing research | building 2026-11-04 | |
+| VYD-0b | symbol indexing research | built 2026-11-04 | |
 | VYD-1 | configuration, binding and `vyd context` | built 2026-11-03, building 2026-11-03 | |
 | VYD-2 | the index core extracted from LATTICE | built 2026-11-03, building 2026-11-03 | |
 | VYD-2b | LATTICE switches to `vyvid` | planned | VYD-2 |
@@ -26,7 +26,7 @@
 | VYD-6f | trust and held updates | built 2026-11-04 | |
 | VYD-6g | identifiers, slices and units | built 2026-11-04 | |
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
-| VYD-8 | the Tools and Haskell domains | planned | VYD-3, VYD-5 |
+| VYD-8 | the Tools and Haskell domains | building 2026-11-04 | |
 | VYD-9 | a project with private docs | planned | VYD-6 |
 | VYD-10 | an overlay as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
@@ -62,3 +62,4 @@
 - 2026-11-04. VYD-7 built: `vyvid-triple-stores` holds the 64 findings, 25 open questions and 30 query rules as `RDF-1` to `RDF-30`, citing no project. A project's `[[projects.moves]]` declares what moved and `vyd move check --ref <branch>` reports what a branch itself changed since it forked. Through a scratch configuration, all 1,457 mentions of a moved identifier in LATTICE resolve through the domain, and the bake-off is identical to LATTICE's own, hit@5 0.884 and MRR 0.806 on 43 questions, and 0.800 and 0.567 on the 5 held out. 16 mentions name `TSD-Q6` to `TSD-Q10`, which have no rows in LATTICE's record either. Removing LATTICE's copy waits for VYD-2b, when `move check` against each unmerged branch decides what still has to come across: `ccs-trunk` lists 15 entries, the two persistence branches `TSD-05`. A time limit now sends SIGTERM, then SIGKILL after two seconds. Mise as the leader of its own session keeps a task in its group, so stopping the group stops it, where SIGKILL to mise alone orphans the task.
 - 2026-11-04. VYD-6g built: `vyd check identifiers`, with families `removable` and `defined_only` and a file of exceptions, a register type shown only when asked for, the slice type, and `units` in the extractor contract, which resolves a project's owners. A `defined_only` family counts a spelling that its source defines or that has a prefix one of its entries has, so a mistyped slice is caught and `UTF-8` is not a mention. On LATTICE, read-only, over 830 files it agrees with LATTICE's own check on no identifier defined twice and on the same 7 variants, and finds 14 more unresolved, `VTB-01` to `VTB-14`, whose prefix LATTICE's grammar leaves out and whose board writes `VTB-1`. They go to LATTICE's baseline or a rename at VYD-2b. LATTICE's slice family reads its INDEX, since its status records hold estimate tables with the same first column. The bake-off is identical with slices in the index.
 - 2026-11-04. VYD-11 built: a repository declares its project in a `vyvid.toml`, held to what a clone may be trusted with, and until a person trusts its bytes at a terminal it gives knowledge alone, with its contract withheld, its entries labelled as data and none of its glue or commands run. This repository now works that way, with its contract in `docs/developer/contract.md`, and `check` includes the identifier check. Run on a real hostile clone in a scratch home, nothing ran before trust, a one-byte edit stopped it again, each attempt to reach outside the repository set the project aside, and so did a file naming itself after a configured project or domain.
+- 2026-11-04. VYD-0b built: the [symbol indexing research](../plans/symbol-indexing.md) recommends a general tree-sitter extractor, since parsing runs nothing from a clone and every compiler index needs a build, which does. It matched `ast` by name on 8,884 Python symbols and a hand count on 240 Haskell symbols. VYD-Q28 and VYD-Q29 wait for the maintainer.
