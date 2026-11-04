@@ -91,7 +91,22 @@ The experiment found that an agent can be misled in silence.
 
 The shape holds. Only the row of `kind` differs: `hiedb` for Haskell, an `index.scip` read with the `scip` tool for Java, Rust, .NET, TypeScript and others, a language server through the client's own plugins or Serena, or Sourcegraph or Glean for a team. Each is built by a person or a pipeline, never by Вивід. Only Haskell was measured.
 
-## 6. Questions for the maintainer
+## 6. What the maintainer's questions showed
+
+Ten questions the maintainer wrote about `distributed-process`, unprompted by its names, were asked of `find --kind symbol` and judged against the source, on 2026-11-04.
+
+| Result | Questions |
+|---|---|
+| Answered from the top six symbols | adding a child, the order of restarts, starting a prioritised process |
+| Answered after one `read` of a symbol found | stopping a stopped child, where the body shows it replies `StopChildOk` |
+| In part | ordering guarantees, through `reconnect`'s doc, `call` against `callSTM`, and strict variants, through `unsafeSend` |
+| Not answered | starting a process remotely, passing initial data to it, how a prioritised mailbox orders messages |
+
+**Most of what was missed is written down, in a place symbols do not reach.** Module headers and sections such as `[Prioritised Mailboxes]` are not symbols. Embedded as 212 chunks of module documentation, they put that section first for the mailbox question, and `[Evaluation Strategies and Support for NFData]` first for the strict question. They gave nothing for starting a process or passing it data, whose answer turns on a word the question does not use, `spawn`, and `Closure`. The ordering guarantees are in a block comment neither reached.
+
+So there are three stores of answer, in the order to reach for them: what the code declares, what its authors wrote around it, and what a person records because neither says it. This is measured on one project, and the chunks were not ranked beside symbols.
+
+## 7. Questions for the maintainer
 
 Answered 2026-11-04:
 

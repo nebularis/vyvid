@@ -1,24 +1,219 @@
 {
- "corpora": {
-  "lat": [
-   {"q": "how do I work out the GitHub-style slug for a Markdown heading", "expect": ["base_slug", "headings", "_plain"]},
-   {"q": "find the lines that make up a section of a Markdown document", "expect": ["section_end", "sections", "section_at"]},
-   {"q": "what error is raised when a pointer anchor cannot be resolved", "expect": ["Unresolved", "resolve", "resolve_part"]},
-   {"q": "work out which of two sites defining the same identifier was committed first", "expect": ["first_in", "committed_on", "duplicates"]},
-   {"q": "cut a long claim down to one sentence", "expect": ["shorten"]},
-   {"q": "make sure a downloaded model file was not tampered with", "expect": ["fetch", "_sha256"]},
-   {"q": "which services reach other services in a deployment", "expect": ["links", "_depends"]}
-  ],
-  "dp": [
-   {"q": "how do I get the node that a process or a port belongs to from its identifier", "expect": ["nodeOf", "ProcessId.processNodeId", "SendPortId.sendPortProcessId"]},
-   {"q": "what are the reasons a process can have died", "expect": ["DiedReason", "DiedReason.DiedNormal", "DiedReason.DiedException", "DiedReason.DiedDisconnect", "DiedReason.DiedNodeDown", "DiedReason.DiedUnknownId"]},
-   {"q": "wrap a value as a message without serialising it", "expect": ["createUnencodedMessage", "unsafeCreateUnencodedMessage", "Message.UnencodedMessage"]},
-   {"q": "stop a process from running", "expect": ["kill", "exit", "terminate", "die"]},
-   {"q": "wait for a message but give up after some time", "expect": ["receiveTimeout", "expectTimeout", "callTimeout"]},
-   {"q": "be told when another process goes down", "expect": ["monitor", "ProcessMonitorNotification"]},
-   {"q": "make a channel to receive typed messages from other processes", "expect": ["newChan", "ReceivePort", "SendPort"]},
-   {"q": "start a process on a remote machine", "expect": ["spawn", "spawnAsync", "call"]},
-   {"q": "send a message to a process by the name it registered under", "expect": ["nsend", "nsendRemote", "whereis"]}
-  ]
- }
+  "corpora": {
+    "lat": [
+      {
+        "q": "how do I work out the GitHub-style slug for a Markdown heading",
+        "expect": [
+          "base_slug",
+          "headings",
+          "_plain"
+        ]
+      },
+      {
+        "q": "find the lines that make up a section of a Markdown document",
+        "expect": [
+          "section_end",
+          "sections",
+          "section_at"
+        ]
+      },
+      {
+        "q": "what error is raised when a pointer anchor cannot be resolved",
+        "expect": [
+          "Unresolved",
+          "resolve",
+          "resolve_part"
+        ]
+      },
+      {
+        "q": "work out which of two sites defining the same identifier was committed first",
+        "expect": [
+          "first_in",
+          "committed_on",
+          "duplicates"
+        ]
+      },
+      {
+        "q": "cut a long claim down to one sentence",
+        "expect": [
+          "shorten"
+        ]
+      },
+      {
+        "q": "make sure a downloaded model file was not tampered with",
+        "expect": [
+          "fetch",
+          "_sha256"
+        ]
+      },
+      {
+        "q": "which services reach other services in a deployment",
+        "expect": [
+          "links",
+          "_depends"
+        ]
+      }
+    ],
+    "dp": [
+      {
+        "q": "how do I get the node that a process or a port belongs to from its identifier",
+        "expect": [
+          "nodeOf",
+          "ProcessId.processNodeId",
+          "SendPortId.sendPortProcessId"
+        ]
+      },
+      {
+        "q": "what are the reasons a process can have died",
+        "expect": [
+          "DiedReason",
+          "DiedReason.DiedNormal",
+          "DiedReason.DiedException",
+          "DiedReason.DiedDisconnect",
+          "DiedReason.DiedNodeDown",
+          "DiedReason.DiedUnknownId"
+        ]
+      },
+      {
+        "q": "wrap a value as a message without serialising it",
+        "expect": [
+          "createUnencodedMessage",
+          "unsafeCreateUnencodedMessage",
+          "Message.UnencodedMessage"
+        ]
+      },
+      {
+        "q": "stop a process from running",
+        "expect": [
+          "kill",
+          "exit",
+          "terminate",
+          "die"
+        ]
+      },
+      {
+        "q": "wait for a message but give up after some time",
+        "expect": [
+          "receiveTimeout",
+          "expectTimeout",
+          "callTimeout"
+        ]
+      },
+      {
+        "q": "be told when another process goes down",
+        "expect": [
+          "monitor",
+          "ProcessMonitorNotification"
+        ]
+      },
+      {
+        "q": "make a channel to receive typed messages from other processes",
+        "expect": [
+          "newChan",
+          "ReceivePort",
+          "SendPort"
+        ]
+      },
+      {
+        "q": "start a process on a remote machine",
+        "expect": [
+          "spawn",
+          "spawnAsync",
+          "call"
+        ]
+      },
+      {
+        "q": "send a message to a process by the name it registered under",
+        "expect": [
+          "nsend",
+          "nsendRemote",
+          "whereis"
+        ]
+      },
+      {
+        "q": "How does one start a new process on a remote node?",
+        "expect": [
+          "spawn",
+          "spawnLink",
+          "spawnMonitor",
+          "spawnAsync"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "When starting a process on a remote node, how does one pass initial data to the process, not messaging data?",
+        "expect": [
+          "mkClosure",
+          "remotable"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "What guarantees does distributed process offer about the order in which messages will be delivered between two communicating processes?",
+        "expect": [
+          "reconnect",
+          "usend"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "In the distributed-process-supervisor module, how do I stop a child process that has already been stopped?",
+        "expect": [
+          "stopChild",
+          "handleStopChild"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "In the supervisor library, how can one add a new child process to an existing supervisor?",
+        "expect": [
+          "addChild",
+          "startNewChild"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "In the supervisor module, how do I ensure the order in which child processes are restarted?",
+        "expect": [
+          "RestartOrder",
+          "RestartMode",
+          "RestartInOrder"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "In the distributed-process-client-server library, how do I start a prioritized process?",
+        "expect": [
+          "pserve",
+          "prioritised"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "How does a prioritized process guarantee the ordering of messages sent to its mailbox?",
+        "expect": [
+          "pserve",
+          "prioritised",
+          "PrioritisedProcessDefinition"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "What is the difference between the call and the callSTM functions?",
+        "expect": [
+          "callSTM",
+          "call"
+        ],
+        "from": "maintainer"
+      },
+      {
+        "q": "When is it important to use the strict versions of the distributed process client server library that ensure data has been fully evaluated before it is sent to a function or processed by a function?",
+        "expect": [
+          "NFSerializable",
+          "unsafeSend"
+        ],
+        "from": "maintainer"
+      }
+    ]
+  }
 }

@@ -463,3 +463,11 @@ def test_a_long_path_loses_its_front_in_the_table_and_never_its_line(tmp_path, m
     find.find_symbols(a, "retry a failed write", 1)
     row = capsys.readouterr().out.splitlines()[2]
     assert row.rstrip().endswith("/ledger.py:4") and "..." in row
+
+
+def test_a_long_identifier_is_printed_whole_so_it_can_be_read(capsys):
+    from vyvid import ask
+    long_id = "package-with-a-long-name:Control.Distributed.Process.ManagedProcess.Internal.Types.handleSomething"
+    ask.show([{"id": long_id, "claim": "x" * 200}], ("id", "claim"))
+    out = capsys.readouterr().out
+    assert long_id in out and "x" * 91 not in out, "the identifier whole, and other cells still cut"
