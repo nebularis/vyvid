@@ -9,9 +9,9 @@
 
 ## 1. What changes from the previous sketch
 
-The repositories stay as they are. `lattice` keeps its contract, its registers and its index tooling, and nothing is combined or re-created. Instead the capabilities that are not specific to LATTICE are extracted into a toolchain installed on the machine, named Вивід, `vyvid`, with the command `vyd` (VYD-Q12). It works like the user-level overlay of rules that LATTICE's AGENTS.md allows (ADR-A117 in LATTICE), available to every agent and scoped by folder, with two differences:
+The repositories stay as they are. `lattice` keeps its contract, its registers and its index tooling, and nothing is combined or re-created. Instead the capabilities that are not specific to LATTICE are extracted into a toolchain installed on the machine, named Вивід, `vyvid`, with the command `vyd` (VYD-Q12). It works like the private, user-level guidance that LATTICE's AGENTS.md allows (ADR-A117 in LATTICE), available to every agent and scoped by folder, with two differences:
 
-- **The user says which behaviour applies to which folder,** in a configuration they edit, rather than the overlay deciding its own scope.
+- **The user says which behaviour applies to which folder,** in a configuration they edit, rather than a rule file deciding its own scope.
 - **Knowledge is not tied to one repository.** Facets, registers and the skills that use them are grouped into domains, and a domain can live in a project, in a shared knowledge base, or in a repository of its own on GitHub, and can move between them.
 
 What LATTICE has built stays the model: facets as SKOS schemes tagging across any number of dimensions, registers as Markdown tables whose header is their schema, a derived index ranked by meaning, and a contract that tells an agent to ask the index first.
@@ -161,7 +161,7 @@ git = { docs = { commit = "auto", push = "manual" } }
 
 ## 4. How an agent meets it
 
-A user-level overlay works because one rule file tells every agent to read it. `vyvid` keeps that shape and makes the content dynamic.
+A user-level rule file works because it tells every agent what to read. `vyvid` keeps that shape and makes the content dynamic.
 
 ```mermaid
 sequenceDiagram
@@ -256,7 +256,7 @@ LATTICE is the first project, and nothing in it has to move on day one.
 | mechanisms, capabilities, principles, debt, pending decisions, backlog, questions, slices | stay in LATTICE, its own |
 | the triple-store record | moves to the triple-stores domain when another project needs it (§6) |
 | AGENTS.md and the skills | stay LATTICE's contract, now its project scope. Their general parts, asking the index first and reading the flags, move to the general scope and are no longer repeated in LATTICE |
-| a user-level overlay of rules | becomes a domain bound by remote, kept private by its author, which is what it already is in all but name (VYD-Q7) |
+| a user's own private rules | become a domain bound by remote, kept private by their author (VYD-Q7) |
 
 ## 11. The temporal reasoning spike
 
@@ -285,7 +285,7 @@ Answered 2026-11-03:
 - **VYD-Q4.** The tool is open source under the MIT licence. Each knowledge-base domain is a git repository of its own, public or private as its author chooses.
 - **VYD-Q5.** A Scope column, read by the move tool. Revised 2026-11-04: the move names its rows, since a row's place in a domain already states its scope, and a Scope column would mean editing a register whose rows are leaving it.
 - **VYD-Q6.** As leaned: a published document links only published decisions, so a move changes no published page, and working documents cite a domain entry by id. Revised 2026-11-04: about 11 of LATTICE's published pages link the record directly, so its old path stays as a LATTICE page of historical links, pinned to a tag or commit of the domain.
-- **VYD-Q7.** As leaned: a user-level overlay of rules becomes a private domain bound by remote, after the framework has run for a few weeks.
+- **VYD-Q7.** As leaned: a user's own private rules become a private domain bound by remote, after the framework has run for a few weeks.
 - **VYD-Q8.** The XDG locations, configurable, and resolved per platform: `~/.local/share` and `~/.cache` on Linux, `~/Library/Application Support` and `~/Library/Caches` on macOS, `%LOCALAPPDATA%` on Windows, through `platformdirs` rather than paths written in code.
 - **VYD-Q9.** Python for now, with Rust a later phase's decision. The name is open, below.
 

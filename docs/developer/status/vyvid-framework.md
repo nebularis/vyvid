@@ -28,7 +28,7 @@
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
 | VYD-8 | the Tools and Haskell domains | building 2026-11-04 | |
 | VYD-9 | a project with private docs | planned | VYD-6 |
-| VYD-10 | an overlay as a domain | planned | VYD-6 |
+| VYD-10 | private rules as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
 | VYD-12 | optional agent coordination | planned | VYD-11 |
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |

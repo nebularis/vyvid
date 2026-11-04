@@ -101,7 +101,5 @@ Answered 2026-11-04:
 - **VYD-Q31.** Definitions are not imported from a compiler index for now.
 - **VYD-Q32.** A project may name other projects it reads, for their knowledge. Exact questions across repositories belong to the compiler index.
 
-Open:
-
-- **VYD-Q33. Is the store as proposed?** Leaning yes: symbols in SQLite per checkout, with the graph holding only an identifier string.
-- **VYD-Q34. Are symbols embedded?** It costs 5 MB and 30 s per repository like this one, by the model. Leaning yes for functions and types, with their docs, and not instances or fields, which crowded the top five in the research, and word search over all of them. To measure before settling.
+- **VYD-Q33.** Symbols go in SQLite per checkout, and the graph holds only an identifier string.
+- **VYD-Q34.** Symbols are embedded, in principle. Which kinds is measured before it is settled, since embedding costs 5 MB and 30 s per repository like this one, and instances and fields crowded the top five in the research.
