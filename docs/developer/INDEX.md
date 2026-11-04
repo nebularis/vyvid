@@ -15,7 +15,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | Slice | Unit | Deliverable | State |
 |---|---|---|---|
 | VYD-0 | vyvid-framework | the temporal reasoning spike | planned |
-| VYD-0b | vyvid-framework | symbol indexing research | planned |
+| VYD-0b | vyvid-framework | symbol indexing research | building 2026-11-04 |
 | VYD-1 | vyvid-framework | configuration, binding and `vyd context` | built 2026-11-03 |
 | VYD-2 | vyvid-framework | the index core extracted from LATTICE | built 2026-11-03 |
 | VYD-2b | vyvid-framework | LATTICE switches to `vyvid` | planned |

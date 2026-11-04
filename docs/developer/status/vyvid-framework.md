@@ -11,7 +11,7 @@
 | Slice | Deliverable | State | Blocked on |
 |---|---|---|---|
 | VYD-0 | the temporal reasoning spike | planned | |
-| VYD-0b | symbol indexing research | planned | |
+| VYD-0b | symbol indexing research | building 2026-11-04 | |
 | VYD-1 | configuration, binding and `vyd context` | built 2026-11-03, building 2026-11-03 | |
 | VYD-2 | the index core extracted from LATTICE | built 2026-11-03, building 2026-11-03 | |
 | VYD-2b | LATTICE switches to `vyvid` | planned | VYD-2 |
