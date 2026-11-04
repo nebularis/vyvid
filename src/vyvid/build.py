@@ -14,6 +14,7 @@ limit of 256.
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import time
 from importlib import resources
@@ -48,9 +49,34 @@ SELECT ?n (SAMPLE(?l) AS ?label) (SAMPLE(?c) AS ?claim) (SAMPLE(?ps) AS ?shape) 
 }} GROUP BY ?n"""
 
 
-def store_dir(config: Config) -> Path:
-    """Where the index lives: the configured ``[framework] store``, else the platform's data folder."""
-    return config.store or platformdirs.user_data_path("vyvid") / "index"
+CHECKOUTS = "checkouts"
+ROOT_FILE = "checkout-root"
+
+
+def store_dir(config: Config, project: Scope | None = None) -> Path:
+    """Where the index lives: the configured ``[framework] store``, else the platform's data folder.
+
+    A project answered from a linked checkout has a folder of its own under ``checkouts``, named by the
+    checkout's folder and a digest of its resolved root. Everything else, a project's main checkout
+    included, uses the base."""
+    base = config.store or platformdirs.user_data_path("vyvid") / "index"
+    if project is None or project.checkout is None:
+        return base
+    root = project.checkout.resolve()
+    return base / CHECKOUTS / f"{root.name}-{hashlib.sha256(str(root).encode('utf-8')).hexdigest()[:12]}"
+
+
+def prune(config: Config, dry_run: bool = False) -> list[tuple[Path, Path]]:
+    """Remove the stores of checkouts whose root no longer exists, returning each store and its root.
+    Only a folder under ``checkouts`` that records a root is considered, and nothing else is touched."""
+    base, gone = store_dir(config) / CHECKOUTS, []
+    for folder in sorted(base.iterdir()) if base.is_dir() else []:
+        marker = folder / ROOT_FILE
+        if marker.is_file() and not (root := Path(marker.read_text(encoding="utf-8").strip())).exists():
+            gone.append((folder, root))
+            if not dry_run:
+                shutil.rmtree(folder)
+    return gone
 
 
 def open_store(path: Path) -> ox.Store:
@@ -96,12 +122,12 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
 def build(config: Config, project: Scope | None = None, store_path: Path | None = None, embed: bool = True,
           model=None, scopes: list[Scope] | None = None) -> Extract:
     """Build the index of ``project``'s stack of layers, or of every configured scope when there is
-    no project, into ``store_path`` (default: the store of ``store_dir``). ``scopes`` names the stack
+    no project, into ``store_path`` (default: the store of ``store_dir`` for the project). ``scopes`` names the stack
     outright. Returns what was extracted, with its counts, problems and findings."""
     out = Extract()
     start = time.perf_counter()
     built_from = time.time()
-    store_path = store_path or store_dir(config) / "store"
+    store_path = store_path or store_dir(config, project) / "store"
     stack = scopes or (layers(config, project) if project else [config.general, *config.domains.values(), *config.projects.values()])
     schemes, values = facets.merge(facets.registers([config.general, *(s for s in stack if s is not config.general)]))
     taggable = facets.taggable(values)
@@ -147,10 +173,12 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
                    for r in store.query(TEXTS)}
         entries.update({iri: vectors.join_text([text]) for iri, text in texts.items()})
         try:
-            out.counts["embedded"] = vectors.build(entries, directory, config.embedding, model)
+            out.counts["embedded"] = vectors.build(entries, directory, config.embedding, model, warm=None if store_dir(config) == directory else store_dir(config))
         except vectors.Unavailable as error:
             out.problems.append(f"no embeddings, so nothing can be ranked by meaning: {error}")
             out.bump("embeddings-unavailable")
+    if project is not None and project.checkout is not None:  # so `vyd store prune` can tell when it is gone
+        (directory / ROOT_FILE).write_text(f"{project.checkout.resolve()}\n", encoding="utf-8", newline="\n")
     (directory / "built-from").write_text(f"{built_from}\n", encoding="utf-8", newline="\n")
     # The scopes the store holds, so a question in a folder bound to another stack knows to rebuild.
     (directory / "built-for").write_text("".join(f"{s.name}\n" for s in sorted(stack, key=lambda s: s.name)), encoding="utf-8", newline="\n")

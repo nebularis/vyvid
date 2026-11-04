@@ -70,7 +70,7 @@ from . import anchors, embed, registers
 from .build import build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
-from .resolve import Unresolved, bind, layers, resolve
+from .resolve import Unresolved, bind_in, layers, resolve
 
 PREFIXES = f"""
 PREFIX ki: <{KI}>
@@ -430,12 +430,18 @@ class Asker:
         return registers.types_for(self.visible)
 
     @property
+    def logs(self) -> Path:
+        """Where the logs live. A linked checkout's questions go to the base store's logs, so a removed
+        worktree does not take its gaps with it."""
+        return store_dir(self.config) if self.project is not None and self.project.checkout is not None else self.directory
+
+    @property
     def ask_log(self) -> Path:
-        return self.directory / "asks.log"
+        return self.logs / "asks.log"
 
     @property
     def miss_log(self) -> Path:
-        return self.directory / "misses.log"
+        return self.logs / "misses.log"
 
     def query(self, text: str, **given):
         """A query over the stack's graphs alone. Each keyword is a variable the query is given."""
@@ -538,9 +544,9 @@ def open_stack(config: Config, folder: Path, model=None, need_store: bool = True
     So an agent that edits a document and asks again gets the document as it now is, and never the
     lines it held before. ``need_store`` false is for the questions that only touch the logs. ``scope``
     is ``--scope``, and raises ValueError for a scope that is not configured."""
-    project = bind(config, folder)
+    config, project = bind_in(config, folder)
     stack = layers(config, project)
-    directory = store_dir(config)
+    directory = store_dir(config, project)
     a = Asker(config, project, stack, directory, None, model)
     if scope:
         a.choose(scope)
@@ -1017,7 +1023,7 @@ def lookup(a: Asker, verb: str, argument: str) -> int:
 def log_miss(a: Asker, question: str) -> None:
     """A question that returns nothing names a gap in the vocabulary or the registers, and the log
     of them is what decides what to write next."""
-    a.directory.mkdir(parents=True, exist_ok=True)
+    a.logs.mkdir(parents=True, exist_ok=True)
     with a.miss_log.open("a", encoding="utf-8") as handle:
         handle.write(f"{dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\t{question}\n")
 
@@ -1025,7 +1031,7 @@ def log_miss(a: Asker, question: str) -> None:
 def log_ask(a: Asker, verb: str, text: str, best: float | None, ids: list[str], asked: str | None = None) -> None:
     """One line per find, read or gap: when, which, the best meaning score, what it showed, the text,
     and for a gap the question asked just before it."""
-    a.directory.mkdir(parents=True, exist_ok=True)
+    a.logs.mkdir(parents=True, exist_ok=True)
     score = "" if best is None else f"{best:.2f}"
     tail = "" if asked is None else f"\t{asked}"
     with a.ask_log.open("a", encoding="utf-8") as handle:

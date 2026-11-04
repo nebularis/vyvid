@@ -42,6 +42,8 @@ vyd kb record <path> ... -m <message>  # stage changed register files, then comm
 vyd check citations [--staged] [paths ...] # refuse lines a public project adds that cite an entry of a private scope
 vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
+vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
+vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install --client claude-code [--target folder] [--dry-run] # write the user-level rule file and one skill per domain
 vyd domain audit <folder> [--json]     # list the links, files, paths, hidden text and commands in a domain you did not write, running nothing from it
 ```

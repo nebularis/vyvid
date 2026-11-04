@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
-from .config import Config, Scope
+from .config import Config, Family, Scope
 from .model import normalise
 
 QUALIFIED_RE = re.compile(r"^(?P<scope>[a-z][a-z0-9-]*):(?P<local>.+)$")
@@ -42,7 +43,8 @@ def remotes(folder: Path) -> list[str]:
 
 
 def bind(config: Config, folder: Path) -> Scope | None:
-    """The project a folder belongs to, by the deepest code or documents folder holding it, then by remote."""
+    """The project a folder belongs to, by the deepest code or documents folder holding it, then by the
+    git repository it shares with a project's code folder, so a worktree may be anywhere, then by remote."""
     folder = folder.expanduser().resolve()
     best, depth = None, -1
     for project in config.projects.values():
@@ -54,11 +56,79 @@ def bind(config: Config, folder: Path) -> Scope | None:
                 best, depth = project, len(root.parts)
     if best is not None:
         return best
+    common = _common(folder) if folder.exists() else None
+    if common is not None:
+        for project in config.projects.values():
+            if project.code is not None and project.code.exists() and _common(project.code.resolve()) == common:
+                return project
     found = set(remotes(folder)) if folder.exists() else set()
     for project in config.projects.values():
         if found & {normalise_remote(r) for r in project.remotes}:
             return project
     return None
+
+
+def _git(folder: Path, *args: str) -> str | None:
+    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
+    return done.stdout.strip() if done.returncode == 0 and done.stdout.strip() else None
+
+
+def _common(folder: Path) -> Path | None:
+    out = _git(folder, "rev-parse", "--git-common-dir")
+    return (folder / out).resolve() if out else None
+
+
+def checkout_of(project: Scope, folder: Path) -> Path | None:
+    """The root of the linked checkout of the project that holds ``folder``, else None.
+
+    It is a checkout when its git root is not the code folder and it shares the code folder's git common
+    directory, or, with a code folder that is missing or no repository, a normalised remote. A different
+    repository nested in the code folder, a folder outside git, and a code folder that is only part of a
+    repository keep the project as configured."""
+    folder = folder.expanduser().resolve()
+    top = _git(folder, "rev-parse", "--show-toplevel") if folder.exists() else None
+    if top is None or project.code is None:
+        return None
+    root, code = Path(top).resolve(), project.code.resolve()
+    if root == code:
+        return None
+    code_top = _git(code, "rev-parse", "--show-toplevel") if code.exists() else None
+    if code_top is None:
+        return root if set(remotes(root)) & {normalise_remote(r) for r in project.remotes} else None
+    return root if Path(code_top).resolve() == code and _common(root) == _common(code) else None
+
+
+def rebase(config: Config, project: Scope, root: Path) -> Config:
+    """``config`` with ``project`` answered from the checkout at ``root``: its code folder, and every
+    path it holds inside the code folder, moved there. A documents folder outside the code folder stays."""
+    old = project.code
+
+    def move(path: Path | None) -> Path | None:
+        try:
+            return root / path.relative_to(old) if path is not None else None
+        except ValueError:
+            return path
+
+    def family(f: Family) -> Family:
+        return replace(f, defined=move(f.defined), also=tuple(move(p) for p in f.also))
+
+    moved = replace(
+        project, code=root, docs=move(project.docs), checkout=root,
+        rules=[move(p) for p in project.rules], skills=[move(p) for p in project.skills],
+        facets=[move(p) for p in project.facets], register_types=[move(p) for p in project.register_types],
+        vocabulary=[move(p) for p in project.vocabulary], specialises={k: move(p) for k, p in project.specialises.items()},
+        families={k: family(f) for k, f in project.families.items()})
+    return replace(config, projects={**config.projects, project.name: moved})
+
+
+def bind_in(config: Config, folder: Path) -> tuple[Config, Scope | None]:
+    """The configuration to answer ``folder`` from and its project: ``bind``, with the project rebased
+    onto the folder's checkout when it is a linked one. Binding the result again changes nothing."""
+    project = bind(config, folder)
+    if project is not None and (root := checkout_of(project, folder)) is not None:
+        config = rebase(config, project, root)
+        project = config.projects[project.name]
+    return config, project
 
 
 def layers(config: Config, project: Scope | None) -> list[Scope]:

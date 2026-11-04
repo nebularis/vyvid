@@ -4,6 +4,11 @@ that vyd context lists."""
 
 from __future__ import annotations
 
+import json
+import os
+import re
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -70,7 +75,7 @@ def recipe_text(name, steps, extra=""):
 class World:
     """A configuration of two domains and a project, and a store holding ENTRIES and EDGES."""
 
-    def __init__(self, tmp_path, recipes_toml="", manifest=""):
+    def __init__(self, tmp_path, recipes_toml="", manifest="", framework=""):
         self.tmp, self.code = tmp_path, tmp_path / "code"
         self.code.mkdir()
         (tmp_path / "wide").mkdir()
@@ -78,7 +83,7 @@ class World:
         (tmp_path / "tools").mkdir()
         if manifest:
             (tmp_path / "tools" / "domain.toml").write_text(manifest, encoding="utf-8")
-        text = CONFIG.replace("RECIPES", recipes_toml).replace("STORE", (tmp_path / "idx").as_posix())
+        text = CONFIG.replace('store = "STORE"', 'store = "STORE"\n' + framework).replace("RECIPES", recipes_toml).replace("STORE", (tmp_path / "idx").as_posix())
         for name in ("WIDE", "TOOLS", "CODE"):
             text = text.replace(f'"{name}"', f'"{(tmp_path / name.lower()).as_posix()}"')
         self.path = tmp_path / "config.toml"
@@ -214,6 +219,133 @@ def test_dry_run_prints_each_step_and_glue_command_and_runs_none(tmp_path, monke
     assert "1. find words={question}, kind=standard, limit=2" in out
     assert f'2. glue ["{Path(sys.executable).as_posix()}"' in out and f"in {w.code}, within 5 seconds" in out
     assert out.rstrip().endswith("Nothing was run.") and not marker.exists()
+
+
+ENV_SCRIPT = "import json, os, sys\njson.dump([{'id': 'ENV', 'claim': json.dumps(sorted(os.environ))}], sys.stdout)\n"
+
+
+
+def test_glue_sees_a_minimal_environment_and_the_variables_its_step_names(tmp_path, monkeypatch):
+    for name in ("GITHUB_TOKEN", "MISE_GITHUB_TOKEN", "SSH_AUTH_SOCK", "VIRTUAL_ENV", "AWS_SECRET_ACCESS_KEY", "MY_VAR"):
+        monkeypatch.setenv(name, "secret")
+    monkeypatch.delenv("NOT_SET", raising=False)
+    step = glue(tmp_path, ENV_SCRIPT).replace(" }", ', env = ["MY_VAR", "NOT_SET"] }')
+    w = World(tmp_path, recipe_text("named", step) + recipe_text("plain", glue(tmp_path, ENV_SCRIPT, "plain")))
+    named, plain = (set(json.loads(recipes.run(w.ask, recipes.available(w.stack)[n], "q")[0]["claim"])) for n in ("named", "plain"))
+    assert "PATH" in plain and "HOME" in plain, "the allowlist is passed"
+    assert plain.isdisjoint({"GITHUB_TOKEN", "MISE_GITHUB_TOKEN", "SSH_AUTH_SOCK", "VIRTUAL_ENV", "AWS_SECRET_ACCESS_KEY", "MY_VAR"})
+    assert "MY_VAR" in named and "NOT_SET" not in named and "GITHUB_TOKEN" not in named, "a named variable passes, an unset one is absent"
+
+
+@pytest.mark.skipif(shutil.which("mise") is None, reason="mise is not installed")
+def test_mise_exec_works_under_the_allowlist(tmp_path):
+    command = ["mise", "exec", "--", "python3", "-c", "import json; print(json.dumps([{'id': 'M-1', 'claim': 'ran'}]))"]
+    if subprocess.run(command, capture_output=True, cwd=tmp_path).returncode:
+        pytest.skip("mise exec python3 does not run here even with the whole environment")
+    w = World(tmp_path, recipe_text("r", f"  {{ step = \"glue\", command = {json.dumps(command)} }},"))
+    assert w.run("r") == ["M-1"]
+
+
+def test_glue_stderr_in_an_error_is_capped(tmp_path):
+    w = World(tmp_path, recipe_text("r", glue(tmp_path, "import sys\nsys.stderr.write('x' * 5000)\nsys.exit(2)\n")))
+    with pytest.raises(recipes.RecipeError) as error:
+        w.run("r")
+    assert "x" * 2000 in str(error.value) and "x" * 2001 not in str(error.value)
+
+
+def test_a_glue_env_must_be_a_list_of_names_and_the_setting_one_of_run_and_stop(tmp_path):
+    for name in "abcd":
+        (tmp_path / name).mkdir()
+    with pytest.raises(ConfigError, match="'env' must be a list of variable names"):
+        World(tmp_path / "a", recipe_text("r", '  { step = "glue", command = ["true"], env = "TOKEN" },'))
+    with pytest.raises(ConfigError, match="glue must be one of run, stop"):
+        World(tmp_path / "b", framework='glue = "ask"')
+    assert World(tmp_path / "c").config.glue == "run" and World(tmp_path / "d", framework='glue = "stop"').config.glue == "stop"
+
+
+# ---- Stopping at glue ----------------------------------------------------------------------------
+
+
+def marker_glue(tmp_path, name):
+    marker = tmp_path / f"{name}.ran"
+    return marker, glue(tmp_path, f"from pathlib import Path\nPath({marker.as_posix()!r}).write_text('x')\nprint('[]')\n", name)
+
+
+def stopped(capsys):
+    """The text of a stopped run, its state file and the file it asks for the glue output in."""
+    out = capsys.readouterr().out
+    return out, Path(re.search(r"--resume (\S+)", out).group(1)), Path(re.search(r"^output: (\S+)", out, re.M).group(1))
+
+
+def run_cli(w, monkeypatch, *args):
+    monkeypatch.setenv("VYVID_CONFIG", str(w.path))
+    return cli.main(["recipe", "run", *args])
+
+
+def test_the_setting_stops_a_recipe_at_glue_and_runs_none(tmp_path, monkeypatch, capsys):
+    marker, step = marker_glue(tmp_path, "g")
+    w = World(tmp_path, recipe_text("r", step), framework='glue = "stop"')
+    assert run_cli(w, monkeypatch, "r", "my question", "--in", str(w.code)) == recipes.STOPPED == 3
+    out, state, output = stopped(capsys)
+    assert not marker.exists(), "vyd ran no glue"
+    assert f"command: {Path(sys.executable).as_posix()}" in out and f"folder: {w.code}" in out and "input: " in out
+    assert "your own environment" in out and f"vyd recipe run --resume {state} --glue-output {output}" in out
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert (saved["recipe"], saved["question"], saved["next"], saved["budget"]) == ("r", "my question", 1, 1000)
+    assert json.loads(state.with_name("input.json").read_text(encoding="utf-8")) == []
+
+
+def test_the_flag_stops_a_recipe_and_without_it_the_glue_runs(tmp_path, monkeypatch, capsys):
+    marker, step = marker_glue(tmp_path, "g")
+    w = World(tmp_path, recipe_text("r", step))
+    assert run_cli(w, monkeypatch, "r", "q", "--in", str(w.code), "--stop-at-glue") == 3 and not marker.exists()
+    capsys.readouterr()
+    assert run_cli(w, monkeypatch, "r", "q", "--in", str(w.code)) == 0 and marker.exists()
+
+
+def test_a_stopped_recipe_resumes_from_the_output_and_cleans_up(tmp_path, monkeypatch, capsys):
+    w = World(tmp_path, recipe_text("r", glue(tmp_path, "print('[]')\n")), framework='glue = "stop"')
+    run_cli(w, monkeypatch, "r", "q", "--in", str(w.code))
+    out, state, output = stopped(capsys)
+    output.write_text(json.dumps([{"id": "G-1", "claim": "from the client"}]), encoding="utf-8")
+    assert run_cli(w, monkeypatch, "--resume", str(state), "--glue-output", str(output)) == 0
+    assert "G-1" in capsys.readouterr().out
+    assert not state.exists() and not state.with_name("input.json").exists()
+
+
+def test_two_glue_steps_stop_twice(tmp_path, monkeypatch, capsys):
+    steps = glue(tmp_path, "print('[]')\n", "one") + "\n" + glue(tmp_path, "print('[]')\n", "two")
+    w = World(tmp_path, recipe_text("r", steps), framework='glue = "stop"')
+    run_cli(w, monkeypatch, "r", "q", "--in", str(w.code))
+    _, first, out_one = stopped(capsys)
+    out_one.write_text(json.dumps([{"id": "ONE-1", "claim": "a"}]), encoding="utf-8")
+    assert run_cli(w, monkeypatch, "--resume", str(first), "--glue-output", str(out_one)) == 3
+    text, second, out_two = stopped(capsys)
+    assert second != first and "step 2 of 2" in text and not first.exists()
+    assert json.loads(second.with_name("input.json").read_text(encoding="utf-8"))[0]["id"] == "ONE-1", "the second step is given the first's output"
+    out_two.write_text(json.dumps([{"id": "TWO-1", "claim": "b"}]), encoding="utf-8")
+    assert run_cli(w, monkeypatch, "--resume", str(second), "--glue-output", str(out_two)) == 0
+    assert "TWO-1" in capsys.readouterr().out
+
+
+def test_resume_refuses_bad_output_a_missing_recipe_and_a_step_that_is_not_glue(tmp_path, monkeypatch, capsys):
+    steps = glue(tmp_path, "print('[]')\n") + '\n  { step = "take", n = 1 },'
+    w = World(tmp_path, recipe_text("r", steps), framework='glue = "stop"')
+    run_cli(w, monkeypatch, "r", "q", "--in", str(w.code))
+    _, state, output = stopped(capsys)
+    for bad, message in (("not json", "did not print JSON"), ('{"id": "x"}', "must print a list of entries"), ('[{"claim": "no id"}]', "each with an id")):
+        output.write_text(bad, encoding="utf-8")
+        assert run_cli(w, monkeypatch, "--resume", str(state), "--glue-output", str(output)) == 1
+        assert message in capsys.readouterr().err
+    assert state.exists(), "a refused resume keeps the state, so the client can write the output again"
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    output.write_text("[]", encoding="utf-8")
+    for change, message in (({"recipe": "gone"}, "no longer exists"), ({"next": 2}, "not a glue step")):
+        state.write_text(json.dumps({**saved, **change}), encoding="utf-8")
+        assert run_cli(w, monkeypatch, "--resume", str(state), "--glue-output", str(output)) == 1
+        assert message in capsys.readouterr().err
+    assert run_cli(w, monkeypatch, "--resume", str(tmp_path / "absent.json"), "--glue-output", str(output)) == 1
+    assert "is not the state of a stopped run" in capsys.readouterr().err
 
 
 def test_a_domains_glue_step_is_refused_at_load(tmp_path):

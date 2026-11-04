@@ -61,13 +61,14 @@ STEPS = {
     "linked": (("edges",), ("direction",)),
     "include": (("ids",), ()),
     "take": (("n",), ("per_kind",)),
-    "glue": (("command",), ("seconds",)),
+    "glue": (("command",), ("seconds", "env")),
 }
 EXPECTS = {"words": "a string", "limit": "a whole number above zero", "n": "a whole number above zero",
-           "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a list of strings",
+           "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a list of strings", "env": "a list of variable names",
            "direction": f"one of {', '.join(DIRECTIONS)}", "per_kind": "true or false", "seconds": "a number of seconds above zero",
            **dict.fromkeys(FILTER_KEYS, "a string or a list of strings")}
 DEFAULT_BUDGET = 1000
+GLUE_CHOICES = ("run", "stop")
 
 
 class ConfigError(Exception):
@@ -166,6 +167,7 @@ class Scope:
     remotes: list[str] = field(default_factory=list)
     domains: list[str] = field(default_factory=list)
     specialises: dict[str, Path] = field(default_factory=dict)
+    checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
 
     def readable(self, files: list[Path]) -> list[Path]:
         """The files that may be read, which leaves out any that escape this domain's folder."""
@@ -189,6 +191,7 @@ class Config:
     embedding: ModelSpec = field(default_factory=ModelSpec)
     store: Path | None = None  # where the index is built, else the platform's data folder
     commit_trailers: tuple[str, ...] = ()  # appended to every message ``vyd kb record`` commits
+    glue: str = "run"  # ``stop`` means vyd never runs glue itself, one of GLUE_CHOICES
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -362,7 +365,7 @@ def _step_value(key: str, value):
         return ",".join(value)
     if key in ("limit", "n") and whole:
         return value
-    if key in ("edges", "ids", "command") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
+    if key in ("edges", "ids", "command", "env") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
         return list(value)
     if key == "seconds" and isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
         return value
@@ -563,8 +566,12 @@ def load(path: Path | None = None) -> Config:
     if not isinstance(trailers, list) or not all(isinstance(t, str) for t in trailers):
         problems.append("[framework]: commit_trailers must be a list of strings")
         trailers = []
+    glue = framework.get("glue", "run")
+    if glue not in GLUE_CHOICES:
+        problems.append(f"[framework]: glue must be one of {', '.join(GLUE_CHOICES)}")
+        glue = "run"
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers))
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue)
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

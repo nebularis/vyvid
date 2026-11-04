@@ -17,32 +17,58 @@ list of steps and an optional budget in tokens. The steps build one result, a li
 ``glue``
     runs ``command`` with the result as JSON on its standard input and replaces the result with the
     JSON on its standard output, within ``seconds`` (GLUE_SECONDS if the step sets none). Only a
-    project's recipe may have one, and it runs in the project's code folder
+    project's recipe may have one, and it runs in the project's code folder, with the environment
+    variables of GLUE_ENV and those the step names in ``env``, and no others
 
 Every step adds the entries it reaches after those already there, once each. The briefing prints the
 entries compactly and drops the last ones when it is over the budget, estimated at four characters a
 token.
+
+A run can stop at a glue step instead of running it (``stop``, or ``[framework] glue = "stop"``, which
+nothing overrides). ``vyd`` then writes the entries so far and a state file, prints the command for the
+client to run through its own shell, and ``resume`` continues from the output the client wrote.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import subprocess
+import tempfile
 from collections import Counter
+from pathlib import Path
 
 import pyoxigraph as ox
 
 from . import ask, embed
 from .config import Recipe, Scope
+from .build import store_dir
 from .model import node_of
 from .resolve import Unresolved, resolve
 
 GLUE_SECONDS = 30
+GLUE_STDERR = 2000
 CHARACTERS_PER_TOKEN = 4
+STOPPED = 3  # the exit code of a run that stopped at a glue step
+# The variables glue is given, by exact name. A prefix would let in MISE_GITHUB_TOKEN, so none is matched,
+# and SSH_AUTH_SOCK and VIRTUAL_ENV are left out on purpose.
+GLUE_ENV = frozenset((
+    "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "TEMP", "TMP", "TERM",
+    "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
+    "PROGRAMDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"))
 
 
 class RecipeError(Exception):
     """A recipe cannot be run, with the reason."""
+
+
+class GlueStop(Exception):
+    """A run reached the glue step at ``index`` and may not run it. ``result`` is the entries so far."""
+
+    def __init__(self, index: int, result: list[dict]):
+        super().__init__(f"stopped at step {index + 1}")
+        self.index, self.result = index, result
 
 
 def available(stack: list[Scope]) -> dict[str, Recipe]:
@@ -56,13 +82,19 @@ def extra_scopes(recipe: Recipe) -> str:
     return ",".join(sorted(names))
 
 
-def run(a: ask.Asker, recipe: Recipe, question: str) -> list[dict]:
-    """The entries the recipe's steps reach for the question. Raises RecipeError."""
+def run(a: ask.Asker, recipe: Recipe, question: str, result: list[dict] | None = None, start: int = 0,
+        stop: bool = False) -> list[dict]:
+    """The entries the recipe's steps reach for the question, from step ``start`` with ``result`` so far.
+
+    Raises RecipeError, and GlueStop at a glue step when ``stop`` is set or the configuration says
+    ``glue = "stop"``, in which case no glue is run."""
+    stop = stop or a.config.glue == "stop"
     declaring = a.config.scope(recipe.scope)
-    result: list[dict] = []
+    result = list(result or [])
     pool: dict[str, dict] = {}
     a.choose("")
-    for step in recipe.steps:
+    for index in range(start, len(recipe.steps)):
+        step = recipe.steps[index]
         kind = step["step"]
         if kind == "find":
             new = _find(a, step, question)
@@ -76,6 +108,9 @@ def run(a: ask.Asker, recipe: Recipe, question: str) -> list[dict]:
             result = _take(result, step["n"], step.get("per_kind", False))
             continue
         else:
+            _check_glue(declaring)
+            if stop:
+                raise GlueStop(index, result)
             result = _glue(result, step, declaring)
             continue
         for entry in new:
@@ -161,28 +196,104 @@ def _take(result: list[dict], n: int, per_kind: bool) -> list[dict]:
     return kept
 
 
-def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
-    """Run the command in the project's code folder, as an argument list and never a shell string."""
+def _check_glue(declaring: Scope) -> None:
     if declaring.kind != "project" or declaring.code is None:
         raise RecipeError("a glue step runs only in a project's recipe")
+
+
+def glue_env(step: dict) -> dict[str, str]:
+    """The environment glue is given: GLUE_ENV and the variables the step names, those that are set."""
+    allowed = GLUE_ENV | set(step.get("env", ()))
+    return {k: v for k, v in os.environ.items() if k in allowed}
+
+
+def _entries(text: str, what: str) -> list[dict]:
+    """The entries a glue command printed, each filled in. Raises RecipeError for text that is not a list of them."""
+    try:
+        replaced = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise RecipeError(f"{what} did not print JSON. {error}") from error
+    if not isinstance(replaced, list) or not all(isinstance(e, dict) and isinstance(e.get("id"), str) for e in replaced):
+        raise RecipeError(f"{what} must print a list of entries, each with an id")
+    return [{"node": "", "kind": "", "scope": "", "claim": "", "pointer": "", "signposts": [], **e} for e in replaced]
+
+
+def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
+    """Run the command in the project's code folder, as an argument list and never a shell string."""
+    _check_glue(declaring)
     command, seconds = step["command"], step.get("seconds", GLUE_SECONDS)
     shown = " ".join(command)
     try:
         done = subprocess.run(command, input=json.dumps(result), capture_output=True, text=True,
-                              cwd=declaring.code, timeout=seconds, check=False)
+                              cwd=declaring.code, timeout=seconds, check=False, env=glue_env(step))
     except subprocess.TimeoutExpired as error:
         raise RecipeError(f"glue {shown} did not finish within {seconds} seconds") from error
     except OSError as error:
         raise RecipeError(f"glue {shown} cannot run. {error}") from error
     if done.returncode:
-        raise RecipeError(f"glue {shown} exited {done.returncode}. {done.stderr.strip()}")
+        raise RecipeError(f"glue {shown} exited {done.returncode}. {done.stderr.strip()[:GLUE_STDERR]}")
+    return _entries(done.stdout, f"glue {shown}")
+
+
+def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: GlueStop) -> str:
+    """Write the entries so far and the state of the run under the store base, and say what to run and how to resume."""
+    step, base = recipe.steps[stopped.index], store_dir(a.config) / "glue"
+    base.mkdir(parents=True, exist_ok=True)
+    where = Path(tempfile.mkdtemp(prefix=f"{recipe.name}-", dir=base))
+    given, output, state = where / "input.json", where / "output.json", where / "state.json"
+    given.write_text(json.dumps(stopped.result, ensure_ascii=False), encoding="utf-8", newline="\n")
+    state.write_text(json.dumps({"recipe": recipe.name, "question": question, "next": stopped.index + 1, "budget": recipe.budget,
+                                 "folder": str(folder.resolve())}, indent=2) + "\n", encoding="utf-8", newline="\n")
+    resume = shlex.join(["vyd", "recipe", "run", "--resume", str(state), "--glue-output", str(output)])
+    return "\n".join([
+        f"Recipe {recipe.name} stopped at step {stopped.index + 1} of {len(recipe.steps)}, a glue step. vyd runs no glue in this form.",
+        f"command: {shlex.join(step['command'])}",
+        f"folder: {a.config.scope(recipe.scope).code}",
+        f"input: {given}   (pass it on the command's standard input)",
+        f"output: {output}   (write the command's standard output here, a JSON list of entries each with an id)",
+        f"seconds: {step.get('seconds', GLUE_SECONDS)}",
+        "The command sees your own environment, not the minimal one vyd gives glue it runs itself.",
+        f"Then resume: {resume}"])
+
+
+def read_state(path: Path) -> dict:
+    """The state of a stopped run. Raises RecipeError for a file that is missing or is not one."""
     try:
-        replaced = json.loads(done.stdout)
-    except json.JSONDecodeError as error:
-        raise RecipeError(f"glue {shown} did not print JSON. {error}") from error
-    if not isinstance(replaced, list) or not all(isinstance(e, dict) and isinstance(e.get("id"), str) for e in replaced):
-        raise RecipeError(f"glue {shown} must print a list of entries, each with an id")
-    return [{"node": "", "kind": "", "scope": "", "claim": "", "pointer": "", "signposts": [], **e} for e in replaced]
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RecipeError(f"{path} is not the state of a stopped run. {error}") from error
+    kinds = {"recipe": str, "question": str, "next": int, "budget": int, "folder": str}
+    if not isinstance(state, dict) or not all(isinstance(state.get(k), t) and not isinstance(state.get(k), bool) for k, t in kinds.items()):
+        raise RecipeError(f"{path} is not the state of a stopped run, which holds {', '.join(kinds)}")
+    return state
+
+
+def resumed_step(state: dict, recipe: Recipe | None) -> dict:
+    """The glue step a state stopped at. Raises RecipeError if its recipe is gone or that step is not glue."""
+    if recipe is None:
+        raise RecipeError(f"the recipe {state['recipe']} of this state no longer exists")
+    if not 1 <= state["next"] <= len(recipe.steps) or recipe.steps[state["next"] - 1]["step"] != "glue":
+        raise RecipeError(f"step {state['next']} of recipe {recipe.name} is not a glue step, so the recipe changed since it stopped")
+    return recipe.steps[state["next"] - 1]
+
+
+def glue_output(path: Path, step: dict) -> list[dict]:
+    """The entries the client's glue command wrote to ``path``, checked as ``_glue`` checks its own."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RecipeError(f"the glue output cannot be read. {error}") from error
+    return _entries(text, f"glue {shlex.join(step['command'])} (output {path})")
+
+
+def finish(state_file: Path) -> None:
+    """Remove a state file and the input beside it, and their folder when nothing else is in it."""
+    for name in (state_file, state_file.with_name("input.json")):
+        name.unlink(missing_ok=True)
+    try:
+        state_file.parent.rmdir()
+    except OSError:
+        pass
 
 
 def dry_run(recipe: Recipe, declaring: Scope) -> str:

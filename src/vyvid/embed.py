@@ -129,18 +129,24 @@ def join_text(parts) -> str:
     return ". ".join(dict.fromkeys(p for p in cleaned if p))
 
 
-def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None) -> int:
+def _cached(source: Path, spec: ModelSpec) -> dict[str, np.ndarray]:
+    if not source.exists():
+        return {}
+    with np.load(source) as previous:
+        if str(previous["revision"]) != spec.revision:
+            return {}
+        return dict(zip(previous["digests"].tolist(), previous["vectors"]))
+
+
+def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None, warm: Path | None = None) -> int:
     """Write the vectors of every node's text into ``directory``, embedding only text not seen before.
+    ``warm`` is another directory of vectors whose texts are reused too, so stores share one cache.
 
     Returns how many texts were embedded this time. Raises Unavailable, having removed any vectors,
     so a stale set is never ranked against a changed index."""
     target = directory / VECTORS
     digests = {node: hashlib.sha256(text.encode("utf-8")).hexdigest() for node, text in entries.items()}
-    cached: dict[str, np.ndarray] = {}
-    if target.exists():
-        with np.load(target) as previous:
-            if str(previous["revision"]) == spec.revision:
-                cached = dict(zip(previous["digests"].tolist(), previous["vectors"]))
+    cached = {**_cached(warm / VECTORS, spec), **_cached(target, spec)} if warm else _cached(target, spec)
     by_digest = {digests[node]: text for node, text in entries.items()}
     # A batch is padded to its longest text, so texts of a length are embedded together. Measured
     # on LATTICE, 2026-10-28: a cold build of 5,168 texts took 317 s in any other order, and 60 s in this one.

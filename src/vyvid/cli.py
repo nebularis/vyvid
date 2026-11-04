@@ -18,8 +18,11 @@
     the questions the index answered weakly, the gaps found by reading, and closing them
 ``vyd check citations [--staged] [paths ...] [--in folder]``
     refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
-``vyd recipe list [--in folder]`` and ``vyd recipe run <name> "<question>" [--in folder] [--all] [--json]``
-    the named chains of queries the folder's stack declares, and one run as a briefing within its budget
+``vyd recipe list [--in folder]`` and ``vyd recipe run <name> "<question>" [--in folder] [--all] [--json] [--stop-at-glue]``
+    the named chains of queries the folder's stack declares, and one run as a briefing within its budget.
+    A run that stops at a glue step exits 3, and ``vyd recipe run --resume <state> --glue-output <file>`` goes on
+``vyd store prune [--dry-run]``
+    remove the index stores of linked checkouts that no longer exist
 ``vyd domain audit <folder> [--json]`` and ``vyd domain review-path <domain> <commit>``
     the facts about a folder someone else wrote, read and never run, and where its review is recorded
 ``vyd install --client claude-code [--target folder] [--dry-run]``
@@ -38,13 +41,14 @@ import argparse
 import json
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from . import __version__, ask, audit, citations, install, kb, recipes
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
-from .resolve import Unresolved, bind, layers, resolve
+from .resolve import Unresolved, bind_in, layers, resolve
 
 
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
@@ -67,18 +71,21 @@ def _layer(config, scope) -> dict:
 
 
 def context(folder: Path, as_json: bool, pull: bool = True) -> int:
-    config = load()
-    project = bind(config, folder)
+    configured = load()
+    config, project = bind_in(configured, folder)
     if pull:
         for result in kb.pull_due(config, layers(config, project)):
             if not result.ok:
                 print(f"vyd: pull of {result.name} failed: {result.text}", file=sys.stderr)
     stack = [_layer(config, s) for s in layers(config, project)]
     if as_json:
-        print(json.dumps({"folder": str(folder.resolve()), "project": project and project.name, "layers": stack}, indent=2))
+        print(json.dumps({"folder": str(folder.resolve()), "project": project and project.name,
+                          "checkout": str(project.checkout) if project and project.checkout else None, "layers": stack}, indent=2))
         return 0
     print(f"Вивід {__version__}: the contract for {folder.resolve()}")
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
+    if project and project.checkout:
+        print(f"checkout: answering from {project.checkout}, not the configured code folder {configured.projects[project.name].code}")
     print("Read each layer's rules in this order. A later layer overrides an earlier one, and the project's is last.\n")
     for n, layer in enumerate(stack, 1):
         print((f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}") + f" ({layer['visibility']})")
@@ -143,8 +150,7 @@ def kb_command(arguments) -> int:
 def build_index(folder: Path, everything: bool, embed: bool) -> int:
     from .build import build, store_dir
 
-    config = load()
-    project = bind(config, folder)
+    config, project = bind_in(load(), folder)
     if not everything and project is None:
         print("no project claims this folder, so the general scope alone is built. Use --all for every scope")
     out = build(config, None if everything else project, embed=embed, scopes=None if everything or project else [config.general])
@@ -154,14 +160,13 @@ def build_index(folder: Path, everything: bool, embed: bool) -> int:
         print(f"NOTE: {problem}")
     for finding in out.findings:
         print(f"FINDING: {finding}")
-    print(f"knowledge index built at {store_dir(config) / 'store'}")
+    print(f"knowledge index built at {store_dir(config, None if everything else project) / 'store'}")
     return 0
 
 
 def check_citations(arguments) -> int:
     """Refuse the lines a public project adds that cite an entry of a private scope."""
-    config = load()
-    project = bind(config, Path(arguments.folder))
+    config, project = bind_in(load(), Path(arguments.folder))
     if project is None:
         print("no project claims this folder, so there is no public text to check")
         return 0
@@ -185,40 +190,79 @@ def check_citations(arguments) -> int:
 
 
 def recipe_command(arguments, parser) -> int:
-    """List the recipes of the folder's stack, or run one as a briefing."""
+    """List the recipes of the folder's stack, or run one as a briefing, or resume a run stopped at glue."""
     config = load()
     folder = Path(arguments.folder)
-    stack = layers(config, bind(config, folder))
-    found = recipes.available(stack)
+    resuming = arguments.recipe_command == "run" and arguments.resume is not None
+    state = None
+    if resuming:
+        if arguments.name or arguments.question or not arguments.glue_output:
+            parser.error("--resume takes --glue-output and no recipe name or question")
+        try:
+            state = recipes.read_state(Path(arguments.resume))
+        except recipes.RecipeError as error:
+            print(f"vyd: {error}", file=sys.stderr)
+            return 1
+        folder = Path(state["folder"])
+    config, project = bind_in(config, folder)
+    found = recipes.available(layers(config, project))
     if arguments.recipe_command == "list":
         if found:
             ask.show([{"name": r.name, "scope": r.scope, "description": r.description} for r in found.values()], ("name", "scope", "description"))
         else:
             print("no recipe is declared in this folder's stack")
         return 0
-    recipe = found.get(arguments.name)
-    if recipe is None:
-        print(f"vyd: no recipe '{arguments.name}' in this folder's stack, which has {', '.join(found) or 'none'}", file=sys.stderr)
+    if not resuming and not (arguments.name and arguments.question):
+        parser.error("a recipe name and a question are needed, or --resume with --glue-output")
+    name = state["recipe"] if state else arguments.name
+    recipe = found.get(name)
+    if recipe is None and not resuming:
+        print(f"vyd: no recipe '{name}' in this folder's stack, which has {', '.join(found) or 'none'}", file=sys.stderr)
         return 1
-    if arguments.dry_run:
+    if arguments.dry_run and not resuming:
         print(recipes.dry_run(recipe, config.scope(recipe.scope)))
         return 0
+    question, entries, start = arguments.question, None, 0
     try:
+        if state:
+            step = recipes.resumed_step(state, recipe)
+            recipe = replace(recipe, budget=state["budget"])
+            question, start = state["question"], state["next"]
+            entries = recipes.glue_output(Path(arguments.glue_output), step)
         a = ask.open_stack(config, folder, scope=recipes.extra_scopes(recipe))
-        entries = recipes.run(a, recipe, arguments.question)
+        entries = recipes.run(a, recipe, question, entries, start, stop=resuming or arguments.stop_at_glue)
     except ValueError as error:
         parser.error(str(error))
+    except recipes.GlueStop as stopped:
+        print(recipes.stop_at(a, recipe, question, folder, stopped))
+        if state:
+            recipes.finish(Path(arguments.resume))
+        return recipes.STOPPED
     except recipes.RecipeError as error:
-        print(f"vyd: recipe {recipe.name}: {error}", file=sys.stderr)
+        print(f"vyd: recipe {name}: {error}", file=sys.stderr)
         return 1
-    text, size, dropped = recipes.briefing(recipe, arguments.question, entries, arguments.all)
+    if state:
+        recipes.finish(Path(arguments.resume))
+    text, size, dropped = recipes.briefing(recipe, question, entries, arguments.all)
     if arguments.json:
         shown = entries[: len(entries) - dropped]
-        print(json.dumps({"recipe": recipe.name, "scope": recipe.scope, "question": arguments.question, "budget": recipe.budget,
+        print(json.dumps({"recipe": recipe.name, "scope": recipe.scope, "question": question, "budget": recipe.budget,
                           "estimated_tokens": size, "dropped": dropped, "entries": shown}, indent=2, ensure_ascii=False))
     else:
         print(text)
         print(f"\n(about {size} tokens)")
+    return 0
+
+
+def store_command(arguments) -> int:
+    """Remove the stores of linked checkouts that are gone."""
+    from .build import prune
+
+    gone = prune(load(), arguments.dry_run)
+    for folder, root in gone:
+        print(f"{'would remove' if arguments.dry_run else 'removed'} {folder}  (checkout {root} no longer exists)")
+    if not gone:
+        print("no checkout store is left behind")
     return 0
 
 
@@ -316,12 +360,18 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("recipe", help="the named chains of queries of a folder's stack").add_subparsers(dest="recipe_command", required=True)
     p.add_parser("list", help="each recipe of the stack, its scope and when to use it").add_argument("--in", dest="folder", default=".")
     r = p.add_parser("run", help="run one recipe for a question and print its briefing")
-    r.add_argument("name")
-    r.add_argument("question")
+    r.add_argument("name", nargs="?")
+    r.add_argument("question", nargs="?")
     r.add_argument("--in", dest="folder", default=".", help="the folder whose stack the recipe is read from")
     r.add_argument("--all", action="store_true", help="every entry, ignoring the recipe's budget")
     r.add_argument("--json", action="store_true")
     r.add_argument("--dry-run", action="store_true", help="print each step and each glue command with its folder, and run nothing")
+    r.add_argument("--stop-at-glue", action="store_true", help="stop at a glue step and print its command for you to run, then resume")
+    r.add_argument("--resume", metavar="STATE", help="go on from the state file a stopped run printed")
+    r.add_argument("--glue-output", metavar="FILE", help="with --resume, the file holding the glue command's output")
+    st = sub.add_parser("store", help="the index stores").add_subparsers(dest="store_command", required=True)
+    st.add_parser("prune", help="remove the stores of linked checkouts that no longer exist").add_argument(
+        "--dry-run", action="store_true", help="print what would be removed and remove nothing")
     d = sub.add_parser("domain", help="facts about a domain folder someone else wrote").add_subparsers(dest="domain_command", required=True)
     p = d.add_parser("audit", help="report links, file types, paths, patterns, hidden text and commands in a folder, and run nothing from it")
     p.add_argument("folder", type=Path)
@@ -343,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
             return kb_command(arguments)
         if arguments.command == "resolve":
             config = load()
-            scope = bind(config, Path(arguments.folder)) or config.general
+            scope = bind_in(config, Path(arguments.folder))[1] or config.general
             try:
                 print(resolve(config, arguments.identifier, scope))
             finally:
@@ -356,6 +406,8 @@ def main(argv: list[str] | None = None) -> int:
             return check_citations(arguments)
         if arguments.command == "recipe":
             return recipe_command(arguments, parser)
+        if arguments.command == "store":
+            return store_command(arguments)
         if arguments.command == "domain":
             if arguments.domain_command == "audit":
                 return audit.command(arguments.folder, arguments.json)
