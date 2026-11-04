@@ -3,8 +3,8 @@
 
 The lines a change adds are read, from the staged diff of the project's code folder and of its
 documents folder when that is a repository of its own, or from the files named. Every identifier
-they cite is resolved in the project's scope, and one that names an entry of a private scope is
-refused. A mention that resolves to nothing is not this check's business.
+they cite is resolved in the project's scope, and one that names an entry of a private scope, or of the
+project's private documents, is refused. A commit message or pull request text is checked as a file. A mention that resolves to nothing is not this check's business.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .audit import CITES_RE
 from .config import Config, Scope
-from .resolve import mentions
+from .resolve import mentions, private_entry
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
@@ -52,9 +52,10 @@ def parse_diff(diff: str) -> list[tuple[str, int, str]]:
 
 
 def staged_lines(project: Scope) -> list[tuple[str, int, str]]:
-    """The lines staged in the project's code folder, and in its documents folder when that is another repository."""
+    """The lines staged in the project's code folder, and in its documents folder when that is another repository
+    and its text is public. Private documents may cite each other."""
     tops: list[Path] = []
-    for folder in (project.code, project.docs):
+    for folder in (project.code, None if project.private_docs else project.docs):
         if folder is not None and folder.is_dir():
             top = Path(git(folder, "rev-parse", "--show-toplevel").strip()).resolve()
             if top not in tops:
@@ -74,12 +75,19 @@ def file_lines(paths: list[Path]) -> list[tuple[str, int, str]]:
     return out
 
 
+def is_private(config: Config, project: Scope, canonical: str) -> bool:
+    """Whether a canonical ``scope:LOCAL`` names an entry of a private scope, or of the project's private documents."""
+    name, local = canonical.split(":", 1)
+    return config.scope(name).visibility == "private" or (name == project.name and private_entry(project, local))
+
+
 def private_citations(config: Config, project: Scope, lines: list[tuple[str, int, str]]) -> list[str]:
-    """One ``path:line: cites <scope:LOCAL>, which is private`` for each identifier of a private scope a line cites."""
+    """One ``path:line: cites <scope:LOCAL>, which is private`` for each identifier of a private scope, or of the
+    project's private documents, a line cites."""
     found = []
     for path, number, text in lines:
         for canonical in mentions(config, text, project):
-            if config.scope(canonical.split(":", 1)[0]).visibility == "private":
+            if is_private(config, project, canonical):
                 found.append(f"{path}:{number}: cites {canonical}, which is private")
     return found
 

@@ -102,6 +102,19 @@ steps = [
   { step = "take", n = 3, per_kind = true },
 ]
 
+# A project may keep its documents outside its code. `docs` outside `code` is private unless `docs_visibility = "public"`, an entry defined there is
+# labelled private, and `vyd check citations` refuses a line of the code repository that cites it. `git.docs` is for `vyd docs record`, and a vyvid.toml may not set it.
+# [[projects]]
+# name = "contribution"
+# code = "~/work/contribution"
+# docs = "~/work/contribution-documents"
+# contract = "docs:CONTRACT.md"
+# match = { remote = ["github.com/example/contribution"] }
+# domains = ["tools"]
+# git = { docs = { commit = "manual", push = "manual" } }
+# [projects.families]
+# SL = { defined = "docs:INDEX.md", type = "slice" }
+#
 # A repository can declare its own project in a vyvid.toml at its root, with no entry here. This repository does, so its families are
 # the file's. An entry here with the same name and the same code folder overrides the file's keys one by one, and a family set here
 # replaces all of the file's. `vyd trust`, run in the repository, lets the file's glue and command extractors run.

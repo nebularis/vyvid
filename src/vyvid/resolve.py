@@ -299,6 +299,19 @@ def live(family: Family, local: str) -> bool:
     return family.pattern.fullmatch(local) is not None and (not family.defined_only or normalise(local) in definition_sites(family))
 
 
+def private_entry(project: Scope, local: str) -> bool:
+    """Whether ``local`` is an entry of a project's private documents: the files that define it all lie under
+    the documents folder, which is outside the code folder. An entry defined in the code folder, in both, or
+    nowhere is not, since the file that defines an entry decides and never its family's name."""
+    if not project.private_docs or project.docs is None:
+        return False
+    docs = project.docs.resolve()
+    for family in project.families.values():
+        if family.pattern.fullmatch(local) and (sites := definition_sites(family).get(normalise(local))):
+            return all(docs in site[0].resolve().parents for site in sites)
+    return False
+
+
 def _within(config: Config, local: str, scope: Scope, seen: set[str], how: list[str] | None = None) -> str:
     if scope.name in seen:
         raise Unresolved(f"'{local}' is delegated in a circle through '{scope.name}'")

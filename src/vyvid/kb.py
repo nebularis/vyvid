@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 """Managed assets: the domains whose folder lies under the knowledge base, each a git clone of its remote.
 
-Вивід clones, pulls, commits and pushes these by the domain's git policy, and nothing else. A folder
+Вивід clones, pulls, commits and pushes these by the domain's git policy, and nothing else, but the
+private documents of a project, which ``docs_record`` keeps by the project's ``git.docs`` policy. A folder
 anywhere else, such as one inside a project, is read and never touched by git, and a package a
 domain names is never installed. Every git call is an argument list run in the domain's folder
 with prompting for credentials switched off, so a missing credential fails instead of waiting.
@@ -281,32 +282,59 @@ def record(config: Config, paths: list[str], message: str) -> list[Result]:
         return refused
     results = []
     for name, files in grouped.items():
-        folder = config.domains[name].path
-        policy = config.domains[name].git
-        found, notes = leaks(folder.resolve(), _files(files))
-        results += [Result(name, True, f"{note}, so only the built-in scan was done") for note in notes]
-        if found:
-            results.append(Result(name, False, "refused, nothing staged, since these look like credentials: " + ", ".join(found)
-                                  + ". Remove them. If one is a false positive, stage the file with git yourself, since vyd has no flag to skip this scan"))
-            continue
-        added = git(folder, "add", "--", *map(str, files))
-        if added.returncode:
-            results.append(Result(name, False, added.stderr.strip()))
-            continue
-        staged = git(folder, "diff", "--cached", "--name-only", "--", *map(str, files)).stdout.split()
-        if not staged:
-            results.append(Result(name, True, "nothing changed in those paths, so nothing to commit"))
-        elif policy.commit == "manual":
-            results.append(Result(name, True, f"staged {', '.join(staged)}. Commit is manual, so nothing is committed"))
-        else:
-            text = "\n\n".join([message, *(["\n".join(config.commit_trailers)] if config.commit_trailers else [])])
-            done = git(folder, "commit", "-m", text, "--", *map(str, files))
-            if done.returncode:
-                results.append(Result(name, False, (done.stderr or done.stdout).strip()))
-            elif policy.push != "auto":
-                results.append(Result(name, True, f"committed {', '.join(staged)}. Push is manual, so nothing is pushed"))
-            else:
-                pushed = git(folder, "push")
-                results.append(Result(name, pushed.returncode == 0,
-                                      f"committed and pushed {', '.join(staged)}" if pushed.returncode == 0 else f"committed {', '.join(staged)}, but the push failed: {pushed.stderr.strip()}"))
+        results += _keep(config, name, config.domains[name].path, config.domains[name].git, files, message)
     return results
+
+
+def _keep(config: Config, name: str, folder: Path, policy: GitPolicy, files: list[Path], message: str) -> list[Result]:
+    """Scan the files for credentials, then stage them in the repository at ``folder`` and by ``policy`` commit and push."""
+    found, notes = leaks(folder.resolve(), _files(files))
+    results = [Result(name, True, f"{note}, so only the built-in scan was done") for note in notes]
+    if found:
+        return results + [Result(name, False, "refused, nothing staged, since these look like credentials: " + ", ".join(found)
+                                 + ". Remove them. If one is a false positive, stage the file with git yourself, since vyd has no flag to skip this scan")]
+    added = git(folder, "add", "--", *map(str, files))
+    if added.returncode:
+        return results + [Result(name, False, added.stderr.strip())]
+    staged = git(folder, "diff", "--cached", "--name-only", "--", *map(str, files)).stdout.split()
+    if not staged:
+        results.append(Result(name, True, "nothing changed in those paths, so nothing to commit"))
+    elif policy.commit == "manual":
+        results.append(Result(name, True, f"staged {', '.join(staged)}. Commit is manual, so nothing is committed"))
+    else:
+        text = "\n\n".join([message, *(["\n".join(config.commit_trailers)] if config.commit_trailers else [])])
+        done = git(folder, "commit", "-m", text, "--", *map(str, files))
+        if done.returncode:
+            results.append(Result(name, False, (done.stderr or done.stdout).strip()))
+        elif policy.push != "auto":
+            results.append(Result(name, True, f"committed {', '.join(staged)}. Push is manual, so nothing is pushed"))
+        else:
+            pushed = git(folder, "push")
+            results.append(Result(name, pushed.returncode == 0,
+                                  f"committed and pushed {', '.join(staged)}" if pushed.returncode == 0 else f"committed {', '.join(staged)}, but the push failed: {pushed.stderr.strip()}"))
+    return results
+
+
+def _repository(folder: Path) -> Path | None:
+    """The git common directory of the repository holding ``folder``, if any."""
+    done = git(folder, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(done.stdout.strip()).resolve() if done.returncode == 0 else None
+
+
+def docs_record(project: Scope, config: Config, paths: list[str], message: str) -> list[Result]:
+    """Stage paths under a project's documents folder, outside its code repository, and by its ``git.docs`` policy
+    commit and push them, after the same credential scan as ``record``. A folder in no repository keeps nothing in git."""
+    name, docs = project.name, project.docs.resolve()
+    if not docs.is_dir():
+        return [Result(name, False, f"the documents folder {docs} does not exist")]
+    files = [Path(raw).expanduser().resolve() for raw in paths]
+    if outside := [r for r, f in zip(paths, files) if docs != f and docs not in f.parents]:
+        return [Result(r, False, f"is outside the documents folder of project {name}, so nothing is staged") for r in outside]
+    here = _repository(docs)
+    if here is None:
+        return [Result(name, True, f"{docs} is in no git repository, so nothing is kept in git and nothing was done")]
+    if project.code is not None and project.code.is_dir() and _repository(project.code.resolve()) == here:
+        return [Result(name, False, f"{docs} is in the code repository, whose contract governs its commits, so nothing is staged")]
+    if ignored := [r for r, f in zip(paths, files) if git(docs, "check-ignore", "-q", "--", str(f)).returncode == 0]:
+        return [Result(r, False, "is ignored by git, so nothing is staged") for r in ignored]
+    return _keep(config, name, docs, project.docs_git, files, message)

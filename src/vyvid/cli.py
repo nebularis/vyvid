@@ -23,8 +23,13 @@
     ask the index of the folder's stack a question, rebuilding it first when a file it reads changed
 ``vyd misses | gap <text> | close <id>``
     the questions the index answered weakly, the gaps found by reading, and closing them
-``vyd check citations [--staged] [paths ...] [--in folder]``
-    refuse the lines a public project adds, staged or in the paths, that cite an entry of a private scope
+``vyd check citations [--staged] [--message file] [paths ...] [--in folder]``
+    refuse the lines a public project adds, staged, in the paths or in a commit message or pull request text,
+    that cite an entry of a private scope or of the project's private documents
+``vyd docs record <path> ... -m <message> [--in folder]``
+    stage paths in the project's private documents folder, then commit and push them by its ``git.docs`` policy
+``vyd board [folder] [--state word]``
+    the slices of the folder's project, from its families of type slice, in one set of documents and no other branch
 ``vyd check identifiers [--json] [--all] [folder]``
     fail on an identifier the folder's tracked Markdown mentions and nothing defines, or that a family defines twice
 ``vyd move check [--ref <git ref>] [--json] [folder]``
@@ -61,7 +66,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, citations, handoff, identifiers, install, kb, moves, newdomain, recipes
+from . import __version__, ask, audit, board, citations, handoff, identifiers, install, kb, moves, newdomain, recipes
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -320,11 +325,14 @@ def check_citations(arguments) -> int:
     if project.visibility != "public":
         print(f"project {project.name} is private, so its text may cite any entry")
         return 0
-    if not arguments.staged and not arguments.paths:
-        print("vyd: name the paths to check, or use --staged", file=sys.stderr)
+    if not (arguments.staged or arguments.paths or arguments.message):
+        print("vyd: name the paths to check, or use --staged or --message", file=sys.stderr)
+        return 2
+    if arguments.message and not Path(arguments.message).is_file():
+        print(f"vyd: {arguments.message} is not a file", file=sys.stderr)
         return 2
     try:
-        lines = citations.staged_lines(project) if arguments.staged else citations.file_lines([Path(p) for p in arguments.paths])
+        lines = (citations.staged_lines(project) if arguments.staged else []) + citations.file_lines([Path(p) for p in [*arguments.paths, *([arguments.message] if arguments.message else [])]])
     except citations.GitError as error:
         print(f"vyd: {error}", file=sys.stderr)
         return 2
@@ -334,6 +342,15 @@ def check_citations(arguments) -> int:
     if not refused:
         print(f"{len(lines)} line(s) checked, and none cites an entry of a private scope")
     return 1 if refused else 0
+
+
+def docs_record(arguments) -> int:
+    """Keep paths of the folder's project's private documents by its ``git.docs`` policy."""
+    config, project = bind_in(load(), Path(arguments.folder))
+    if project is None or project.docs is None:
+        print("vyd: no project claims this folder, so there are no documents to record", file=sys.stderr)
+        return 1
+    return _report(kb.docs_record(project, config, arguments.paths, arguments.message))
 
 
 def recipe_command(arguments, parser) -> int:
@@ -500,6 +517,14 @@ def main(argv: list[str] | None = None) -> int:
     p = k.add_parser("record", help="stage changed paths in their managed domain, then commit and push by its policy")
     p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True)
+    p = sub.add_parser("docs", help="the private documents of a project").add_subparsers(dest="docs_command", required=True)
+    p = p.add_parser("record", help="stage paths in the project's documents folder, then commit and push by its git.docs policy")
+    p.add_argument("paths", nargs="+")
+    p.add_argument("-m", "--message", required=True)
+    p.add_argument("--in", dest="folder", default=".", help="the folder whose project's documents are kept")
+    p = sub.add_parser("board", help="the slices of a folder's project, from one set of documents and no other branch")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--state", help="only the slices whose state starts with this word")
     r = sub.add_parser("resolve", help="the canonical scope:LOCAL an identifier names")
     r.add_argument("identifier")
     r.add_argument("--in", dest="folder", default=".")
@@ -510,7 +535,8 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("check", help="checks of a folder's text").add_subparsers(dest="check_command", required=True)
     p = c.add_parser("citations", help="refuse added lines of a public project that cite an entry of a private scope")
     p.add_argument("paths", nargs="*", help="files or folders whose every line is checked")
-    p.add_argument("--staged", action="store_true", help="the lines staged in the project's code and documents repositories")
+    p.add_argument("--staged", action="store_true", help="the lines staged in the project's code repository, and its documents repository when those are public")
+    p.add_argument("--message", metavar="FILE", help="a commit message or pull request text, every line of which is checked")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
     p = c.add_parser("identifiers", help="fail on a mentioned identifier nothing defines, or one a family defines twice")
     p.add_argument("folder", nargs="?", default=".")
@@ -566,6 +592,11 @@ def main(argv: list[str] | None = None) -> int:
             return context(Path(arguments.folder), arguments.json, not arguments.no_pull)
         if arguments.command == "kb":
             return kb_command(arguments)
+        if arguments.command == "docs":
+            return docs_record(arguments)
+        if arguments.command == "board":
+            config, project = bind_in(load(), Path(arguments.folder))
+            return board.command(config, project, arguments.state)
         if arguments.command == "resolve":
             config = load()
             scope = bind_in(config, Path(arguments.folder))[1] or config.general

@@ -75,11 +75,17 @@ class Findings:
 
 def tracked(project: Scope) -> list[Path]:
     """The tracked Markdown of the repositories holding the project's code and documents, from git, less what
-    the project skips and the generated copies. Raises ``subprocess.CalledProcessError`` outside a repository."""
+    the project skips and the generated copies. Raises ``subprocess.CalledProcessError`` outside a repository, but for
+    private documents, which when they are in none track nothing."""
     tops: list[Path] = []
     for folder in (project.code, project.docs):
         if folder is not None and folder.is_dir():
-            top = Path(subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()).resolve()
+            done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+            if done.returncode and folder is project.docs and project.private_docs:
+                continue  # private documents in no repository track nothing, so none is read
+            if done.returncode:
+                raise subprocess.CalledProcessError(done.returncode, done.args, done.stdout, done.stderr)
+            top = Path(done.stdout.strip()).resolve()
             if top not in tops:
                 tops.append(top)
     scan, keep = project.identifiers, []
@@ -298,6 +304,9 @@ def command(config: Config, project: Scope | None, as_json: bool, everything: bo
         print(f"symbol gone: {identifier} is in no file the symbol store holds: {_name(path, roots)}:{number}")
     for path, number, entry in findings.stale:
         print(f"stale: {entry} ({_name(path, roots)}:{number}) is excused and nothing needs it")
+    if project.private_docs and project.docs is not None and project.docs.is_dir() and subprocess.run(
+            ["git", "-C", str(project.docs), "rev-parse", "--show-toplevel"], capture_output=True).returncode:
+        print(f"not read: {project.docs} is in no git repository and only tracked files are scanned, so no mention in those documents was checked")
     print(f"{'identifier check failed' if failed else 'identifier check passed'}: {len(found)} identifiers mentioned in {len(paths)} files, "
           f"{len(findings.unresolved)} unresolved, {len(settled)} defined twice, {len(findings.variants)} written under another spelling, "
           f"{len(findings.removable)} removable no longer defined, {len(findings.stale)} stale exceptions"

@@ -73,7 +73,7 @@ from .build import build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .credentials import private_dir, private_file
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
-from .resolve import Unresolved, bind_in, layers, resolve
+from .resolve import Unresolved, bind_in, layers, private_entry, resolve
 
 PREFIXES = f"""
 PREFIX ki: <{KI}>
@@ -414,6 +414,10 @@ class Asker:
     @property
     def private(self) -> set[str]:
         return {s.name for s in self.visible if s.visibility == "private" and s.name != self.home.name}
+
+    def private_entry(self, scope_name: str, local: str) -> bool:
+        """Whether an entry of the project is defined in its private documents alone."""
+        return self.project is not None and scope_name == self.project.name and private_entry(self.project, local)
 
     @functools.cached_property
     def unmarked(self) -> set[str]:
@@ -841,7 +845,7 @@ def find(
     private = private_note(a)
     for r in rows:
         r["score"] = f"{r['score']:.2f}" + ("+" * r["facets"])
-        r["private"] = private if r["scope"] in a.private else ""
+        r["private"] = private if r["scope"] in a.private or a.private_entry(r["scope"], r["id"]) else ""
         r["data"] = data_note(a, r["scope"], r["claim"], r.get("section"))
         r["flags"] = flags(r)
     _show_found(a, rows, facets, best)

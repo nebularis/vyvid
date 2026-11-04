@@ -252,6 +252,8 @@ class Scope:
     identifiers: Scan = field(default_factory=Scan)  # projects only
     symbols: list[SymbolSpec] = field(default_factory=list)  # projects only: what to parse for symbols
     code_index: list[CodeIndex] = field(default_factory=list)  # projects only: the compiler indexes it registers
+    private_docs: bool = False  # projects only: the documents folder lies outside the code folder and is not declared public
+    docs_git: GitPolicy = field(default_factory=GitPolicy)  # projects only: commit and push of the private documents (``git.docs``)
     file: Path | None = None  # projects only: the vyvid.toml this project was declared in, if any
     file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
     dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
@@ -766,6 +768,17 @@ def _git_policy(raw, where: str, problems: list[str]) -> GitPolicy:
     return policy
 
 
+def _docs_git(raw, where: str, problems: list[str]) -> GitPolicy:
+    """A project's ``git`` table: ``docs`` holds the commit and push policy of its private documents, and nothing else is read."""
+    if raw is None:
+        return GitPolicy()
+    docs = raw.get("docs", {}) if isinstance(raw, dict) else None
+    if not isinstance(docs, dict) or set(raw) - {"docs"} or "pull" in docs:
+        problems.append(f"{where}: git is a table holding docs = {{ commit, push }} alone")
+        return GitPolicy()
+    return _git_policy(docs, f"{where}, git.docs", problems)
+
+
 def _step_value(key: str, value):
     """The value a step key takes as a recipe stores it. Raises ValueError for one it cannot take."""
     strings = isinstance(value, list) and bool(value) and all(isinstance(v, str) for v in value)
@@ -954,6 +967,8 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
     where = f"project '{name}'"
     docs = _expand(p.get("docs", "code:docs"), {"code": code, "kb": kb}, where, problems)
     bases = {"code": code, "docs": docs, "kb": kb}
+    outside = docs is not None and not Path(os.path.realpath(docs)).is_relative_to(Path(os.path.realpath(code)))
+    docs_visibility = _visibility({"visibility": p.get("docs_visibility", "private")}, "private", f"{where}, docs_visibility", problems)
     match = p.get("match", {})
     remotes = match.get("remote", [])
     _remotes(remotes, where, problems)
@@ -963,6 +978,8 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
     moves = [m for m in _moves(p.get("moves"), bases, where, problems) if m.to not in set_aside]
     return Scope(
         name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
+        private_docs=outside and docs_visibility == "private",
+        docs_git=_docs_git(p.get("git"), where, problems),
         remotes=[remotes] if isinstance(remotes, str) else list(remotes),
         domains=[d for d in p.get("domains", []) if d not in set_aside], recipes=_recipes(p.get("recipes"), name, "project", where, problems),
         rules=_paths(p.get("contract"), bases, where, problems),
