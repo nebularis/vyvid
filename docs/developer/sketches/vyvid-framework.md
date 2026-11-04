@@ -205,6 +205,8 @@ The triple-store record is LATTICE's today, and its findings would serve any pro
 
 The reverse, promoting a project's knowledge into a domain, is the same move, and demoting is the move back.
 
+**Revised 2026-11-04.** Citations point from a project to a domain, and only to what is published. A domain never cites a project, so what moves is rewritten to stand alone, and what is true of one project stays in that project, keyed to the domain's identifiers. A family that moves whole is delegated as step 2 says. Rows moved out of a family that stays are mapped one by one in the project's configuration, for example `STD-030` to `triple-stores:RDF-5`, so the project's text and branches keep their identifiers and the domain numbers its own. The project maintains that map, and the domain depends on nothing.
+
 ## 7. Identifiers across many registers and projects
 
 Today every family is LATTICE's, and `normalise()` makes `STD-12` one key. With many projects, two registers may each want `STD`, and a project contributed to from outside, such as `distributed-process`, has its own conventions that it should not change for us.
@@ -281,8 +283,8 @@ Answered 2026-11-03:
 - **VYD-Q2.** The four scopes, with the domains a directed graph: a domain names its parents, any number of them, and a cycle is refused (§2).
 - **VYD-Q3.** One rule file and `vyd context`, generated skills per domain, an MCP server later. A project's own skills, kept in its folder, take part in the same order and override above them.
 - **VYD-Q4.** The tool is open source under the MIT licence. Each knowledge-base domain is a git repository of its own, public or private as its author chooses.
-- **VYD-Q5.** A Scope column, read by the move tool.
-- **VYD-Q6.** As leaned: a published document links only published decisions, so a move changes no published page, and working documents cite a domain entry by id.
+- **VYD-Q5.** A Scope column, read by the move tool. Revised 2026-11-04: the move names its rows, since a row's place in a domain already states its scope, and a Scope column would mean editing a register whose rows are leaving it.
+- **VYD-Q6.** As leaned: a published document links only published decisions, so a move changes no published page, and working documents cite a domain entry by id. Revised 2026-11-04: about 11 of LATTICE's published pages link the record directly, so its old path stays as a LATTICE page of historical links, pinned to a tag or commit of the domain.
 - **VYD-Q7.** As leaned: a user-level overlay of rules becomes a private domain bound by remote, after the framework has run for a few weeks.
 - **VYD-Q8.** The XDG locations, configurable, and resolved per platform: `~/.local/share` and `~/.cache` on Linux, `~/Library/Application Support` and `~/Library/Caches` on macOS, `%LOCALAPPDATA%` on Windows, through `platformdirs` rather than paths written in code.
 - **VYD-Q9.** Python for now, with Rust a later phase's decision. The name is open, below.
