@@ -25,6 +25,7 @@ import pyoxigraph as ox
 
 from . import embed as vectors
 from . import extractors, facets, registers
+from .extractors import command
 from .config import Config, Scope, extractor_runs, refusals, timeouts
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH
@@ -98,16 +99,17 @@ def load_vocabulary(store: ox.Store, stack: list[Scope], out: Extract) -> None:
 
 
 def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable: dict[str, set[str]],
-                   out: Extract) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+                   out: Extract, folder: Path) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     """Run each extractor each project of the stack runs, its output belonging to the project.
 
-    Returns the prefixes the extractors found, by scope, and the text to embed of the nodes they made."""
+    A project's command extractor writes under ``folder``. Returns the prefixes the extractors found,
+    by scope, and the text to embed of the nodes they made."""
     prefixes: dict[str, dict[str, str]] = {}
     texts: dict[str, str] = {}
     for scope in (s for s in stack if s.kind == "project"):
         for run in extractor_runs(config, scope):
             context = extractors.Context(scope, scope.code or scope.path or Path.cwd(), config, taggable, store)
-            result = extractors.load(run.kind)(context, run.settings)
+            result = command.extract(run, context, folder) if "command" in run.settings else extractors.load(run.kind)(context, run.settings)
             out.quads += result.quads
             out.problems += result.problems
             out.findings += result.findings
@@ -143,7 +145,7 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
 
     load_vocabulary(store, stack, out)
     # Before the entries, because a Bears on may name a term by a prefix an extractor found.
-    prefixes, texts = run_extractors(config, stack, store, taggable, out)
+    prefixes, texts = run_extractors(config, stack, store, taggable, out, store_path.parent)
 
     contexts = [Context(config, scope, out, types, taggable, words, prefixes.get(scope.name, {})) for scope in stack]
     # Decisions first, since a register's Narrowed by names a decision's addendum.

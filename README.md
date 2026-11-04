@@ -48,6 +48,18 @@ vyd install --client claude-code [--target folder] [--dry-run] # write the user-
 vyd domain audit <folder> [--json]     # list the links, files, paths, hidden text and commands in a domain you did not write, running nothing from it
 ```
 
+A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only your own configuration declares one.
+
+```toml
+[[projects.extractors]]
+kind = "my-extractor"
+command = ["mise", "exec", "--", "python", "-m", "tools.my_extractor"]
+paths = ["docs:notes/*.md"]   # the files it reads, which decide when the index is stale
+code = ["code:tools/my_extractor.py"]   # its own files, which also decide when the index is stale
+```
+
+It runs in the checkout's root with a minimal environment, `seconds` (default 300) as its time limit and the variables `env` names. It reads one JSON request on standard input, with its settings, the expanded `paths`, an output folder and the two graph IRIs it may write to. It writes `quads.nq` (N-Quads in those graphs) and `result.json` (problems, findings, texts to embed, prefixes, counts and an optional version) into the output folder. A failure is reported and costs only its own entries.
+
 A managed domain is a domain whose folder lies under the knowledge base, and it is a git clone of its `remote`. Its `git` policy sets when it is pulled (`on-start`, `daily` or `manual`), and whether a recorded change is committed and pushed (`auto`) or left staged (`manual`), and `commit_trailers` in `[framework]` are added to every commit `vyd kb record` makes. A pull never merges or stashes, and `vyd context` pulls what is due before it answers unless given `--no-pull`. A project's own files are never committed or pushed by `vyd`.
 
 The configuration is read from `$VYVID_CONFIG`, or from the platform's configuration folder, which `vyd config` prints. [`examples/config.toml`](examples/config.toml) is a starting point.

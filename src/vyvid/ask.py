@@ -501,7 +501,7 @@ def declared_files(config: Config, stack: list[Scope]) -> list[Path]:
             places += family.paths()
         if scope.kind == "project":
             for run in extractor_runs(config, scope):
-                places += run.settings["paths"]
+                places += [*run.settings["paths"], *run.settings.get("code", ())]
     return [p for place in places for p in _expand(place) if p.is_file()]
 
 

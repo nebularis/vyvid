@@ -6,6 +6,34 @@ An extractor reads the files of one kind into quads. A kind is an entry point of
 domain contains it. An extractor is a callable ``extract(context, settings) -> Result``. Its
 ``settings`` are the domain's defaults updated by the project's own, with ``paths`` already expanded
 to a list of globs.
+
+A project can also bring its own extractor as a command, in any language, so each git worktree runs
+its own version from its own environment and nothing is installed into Вивід. Only a project's entry
+in the user's configuration declares one (``command``, with optional ``code``, ``seconds`` and
+``env``), and a domain's manifest or entry that does is refused. A ``command`` kind takes precedence
+over an installed kind of the same name for that project. Installed kinds keep running in process.
+
+The command runs with the checkout's root as its working folder, under the environment glue is given
+(``vyvid.config.GLUE_ENV``) and the variables ``env`` names. It is not sandboxed. Its standard input
+is one JSON object::
+
+    {"protocol": 1, "kind": ..., "scope": <name>, "root": <path>, "settings": {...},
+     "paths": [<expanded globs>], "output": <folder>, "graphs": {"index": <iri>, "terms": <iri>}}
+
+It writes two files into ``output``, a new temporary folder under the checkout's store folder that
+``vyd`` removes afterwards, failure included. ``quads.nq`` holds N-Quads and may be absent. Every
+quad must be in the ``index`` or ``terms`` graph, or the whole output is refused. ``result.json``
+holds the fields of ``Result``::
+
+    {"protocol": 1, "version": <optional string>, "problems": [...], "findings": [...],
+     "texts": {<node iri>: <text>}, "prefixes": {...}, "counts": {...}}
+
+A ``texts`` key must be a subject of a quad it wrote. Exit zero is success. A non-zero exit, a
+timeout (``seconds``, COMMAND_SECONDS if unset), a missing or malformed ``result.json``, an unknown
+``protocol``, malformed or misplaced quads, or a command that cannot start is a problem naming the
+kind. It costs only that extractor's entries. The ``version`` is reported as a finding. The files
+named by ``paths`` and ``code`` decide whether the index is stale, so an edit to the extractor
+rebuilds the index of the checkout it is in.
 """
 
 from __future__ import annotations
@@ -23,6 +51,8 @@ if TYPE_CHECKING:
     from ..config import Config, Scope
 
 GROUP = "vyvid.extractors"
+PROTOCOL = 1
+COMMAND_SECONDS = 300
 
 
 @dataclass

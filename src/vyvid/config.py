@@ -24,6 +24,8 @@ from __future__ import annotations
 import glob
 import os
 import re
+import signal
+import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,11 +66,19 @@ STEPS = {
     "glue": (("command",), ("seconds", "env")),
 }
 EXPECTS = {"words": "a string", "limit": "a whole number above zero", "n": "a whole number above zero",
-           "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a list of strings", "env": "a list of variable names",
+           "edges": f"a list of {', '.join(LINK_EDGES)}", "ids": "a list of identifiers", "command": "a non-empty list of strings", "code": "a list of strings", "env": "a list of variable names",
            "direction": f"one of {', '.join(DIRECTIONS)}", "per_kind": "true or false", "seconds": "a number of seconds above zero",
            **dict.fromkeys(FILTER_KEYS, "a string or a list of strings")}
 DEFAULT_BUDGET = 1000
 GLUE_CHOICES = ("run", "stop")
+# What only a project's own entry may set on an extractor, which makes it run as a command.
+COMMAND_KEYS = ("command", "code", "seconds", "env")
+# The variables glue and a command extractor are given, by exact name. A prefix would let in MISE_GITHUB_TOKEN,
+# so none is matched, and SSH_AUTH_SOCK and VIRTUAL_ENV are left out on purpose.
+GLUE_ENV = frozenset((
+    "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "TEMP", "TMP", "TERM",
+    "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
+    "PROGRAMDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"))
 
 
 class ConfigError(Exception):
@@ -228,6 +238,32 @@ class Run:
     sources: dict[str, str]
 
 
+def run_limited(command: list[str], request: str, folder: Path, env: dict[str, str], seconds: float) -> subprocess.CompletedProcess:
+    """Run a command in a session of its own, so a time limit also stops what it started, such as the
+    program a wrapper like ``mise exec`` runs. Raises ``subprocess.TimeoutExpired`` at the limit."""
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                               errors="replace", cwd=folder, env=env, start_new_session=True)
+    try:
+        out, err = process.communicate(request, timeout=seconds)
+    except subprocess.TimeoutExpired:
+        # ponytail: on Windows only the direct child is stopped, to be settled when the suite runs there.
+        if hasattr(os, "killpg"):
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.kill()
+        process.wait()
+        raise
+    return subprocess.CompletedProcess(command, process.returncode, out, err)
+
+
+def glue_env(step: dict) -> dict[str, str]:
+    """The environment glue or a command extractor is given: GLUE_ENV and the variables ``env`` names, those that are set."""
+    allowed = GLUE_ENV | set(step.get("env", ()))
+    return {k: v for k, v in os.environ.items() if k in allowed}
+
+
 def config_path() -> Path:
     """Where the configuration is read from: ``$VYVID_CONFIG``, or the platform's folder for it."""
     if env := os.environ.get("VYVID_CONFIG"):
@@ -327,14 +363,32 @@ def _paths(values, bases, where, problems) -> list[Path]:
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
 
 
-def _extractors(raw, where, problems) -> list[dict]:
-    """Each extractor as ``{"kind": ..., "settings": {...}}``, its kind installed."""
+def _extractors(raw, where, problems, own=False) -> list[dict]:
+    """Each extractor as ``{"kind": ..., "settings": {...}}``. Its kind is installed, unless a project's
+    own entry gives a ``command``, which only such an entry may, with the keys of COMMAND_KEYS."""
     out = []
     for item in raw or []:
-        if item.get("kind") not in extractors.kinds():
-            problems.append(f"{where}: an extractor needs an installed kind of {', '.join(extractors.kinds()) or 'none installed'}, not '{item.get('kind')}'")
+        kind, given = item.get("kind"), [k for k in COMMAND_KEYS if k in item]
+        if given and not own:
+            problems.append(f"{where}: an extractor sets {', '.join(given)}, which only a project's own entry in the user's configuration may")
+        elif given and "command" not in item:
+            problems.append(f"{where}: extractor '{kind}' sets {', '.join(given)} without a command")
+        elif "command" in item:
+            before = len(problems)
+            if not isinstance(kind, str) or not NAME_RE.match(kind):
+                problems.append(f"{where}: a command extractor needs a lower-case kind")
+            settings = {k: v for k, v in item.items() if k != "kind"}
+            for key in given:
+                try:
+                    settings[key] = _step_value(key, [item[key]] if key == "code" and isinstance(item[key], str) else item[key])
+                except ValueError as error:
+                    problems.append(f"{where}, extractor '{kind}': {error}")
+            if len(problems) == before:
+                out.append({"kind": kind, "settings": settings})
+        elif kind not in extractors.kinds():
+            problems.append(f"{where}: an extractor needs an installed kind of {', '.join(extractors.kinds()) or 'none installed'}, not '{kind}'")
         else:
-            out.append({"kind": item["kind"], "settings": {k: v for k, v in item.items() if k != "kind"}})
+            out.append({"kind": kind, "settings": {k: v for k, v in item.items() if k != "kind"}})
     return out
 
 
@@ -365,7 +419,7 @@ def _step_value(key: str, value):
         return ",".join(value)
     if key in ("limit", "n") and whole:
         return value
-    if key in ("edges", "ids", "command", "env") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
+    if key in ("edges", "ids", "command", "env", "code") and strings and (key != "edges" or set(value) <= set(LINK_EDGES)):
         return list(value)
     if key == "seconds" and isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
         return value
@@ -446,8 +500,8 @@ def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> 
 def extractor_runs(config: Config, project: Scope) -> list[Run]:
     """The extractors a project runs, in order: each the domains of its stack bring, parents first,
     then its own. A domain's settings are its defaults updated by the project's
-    ``[projects.uses.<domain>.<kind>]``. An extractor left with no ``paths`` has nothing to read and
-    is skipped. Raises ConfigError for a ``uses`` that names a domain outside the project's stack or
+    ``[projects.uses.<domain>.<kind>]``. An installed extractor left with no ``paths`` has nothing to
+    read and is skipped, and a command always runs, since it decides what it reads. Raises ConfigError for a ``uses`` that names a domain outside the project's stack or
     a kind the domain does not bring."""
     problems: list[str] = []
     where = f"project '{project.name}'"
@@ -460,13 +514,16 @@ def extractor_runs(config: Config, project: Scope) -> list[Run]:
         else:
             problems += [f"{where}: uses {domain}.{k}, and {domain} brings no such extractor"
                          for k in kinds if k not in {e["kind"] for e in config.domains[domain].extractors}]
+            problems += [f"{where}: uses {domain}.{k} sets {key}, which a domain's extractor may not run as"
+                         for k, settings in kinds.items() for key in COMMAND_KEYS if key in settings]
 
     def run(kind: str, settings: dict, sources: dict[str, str], domain: str | None, self_path: Path | None) -> None:
         # A path comes from the domain's defaults, which may start with self:, or from the project.
         mine = {**bases, "self": self_path} if sources.get("paths", "").startswith("domain") else bases
         paths = _paths(settings.get("paths"), mine, where, problems)
-        if paths:
-            runs.append(Run(kind, {**settings, "paths": paths}, domain, sources))
+        if paths or "command" in settings:
+            code = {"code": _paths(settings["code"], mine, where, problems)} if "code" in settings else {}
+            runs.append(Run(kind, {**settings, "paths": paths, **code}, domain, sources))
 
     for domain in order:
         for brought in config.domains[domain].extractors:
@@ -556,7 +613,7 @@ def load(path: Path | None = None) -> Config:
             vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
             families=_families(p.get("families"), where, problems, bases),
             delegates=dict(p.get("delegates", {})),
-            extractors=_extractors(p.get("extractors"), where, problems),
+            extractors=_extractors(p.get("extractors"), where, problems, own=True),
             uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items()},
             specialises={k: v for k, s in p.get("specialises", {}).items()
                          if (v := _expand(s, bases, where, problems)) is not None},

@@ -32,7 +32,6 @@ client to run through its own shell, and ``resume`` continues from the output th
 from __future__ import annotations
 
 import json
-import os
 import shlex
 import subprocess
 import tempfile
@@ -42,7 +41,7 @@ from pathlib import Path
 import pyoxigraph as ox
 
 from . import ask, embed
-from .config import Recipe, Scope
+from .config import GLUE_ENV, Recipe, Scope, glue_env, run_limited  # noqa: F401  GLUE_ENV stays importable from here
 from .build import store_dir
 from .model import node_of
 from .resolve import Unresolved, resolve
@@ -51,12 +50,6 @@ GLUE_SECONDS = 30
 GLUE_STDERR = 2000
 CHARACTERS_PER_TOKEN = 4
 STOPPED = 3  # the exit code of a run that stopped at a glue step
-# The variables glue is given, by exact name. A prefix would let in MISE_GITHUB_TOKEN, so none is matched,
-# and SSH_AUTH_SOCK and VIRTUAL_ENV are left out on purpose.
-GLUE_ENV = frozenset((
-    "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "TEMP", "TMP", "TERM",
-    "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA",
-    "PROGRAMDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"))
 
 
 class RecipeError(Exception):
@@ -201,12 +194,6 @@ def _check_glue(declaring: Scope) -> None:
         raise RecipeError("a glue step runs only in a project's recipe")
 
 
-def glue_env(step: dict) -> dict[str, str]:
-    """The environment glue is given: GLUE_ENV and the variables the step names, those that are set."""
-    allowed = GLUE_ENV | set(step.get("env", ()))
-    return {k: v for k, v in os.environ.items() if k in allowed}
-
-
 def _entries(text: str, what: str) -> list[dict]:
     """The entries a glue command printed, each filled in. Raises RecipeError for text that is not a list of them."""
     try:
@@ -224,8 +211,7 @@ def _glue(result: list[dict], step: dict, declaring: Scope) -> list[dict]:
     command, seconds = step["command"], step.get("seconds", GLUE_SECONDS)
     shown = " ".join(command)
     try:
-        done = subprocess.run(command, input=json.dumps(result), capture_output=True, text=True,
-                              cwd=declaring.code, timeout=seconds, check=False, env=glue_env(step))
+        done = run_limited(command, json.dumps(result), declaring.code, glue_env(step), seconds)
     except subprocess.TimeoutExpired as error:
         raise RecipeError(f"glue {shown} did not finish within {seconds} seconds") from error
     except OSError as error:
