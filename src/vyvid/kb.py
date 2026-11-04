@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -55,6 +56,7 @@ class Status:
     behind: int | None = None
     changes: int = 0
     last_pull: float | None = None
+    held: list[str] = field(default_factory=list)  # instruction-bearing files changed upstream, not merged
 
 
 def git(folder: Path, *args: str) -> subprocess.CompletedProcess:
@@ -118,7 +120,41 @@ def inspect(config: Config, scope: Scope) -> Status:
     if counts.returncode == 0:
         status.behind, status.ahead = map(int, counts.stdout.split())
     status.changes = len(git(folder, "status", "--porcelain").stdout.splitlines())
+    status.held = held(scope)
     return status
+
+
+def instruction_bearing(scope: Scope, changed: list[str]) -> list[str]:
+    """The changed files that can steer an agent: the manifest, any file the domain names as rules, skills,
+    register types, facets or vocabulary, anything under a folder it names, and any file called SKILL.md."""
+    named = [os.path.abspath(p) for p in (*scope.rules, *scope.skills, *scope.register_types, *scope.facets, *scope.vocabulary)]
+    named.append(os.path.abspath(scope.path / "domain.toml"))
+
+    def steers(file: str) -> bool:
+        full = os.path.abspath(scope.path / file)
+        return Path(file).name == "SKILL.md" or any(full == n or full.startswith(n + os.sep) for n in named)
+
+    return [f for f in changed if steers(f)]
+
+
+def changed(scope: Scope) -> list[str]:
+    """The files that differ between HEAD and its upstream as last fetched, none if there is no upstream."""
+    done = git(scope.path, "diff", "--name-only", "HEAD...@{u}")
+    return done.stdout.splitlines() if done.returncode == 0 else []
+
+
+def held(scope: Scope) -> list[str]:
+    """The instruction-bearing files changed upstream, for a domain that is not the user's own."""
+    return [] if scope.trust == "own" or not is_clone(scope) else instruction_bearing(scope, changed(scope))
+
+
+def accept(config: Config, scope: Scope, clock: Callable[[], float] = time.time) -> Result:
+    """Fast-forward a held domain to its upstream. Its trust and commit stay as the user wrote them."""
+    done = git(scope.path, "merge", "--ff-only", "@{u}")
+    if done.returncode:
+        return Result(scope.name, False, (done.stderr or done.stdout).strip())
+    _stamp(config, scope.name, clock())
+    return Result(scope.name, True, done.stdout.strip())
 
 
 def clone(config: Config, scope: Scope) -> Result:
@@ -143,7 +179,8 @@ def is_due(policy, last: float | None, now: float) -> bool:
 
 def pull(config: Config, scopes: list[Scope], due: bool = False, clock: Callable[[], float] = time.time) -> list[Result]:
     """``git pull --ff-only`` in each domain, only those due by policy with ``due``. A pull that cannot
-    fast-forward is reported with git's reason and left as it was, never merged or stashed."""
+    fast-forward is reported with git's reason and left as it was, never merged or stashed. For a domain
+    that is not the user's own it fetches first and merges nothing if a file that can steer an agent changed."""
     results = []
     for scope in scopes:
         now = clock()
@@ -153,7 +190,19 @@ def pull(config: Config, scopes: list[Scope], due: bool = False, clock: Callable
             why = "no remote is configured" if scope.remote is None else f"{scope.path} is not a clone of {scope.remote}, run vyd kb clone"
             results.append(Result(scope.name, False, why))
             continue
-        done = git(scope.path, "pull", "--ff-only")
+        if scope.trust != "own":
+            fetched = git(scope.path, "fetch")
+            if fetched.returncode:
+                results.append(Result(scope.name, False, (fetched.stderr or fetched.stdout).strip()))
+                continue
+            if files := held(scope):
+                read = shlex.join(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"])
+                results.append(Result(scope.name, False, f"held, nothing merged, since these instruction-bearing files changed upstream: {', '.join(files)}. "
+                                                           f"Read them with {read}, then a person runs vyd kb accept {scope.name}"))
+                continue
+            done = git(scope.path, "merge", "--ff-only", "@{u}")
+        else:
+            done = git(scope.path, "pull", "--ff-only")
         if done.returncode:
             results.append(Result(scope.name, False, (done.stderr or done.stdout).strip()))
             continue

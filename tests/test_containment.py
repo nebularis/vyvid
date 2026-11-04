@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """VYD-6b: a domain contained. A hostile domain is built from fake secrets in a temporary folder, its
-manifest is refused, its links are not read, its patterns run out of time, and the audit reports what
+manifest is refused and the domain set aside, its links are not read, its patterns run out of time, and the audit reports what
 it holds as facts and runs nothing."""
 
 from __future__ import annotations
@@ -65,6 +65,19 @@ def test_a_manifest_path_through_a_link_that_leaves_is_refused(tmp_path):
     root = domain(tmp_path, 'name = "d"\nrules = "self:out/secret.md"\n')
     (root / "out").symlink_to(secret.parent)
     assert any("rules names 'self:out/secret.md'" in p for p in refused(tmp_path, D))
+
+
+def test_a_domain_with_a_hostile_manifest_is_set_aside_and_the_secret_reaches_nothing(tmp_path):
+    secret = outside(tmp_path)
+    domain(tmp_path, f'name = "d"\nrules = "{secret.as_posix()}"\nfamilies = {{ NOTE = {{ defined = "{secret.as_posix()}", type = "note" }} }}\n')
+    config = load(config_for(tmp_path, D + '\n[[projects]]\nname = "proj"\ncode = "CODE"\ndomains = ["d"]\n'))
+    assert "d" not in config.domains and config.projects["proj"].domains == []
+    assert any("rules names" in p and "leaves the domain's folder" in p for p in config.set_aside["d"]) and SECRET not in "\n".join(config.set_aside["d"])
+    target = tmp_path / "client"
+    assert install.install(config, "claude-code", target, dry_run=False) == 0
+    assert not (target / "skills" / "vyvid-domain-d").exists()
+    out = builder.build(config, config.projects["proj"], tmp_path / "index" / "store", embed=False)
+    assert SECRET not in "".join(str(q.object) for q in builder.open_store(tmp_path / "index" / "store")) + "".join(out.problems)
 
 
 def test_the_same_keys_in_the_users_configuration_are_free(tmp_path):

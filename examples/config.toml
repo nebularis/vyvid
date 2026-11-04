@@ -16,20 +16,27 @@ skills = "kb:general/skills"
 [[domains]]
 name = "software-engineering"
 visibility = "public"
+trust = "own"
 
 [[domains]]
 name = "owl"
 visibility = "public"
+trust = "own"
 path = "~/work/vyvid/examples/domains/owl"
 
 [[domains]]
 name = "triple-stores"
 visibility = "public"
+trust = "own"
 parents = ["software-engineering", "owl"]
 
 [[domains]]
 name = "tools"
 visibility = "public"
+# A domain with a remote gives knowledge alone unless you say otherwise. "own" is yours, and "reviewed" needs the commit you read:
+# trust = "reviewed"
+# commit = "3f9c2ab"
+trust = "own"
 parents = ["software-engineering"]
 families = { NOTE = {} }
 remote = "git@github.com:nebularis/vyvid-tools.git"

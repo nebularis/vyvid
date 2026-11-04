@@ -181,9 +181,13 @@ def test_a_domain_may_not_declare_a_command(tmp_path, where):
     (domain / "domain.toml").write_text(declared if where == "manifest" else "", encoding="utf-8")
     path = config_for(tmp_path, extra='domains = ["dom"]\n')
     path.write_text(f'[[domains]]\nname = "dom"\npath = "{domain.as_posix()}"\n' + (declared if where == "entry" else "") + path.read_text(encoding="utf-8"), encoding="utf-8")
-    with pytest.raises(ConfigError) as error:
-        load(path)
-    assert any("only a project's own entry" in p for p in error.value.problems), error.value.problems
+    if where == "manifest":
+        problems = [p for why in load(path).set_aside.values() for p in why]
+    else:
+        with pytest.raises(ConfigError) as error:
+            load(path)
+        problems = error.value.problems
+    assert any("only a project's own entry" in p for p in problems), problems
 
 
 def test_a_project_may_not_turn_a_domains_extractor_into_a_command(tmp_path):

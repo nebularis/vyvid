@@ -41,6 +41,7 @@ from pathlib import Path
 import pyoxigraph as ox
 
 from . import ask, embed
+from . import config as cfg
 from .config import GLUE_ENV, Recipe, Scope, glue_env, run_limited  # noqa: F401  GLUE_ENV stays importable from here
 from .build import store_dir
 from .credentials import private_dir, redact
@@ -105,6 +106,8 @@ def run(a: ask.Asker, recipe: Recipe, question: str, result: list[dict] | None =
             _check_glue(declaring)
             if stop:
                 raise GlueStop(index, result)
+            if not cfg.trusted(a.config):
+                raise RecipeError("this configuration is not trusted, so vyd runs no glue from it. Run vyd trust in a terminal to trust it, or stop at glue and run the command yourself")
             result = _glue(result, step, declaring)
             continue
         for entry in new:
@@ -121,6 +124,7 @@ def _entry(a: ask.Asker, r: dict) -> dict:
     """A row of the index as an entry: its signposts are the notes find prints under it."""
     r = {k: v for k, v in r.items() if k != "section"}
     r["private"] = ask.private_note(a) if r["scope"] in a.private else ""
+    r["data"] = ask.data_note(a, r["scope"], r["claim"])
     return {"node": r["n"], "id": a.label(r["scope"], r["id"]), "kind": r["kind"], "scope": r["scope"],
             "claim": r["claim"].strip(), "pointer": r.get("pointer") or "", "signposts": ask.notes(r)}
 
@@ -232,6 +236,7 @@ def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: 
     state.write_text(json.dumps({"recipe": recipe.name, "question": question, "next": stopped.index + 1, "budget": recipe.budget,
                                  "folder": str(folder.resolve())}, indent=2) + "\n", encoding="utf-8", newline="\n")
     resume = shlex.join(["vyd", "recipe", "run", "--resume", str(state), "--glue-output", str(output)])
+    untrusted = [] if cfg.trusted(a.config) else ["This configuration is not trusted, so vyd would not run this glue itself. Your client approves the command."]
     return "\n".join([
         f"Recipe {recipe.name} stopped at step {stopped.index + 1} of {len(recipe.steps)}, a glue step. vyd runs no glue in this form.",
         f"command: {shlex.join(step['command'])}",
@@ -239,7 +244,7 @@ def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: 
         f"input: {given}   (pass it on the command's standard input)",
         f"output: {output}   (write the command's standard output here, a JSON list of entries each with an id)",
         f"seconds: {step.get('seconds', GLUE_SECONDS)}",
-        "The command sees your own environment, not the minimal one vyd gives glue it runs itself.",
+        "The command sees your own environment, not the minimal one vyd gives glue it runs itself.", *untrusted,
         f"Then resume: {resume}"])
 
 

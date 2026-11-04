@@ -24,6 +24,7 @@ import platformdirs
 import pyoxigraph as ox
 
 from . import embed as vectors
+from . import config as cfg
 from . import extractors, facets, registers
 from .extractors import command
 from .config import Config, Scope, extractor_runs, refusals, timeouts
@@ -110,7 +111,11 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
     for scope in (s for s in stack if s.kind == "project"):
         for run in extractor_runs(config, scope):
             context = extractors.Context(scope, scope.code or scope.path or Path.cwd(), config, taggable, store)
-            result = command.extract(run, context, folder) if "command" in run.settings else extractors.load(run.kind)(context, run.settings)
+            if "command" in run.settings and not cfg.trusted(config):
+                result = extractors.Result(problems=[f"extractor '{run.kind}' of project '{scope.name}' is a command, and this configuration is not trusted, "
+                                                     "so its entries are absent. Run vyd trust in a terminal, then vyd build"])
+            else:
+                result = command.extract(run, context, folder) if "command" in run.settings else extractors.load(run.kind)(context, run.settings)
             out.quads += result.quads
             out.problems += result.problems
             out.findings += result.findings

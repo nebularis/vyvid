@@ -6,7 +6,8 @@ One TOML file, found at ``$VYVID_CONFIG`` or in the platform's user configuratio
 it may start with a token: ``kb:`` the knowledge base, ``code:`` a project's code folder, ``docs:``
 a project's documents folder, ``self:`` a domain's own folder, or ``~``. A configuration that names
 something it does not define, or whose domains form a cycle, is refused with every problem listed,
-never loaded in part.
+never loaded in part. A domain whose own ``domain.toml`` is refused is set aside instead, with the domains
+that descend from it, and the rest load (``Config.set_aside``).
 
 A domain is a folder, and its ``domain.toml`` may declare what the configuration's entry for it
 declares. A key the configuration sets replaces the manifest's, so a user can override a domain
@@ -14,16 +15,19 @@ locally. A domain brings extractors by kind, and each project that uses the doma
 its own files (``extractor_runs``).
 
 A manifest comes from whoever wrote the domain, so it is held to its folder. Every path it names must
-stay inside the folder after symlinks are resolved, and it may not set ``git`` or ``remote``. The same
-keys in the user's configuration are the user's own and stay free. A file under a domain's folder that
+stay inside the folder after symlinks are resolved, and it may not set ``git``, ``remote``, ``trust`` or
+``commit``. The same keys in the user's configuration are the user's own and stay free. A file under a domain's folder that
 is a symlink leaving it is never read (``escapes``).
 """
 
 from __future__ import annotations
 
 import glob
+import hashlib
+import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import tomllib
@@ -34,7 +38,7 @@ import platformdirs
 import regex
 
 from . import extractors
-from .credentials import credential_problems, host_of, remote_problem
+from .credentials import credential_problems, host_of, private_dir, private_file, remote_problem
 from .embed import ModelSpec
 from .patterns import SECONDS as PATTERN_SECONDS, Pattern
 
@@ -44,11 +48,14 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes"}
+DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
-MANIFEST_REFUSED = ("git", "remote")
+MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
+# What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
+TRUSTS = ("own", "reviewed", "knowledge")
+COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 # The keys of a manifest whose value is a path or a list of them.
 MANIFEST_PATHS = ("rules", "skills", "facets", "register_types", "vocabulary")
 # What each key of a managed domain's git policy may be, the first being the default.
@@ -167,6 +174,8 @@ class Scope:
     remote: str | None = None  # domains only: the repository a managed domain is a clone of
     git: GitPolicy = field(default_factory=GitPolicy)  # domains only
     path: Path | None = None
+    trust: str = "own"  # domains only, one of TRUSTS
+    commit: str | None = None  # domains only: the commit a reviewed domain was reviewed at, a prefix
     vocabulary: list[Path] = field(default_factory=list)  # Turtle, loaded into the T-Box graph
     # Each a kind and its settings, ``paths`` unexpanded. A domain's are the kinds it brings and their
     # defaults, a project's the extractors it declares itself.
@@ -179,6 +188,22 @@ class Scope:
     domains: list[str] = field(default_factory=list)
     specialises: dict[str, Path] = field(default_factory=dict)
     checkout: Path | None = None  # set by ``resolve.rebase``: the linked checkout this project is answered from
+
+    @property
+    def standing(self) -> str:
+        """What the domain gives now. A reviewed domain whose HEAD is not its commit gives knowledge alone."""
+        if self.kind != "domain" or self.trust == "own":
+            return "own"
+        if self.trust == "reviewed" and self.commit and self.path is not None:
+            head = subprocess.run(["git", "-C", str(self.path), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+            if head.lower().startswith(self.commit.lower()):
+                return "reviewed"
+        return "knowledge"
+
+    @property
+    def trusted(self) -> bool:
+        """Whether the domain's rules, skills and recipes count, and its results need no label as data."""
+        return self.standing != "knowledge"
 
     def readable(self, files: list[Path]) -> list[Path]:
         """The files that may be read, which leaves out any that escape this domain's folder."""
@@ -204,6 +229,7 @@ class Config:
     commit_trailers: tuple[str, ...] = ()  # appended to every message ``vyd kb record`` commits
     glue: str = "run"  # ``stop`` means vyd never runs glue itself, one of GLUE_CHOICES
     logs: bool = True  # false means no question is written to the ask and miss logs
+    set_aside: dict[str, list[str]] = field(default_factory=dict)  # domain -> why its manifest or a parent's was refused
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -270,7 +296,52 @@ def config_path() -> Path:
     """Where the configuration is read from: ``$VYVID_CONFIG``, or the platform's folder for it."""
     if env := os.environ.get("VYVID_CONFIG"):
         return Path(env).expanduser()
+    return own_config()
+
+
+def own_config() -> Path:
+    """The user's own configuration file, which is trusted whatever it holds."""
     return platformdirs.user_config_path("vyvid") / "config.toml"
+
+
+def trust_file() -> Path:
+    return platformdirs.user_state_path("vyvid") / "trusted.json"
+
+
+def _digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _recorded() -> dict[str, str]:
+    try:
+        return json.loads(trust_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def trusted(config: Config) -> bool:
+    """Whether the configuration may run glue and command extractors: it is the user's own file, or its
+    path is recorded with the hash of its bytes now. A changed file is untrusted again."""
+    if config.source is None:
+        return True
+    path = config.source.resolve()
+    return path == own_config().resolve() or _recorded().get(str(path)) == _digest(path)
+
+
+def record_trust(path: Path) -> None:
+    """Record the hash of the file at ``path`` as trusted, in a file only the user can read."""
+    file = trust_file()
+    private_dir(file.parent)
+    private_file(file)
+    file.write_text(json.dumps({**_recorded(), str(path.resolve()): _digest(path)}, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+def declared(config: Config) -> list[str]:
+    """A line for each glue command and command extractor the configuration declares."""
+    lines = [f"project {p.name}, recipe {r.name}, glue in {p.code}: {shlex.join(s['command'])}"
+             for p in config.projects.values() for r in p.recipes for s in r.steps if s["step"] == "glue"]
+    return lines + [f"project {p.name}, extractor {e['kind']}: {shlex.join(e['settings']['command'])}"
+                    for p in config.projects.values() for e in p.extractors if "command" in e["settings"]]
 
 
 def escapes(path: Path, root: Path | None) -> bool:
@@ -323,13 +394,17 @@ def leaving(manifest: dict, root: Path) -> list[tuple[str, str]]:
 
 
 def _expand(value: str, bases: dict[str, Path | None], where: str, problems: list[str]) -> Path | None:
+    """A path by its token, and a bare relative one under the scope's own folder, never the folder a
+    command happens to run in, where a domain's manifest could name a file outside it."""
     for token, base in bases.items():
         if value.startswith(token + ":"):
             if base is None:
                 problems.append(f"{where}: '{value}' needs '{token}', which is not set")
                 return None
             return (base / value[len(token) + 1 :]).expanduser()
-    return Path(value).expanduser()
+    own = next((bases[t] for t in ("self", "code", "kb") if bases.get(t) is not None), None)
+    path = Path(value).expanduser()
+    return own / path if own is not None else path
 
 
 def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path | None] | None = None) -> dict[str, Family]:
@@ -509,6 +584,57 @@ def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> 
     return {k: v for k, v in manifest.items() if k not in ("name", *MANIFEST_REFUSED)}
 
 
+def _domain(name: str, root: Path | None, merged: dict, kb: Path | None, where: str, problems: list[str]) -> Scope:
+    """A domain's scope from its manifest and the configuration's entry, merged."""
+    if unknown := sorted(set(merged) - DOMAIN_KEYS):
+        problems.append(f"{where}: unknown keys {', '.join(unknown)}")
+    bases = {"kb": kb, "self": root}
+    _remotes(merged.get("remote"), where, problems)
+    trust, commit = _trust(merged, where, problems)
+    return Scope(
+        name, "domain", _visibility(merged, "private", where, problems), path=root, parents=list(merged.get("parents", [])),
+        description=" ".join(str(merged.get("description", "")).split()), recipes=_recipes(merged.get("recipes"), name, "domain", where, problems),
+        remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems), trust=trust, commit=commit,
+        rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
+        skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
+        facets=_paths(merged.get("facets", "self:facets.md"), bases, where, problems),
+        register_types=_paths(merged.get("register_types", "self:register-types.toml"), bases, where, problems),
+        vocabulary=_paths(merged.get("vocabulary"), bases, where, problems),
+        families=_families(merged.get("families"), where, problems, bases),
+        delegates=dict(merged.get("delegates", {})),
+        extractors=_extractors(merged.get("extractors"), where, problems),
+    )
+
+
+def _trust(merged: dict, where: str, problems: list[str]) -> tuple[str, str | None]:
+    """A domain's trust and the commit it was reviewed at. A domain with a remote is knowledge unless the
+    user says otherwise, and one with none is the user's own."""
+    trust, commit = merged.get("trust", "knowledge" if merged.get("remote") else "own"), merged.get("commit")
+    if trust not in TRUSTS:
+        problems.append(f"{where}: trust is '{trust}', not one of {', '.join(TRUSTS)}")
+        return "knowledge", None
+    if trust == "reviewed" and not (isinstance(commit, str) and COMMIT_RE.match(commit)):
+        problems.append(f"{where}: trust is reviewed, which needs a commit of at least 7 hexadecimal characters")
+    elif trust != "reviewed" and commit is not None:
+        problems.append(f"{where}: commit is for a reviewed domain, and this one is {trust}")
+    return trust, commit if isinstance(commit, str) else None
+
+
+def _set_aside_descendants(domains: dict[str, Scope], set_aside: dict[str, list[str]], unlisted: set[str]) -> None:
+    """Set aside each domain with a parent that is set aside, and each whose manifest names a parent that
+    is no domain, until no more follow."""
+    again = True
+    while again:
+        again = False
+        for name, domain in list(domains.items()):
+            why = [f"domain '{name}': its parent '{p}' is set aside" for p in domain.parents if p in set_aside]
+            why += [f"domain '{name}': parent '{p}' is no domain" for p in domain.parents if name in unlisted and p not in domains and p not in set_aside]
+            if why:
+                set_aside[name] = why
+                del domains[name]
+                again = True
+
+
 def extractor_runs(config: Config, project: Scope) -> list[Run]:
     """The extractors a project runs, in order: each the domains of its stack bring, parents first,
     then its own. A domain's settings are its defaults updated by the project's
@@ -573,32 +699,33 @@ def load(path: Path | None = None) -> Config:
     )
 
     domains: dict[str, Scope] = {}
+    set_aside: dict[str, list[str]] = {}
+    unlisted: set[str] = set()  # domains whose parents the manifest names, since the user's entry does not
     for d in raw.get("domains", []):
         name = d.get("name", "")
         where = f"domain '{name}'"
-        if not NAME_RE.match(name) or name in domains or name == "general":
+        if not NAME_RE.match(name) or name in domains or name in set_aside or name == "general":
             problems.append(f"{where}: a domain needs a unique lower-case name")
             continue
         root = _expand(d.get("path", f"kb:domains/{name}"), {"kb": kb}, where, problems)
         # The configuration's keys replace the manifest's, so a user can override a domain locally.
-        merged = {**_manifest(root, name, where, problems), **{k: v for k, v in d.items() if k not in ("name", "path")}}
-        if unknown := sorted(set(merged) - DOMAIN_KEYS):
-            problems.append(f"{where}: unknown keys {', '.join(unknown)}")
-        bases = {"kb": kb, "self": root}
-        _remotes(merged.get("remote"), where, problems)
-        domains[name] = Scope(
-            name, "domain", _visibility(merged, "private", where, problems), path=root, parents=list(merged.get("parents", [])),
-            description=" ".join(str(merged.get("description", "")).split()), recipes=_recipes(merged.get("recipes"), name, "domain", where, problems),
-            remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems),
-            rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
-            skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
-            facets=_paths(merged.get("facets", "self:facets.md"), bases, where, problems),
-            register_types=_paths(merged.get("register_types", "self:register-types.toml"), bases, where, problems),
-            vocabulary=_paths(merged.get("vocabulary"), bases, where, problems),
-            families=_families(merged.get("families"), where, problems, bases),
-            delegates=dict(merged.get("delegates", {})),
-            extractors=_extractors(merged.get("extractors"), where, problems),
-        )
+        given = {k: v for k, v in d.items() if k not in ("name", "path")}
+        theirs: list[str] = []
+        manifest = _manifest(root, name, where, theirs)
+        found: list[str] = []
+        domains[name] = _domain(name, root, {**manifest, **given}, kb, where, found)
+        if manifest:  # what the user's entry alone does not cause is the manifest's
+            mine: list[str] = []
+            _domain(name, root, given, kb, where, mine)
+            theirs += [p for p in found if p not in mine]
+            found = mine
+        problems += found
+        if theirs:
+            set_aside[name] = theirs
+            del domains[name]
+        elif "parents" not in given:
+            unlisted.add(name)
+    _set_aside_descendants(domains, set_aside, unlisted)
 
     projects: dict[str, Scope] = {}
     for p in raw.get("projects", []):
@@ -622,7 +749,7 @@ def load(path: Path | None = None) -> Config:
         projects[name] = Scope(
             name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
             remotes=[remotes] if isinstance(remotes, str) else list(remotes),
-            domains=list(p.get("domains", [])), recipes=_recipes(p.get("recipes"), name, "project", where, problems),
+            domains=[d for d in p.get("domains", []) if d not in set_aside], recipes=_recipes(p.get("recipes"), name, "project", where, problems),
             rules=_paths(p.get("contract"), bases, where, problems),
             skills=_paths(p.get("skills"), bases, where, problems),
             facets=_paths(p.get("facets"), bases, where, problems),
@@ -631,9 +758,9 @@ def load(path: Path | None = None) -> Config:
             families=_families(p.get("families"), where, problems, bases),
             delegates=dict(p.get("delegates", {})),
             extractors=_extractors(p.get("extractors"), where, problems, own=True),
-            uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items()},
+            uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
             specialises={k: v for k, s in p.get("specialises", {}).items()
-                         if (v := _expand(s, bases, where, problems)) is not None},
+                         if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
         )
 
     trailers = framework.get("commit_trailers", [])
@@ -649,7 +776,7 @@ def load(path: Path | None = None) -> Config:
         problems.append("[framework]: logs must be true or false")
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
-                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs)
+                    Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside)
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():
@@ -685,13 +812,15 @@ def _check(config: Config) -> list[str]:
     """Every reference names something defined, and the domains form a directed acyclic graph."""
     problems = []
     for d in config.domains.values():
-        problems += [f"domain '{d.name}': parent '{p}' is no domain" for p in d.parents if p not in config.domains]
+        problems += [f"domain '{d.name}': parent '{p}' is no domain" for p in d.parents if p not in config.domains and p not in config.set_aside]
     for p in config.projects.values():
         problems += [f"project '{p.name}': domain '{d}' is not configured" for d in p.domains if d not in config.domains]
         problems += [f"project '{p.name}': specialises '{d}', which it does not use" for d in p.specialises if d not in p.domains]
     for s in [config.general, *config.domains.values(), *config.projects.values()]:
         for family, target in s.delegates.items():
             other = config.scope(target)
+            if target in config.set_aside:
+                continue
             if other is None:
                 problems.append(f"{s.kind} '{s.name}': delegates '{family}' to '{target}', which is no scope")
             elif family not in other.families:

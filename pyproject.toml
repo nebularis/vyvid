@@ -22,3 +22,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vyvid"]
+
+[tool.pytest.ini_options]
+markers = ["real_trust: use the real decision on whether a configuration is trusted, which the suite otherwise grants"]

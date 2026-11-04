@@ -28,9 +28,13 @@ def config_for(tmp_path, text):
 
 
 def refused(tmp_path, text):
-    with pytest.raises(ConfigError) as error:
-        load(config_for(tmp_path, text))
-    return error.value.problems
+    """The problems of a configuration that was refused, or of the domains it set aside."""
+    try:
+        config = load(config_for(tmp_path, text))
+    except ConfigError as error:
+        return error.problems
+    assert config.set_aside, "nothing was refused"
+    return [p for why in config.set_aside.values() for p in why]
 
 
 OWL = """

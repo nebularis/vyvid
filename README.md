@@ -43,10 +43,14 @@ vyd check citations [--staged] [paths ...] # refuse lines a public project adds 
 vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
 vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
+vyd kb accept <domain>                 # a person fast-forwards a domain whose pull was held, after reading what changed
+vyd trust [path]                       # a person trusts a configuration outside their own folder by its hash, so its glue and command extractors run
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install --client claude-code [--target folder] [--dry-run] # write the user-level rule file and one skill per domain
 vyd domain audit <folder> [--json]     # list the links, files, paths, hidden text and commands in a domain you did not write, running nothing from it
 ```
+
+A domain gives knowledge alone unless its entry in your configuration says `trust = "own"`, or `trust = "reviewed"` with the `commit` you reviewed. A domain with a remote is knowledge by default and one with none is your own. A knowledge domain installs no rules or skills, its results are labelled as data, and a pull that changes its rules, skills or manifest is held until you run `vyd kb accept`. A configuration at a path other than your own, such as one named by `VYVID_CONFIG`, runs no glue and no command extractor until you run `vyd trust` in a terminal, and again after it changes.
 
 A project can bring its own extractor as a command, in any language, so each git worktree indexes with its own version and nothing is installed into Вивід. Only your own configuration declares one.
 

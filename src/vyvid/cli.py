@@ -8,7 +8,10 @@
 ``vyd resolve <identifier> [--in folder]``
     the canonical ``scope:LOCAL`` an identifier names, written in that folder's project
 ``vyd config``
-    where the configuration is read from, and whether it is sound
+    where the configuration is read from, whether it is sound and trusted, and the domains set aside
+``vyd trust [path]``
+    trust a configuration outside your own folder by its hash, so glue and command extractors in it run.
+    It asks a person at a terminal to confirm
 ``vyd build [folder] [--all] [--no-embed]``
     build the knowledge index for the folder's project stack, or for every scope, and print what it
     found and every problem
@@ -28,8 +31,9 @@
 ``vyd install --client claude-code [--target folder] [--dry-run]``
     write the client's user-level rule file and one skill per configured domain
 
-``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message>``
-    the domains under the knowledge base, each a git clone of its remote, kept by its git policy
+``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message> | accept <domain>``
+    the domains under the knowledge base, each a git clone of its remote, kept by its git policy. A pull of
+    a domain that is not your own holds changes to its manifest, rules or skills until a person accepts them
 
 Each question takes ``--in <folder>``, the folder whose stack it is asked in, the current one by default,
 and ``--scope a,b`` to add scopes to that stack or ``--scope only:a,b`` to read those alone.
@@ -39,12 +43,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 import time
 from dataclasses import replace
 from pathlib import Path
 
 from . import __version__, ask, audit, citations, install, kb, recipes
+from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
@@ -54,11 +60,28 @@ from .resolve import Unresolved, bind_in, layers, resolve
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
 
 
+def _person() -> bool:
+    """Whether a person is at a terminal. A speed bump for an agent, and no proof, since one can be given a pseudo-terminal."""
+    return sys.stdin is not None and sys.stdin.isatty()
+
+
+def _set_aside(config) -> None:
+    """Say on standard error which domains were set aside, since a command's standard output may be parsed."""
+    for name, why in config.set_aside.items():
+        print(f"vyd: domain {name} is set aside and read by nothing", file=sys.stderr)
+        for problem in why:
+            print(f"  {problem}", file=sys.stderr)
+
+
 def _layer(config, scope) -> dict:
     out = {"scope": scope.name, "kind": scope.kind, "visibility": scope.visibility}
+    withheld = not scope.trusted
     for key in ("rules", "skills"):
-        out[key] = [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
-    out["recipes"] = [{"name": r.name, "description": r.description} for r in scope.recipes]
+        out[key] = [] if withheld else [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
+    out["recipes"] = [{"name": r.name, "description": None if withheld else r.description} for r in scope.recipes]
+    if withheld:
+        why = scope.trust if scope.trust != "reviewed" else f"reviewed at {scope.commit}, which HEAD has moved past"
+        out["withheld"] = {"trust": why, "rules": [str(p) for p in scope.rules], "skills": [str(p) for p in scope.skills], "recipes": [r.name for r in scope.recipes]}
     if scope.kind == "domain":
         out["brings"] = [e["kind"] for e in scope.extractors]
     if scope.kind == "project":
@@ -73,6 +96,7 @@ def _layer(config, scope) -> dict:
 def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     configured = load()
     config, project = bind_in(configured, folder)
+    _set_aside(configured)
     if pull:
         for result in kb.pull_due(config, layers(config, project)):
             if not result.ok:
@@ -92,8 +116,12 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
+        if "withheld" in layer:
+            w = layer["withheld"]
+            print(f"   withheld: {len(w['rules'])} rule file(s), {len(w['skills'])} skill path(s) and {len(w['recipes'])} recipe description(s), "
+                  f"since domain {layer['scope']} has trust {w['trust']}, which gives knowledge alone")
         for recipe in layer["recipes"]:
-            print(f"   recipe {recipe['name']}  {recipe['description']}")
+            print(f"   recipe {recipe['name']}  {recipe['description'] or '(description withheld)'}")
         for kind in layer.get("brings", []):
             print(f"   brings extractor {kind}")
         for run in layer.get("runs", []):
@@ -124,8 +152,35 @@ def kb_status(config) -> int:
             pulled = time.strftime("%Y-%m-%d %H:%M", time.localtime(s.last_pull)) if s.last_pull else "never"
             print(f"   clone of {s.remote}, branch {s.branch or 'detached'}, {upstream}, "
                   f"{f'{s.changes} uncommitted' if s.changes else 'clean'}, last pulled {pulled}")
-        print(f"   policy pull={s.policy.pull} commit={s.policy.commit} push={s.policy.push}")
+        print(f"   policy pull={s.policy.pull} commit={s.policy.commit} push={s.policy.push}, trust {scope.trust}")
+        if s.held:
+            read = shlex.join(["git", "-C", str(s.folder), "diff", "HEAD...@{u}"])
+            print(f"   held: {', '.join(s.held)} changed upstream and nothing was merged. Read {read}, then a person runs vyd kb accept {s.name}")
     return 0
+
+
+def kb_accept(config, name: str) -> int:
+    """Fast-forward a held domain, once a person has seen what changed and typed its name."""
+    if not _person():
+        print("vyd: a person must run vyd kb accept, in a terminal", file=sys.stderr)
+        return 1
+    try:
+        [scope] = kb.select(config, [name])
+    except kb.KbError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    if not kb.held(scope):
+        print(f"{name}: nothing is held")
+        return 0
+    print(f"{name}: these files changed upstream, and the instruction-bearing ones held the pull:")
+    held = set(kb.held(scope))
+    for file in kb.changed(scope):
+        print(f"  {file}" + ("   (instruction-bearing)" if file in held else ""))
+    print("Read it with " + shlex.join(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"]))
+    if _typed(f"Type {name} to accept these changes: ") != name:
+        print("not accepted")
+        return 1
+    return _report([kb.accept(config, scope)])
 
 
 def kb_command(arguments) -> int:
@@ -133,6 +188,8 @@ def kb_command(arguments) -> int:
     action = arguments.kb_command
     if action == "status":
         return kb_status(config)
+    if action == "accept":
+        return kb_accept(config, arguments.domain)
     if action == "record":
         return _report(kb.record(config, arguments.paths, arguments.message))
     try:
@@ -147,12 +204,40 @@ def kb_command(arguments) -> int:
     return _report(kb.pull(config, scopes, due=arguments.due))
 
 
+def _typed(prompt: str) -> str:
+    """What a person typed, empty when the input ends first, which is no agreement."""
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        return ""
+
+
+def trust_command(path: Path | None) -> int:
+    """Record the hash of a configuration, once a person has seen what it runs and typed yes."""
+    if not _person():
+        print("vyd: a person must run vyd trust, in a terminal", file=sys.stderr)
+        return 1
+    path = path or configuration.config_path()
+    config = load(path)
+    lines = configuration.declared(config)
+    print(f"{path.resolve()} declares " + ("these, which run with your privileges:" if lines else "no glue and no command extractor."))
+    for line in lines:
+        print(f"  {line}")
+    if _typed("Type yes to trust this file as it is now: ") != "yes":
+        print("not trusted")
+        return 1
+    configuration.record_trust(path)
+    print(f"trusted {path.resolve()}, until it changes")
+    return 0
+
+
 def build_index(folder: Path, everything: bool, embed: bool) -> int:
     from .build import build, store_dir
 
     config, project = bind_in(load(), folder)
     if not everything and project is None:
         print("no project claims this folder, so the general scope alone is built. Use --all for every scope")
+    _set_aside(config)
     out = build(config, None if everything else project, embed=embed, scopes=None if everything or project else [config.general])
     for key in sorted(out.counts):
         print(f"  {key:<28} {out.counts[key]}")
@@ -208,7 +293,8 @@ def recipe_command(arguments, parser) -> int:
     found = recipes.available(layers(config, project))
     if arguments.recipe_command == "list":
         if found:
-            ask.show([{"name": r.name, "scope": r.scope, "description": r.description} for r in found.values()], ("name", "scope", "description"))
+            ask.show([{"name": r.name, "scope": r.scope, "description": r.description if config.scope(r.scope).trusted else "(withheld)"} for r in found.values()],
+                     ("name", "scope", "description"))
         else:
             print("no recipe is declared in this folder's stack")
         return 0
@@ -337,6 +423,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--json", action="store_true")
     c.add_argument("--no-pull", action="store_true", help="do not pull the managed domains that are due first")
     k = sub.add_parser("kb", help="the managed domains under the knowledge base: status, clone, pull and record").add_subparsers(dest="kb_command", required=True)
+    k.add_parser("accept", help="a person fast-forwards a domain whose pull was held, after reading what changed").add_argument("domain")
     k.add_parser("status", help="each managed domain's clone, branch, ahead and behind, changes, last pull and policy")
     k.add_parser("clone", help="clone the named domains, or every managed domain whose folder is missing").add_argument("domains", nargs="*")
     p = k.add_parser("pull", help="git pull --ff-only in the named domains, or all of them")
@@ -383,7 +470,8 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
-    sub.add_parser("config", help="where the configuration is read from, and whether it is sound")
+    sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, and the domains set aside")
+    sub.add_parser("trust", help="a person trusts a configuration outside their own folder by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
     arguments = parser.parse_args(argv)
     try:
@@ -420,11 +508,18 @@ def main(argv: list[str] | None = None) -> int:
             return install.install(load(), arguments.client, arguments.target, arguments.dry_run)
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
+        if arguments.command == "trust":
+            return trust_command(arguments.path)
         config = load()
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
+        print("trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
         print(f"domains: {', '.join(config.domains) or 'none'}")
         print(f"projects: {', '.join(config.projects) or 'none'}")
-        return 0
+        for name, why in config.set_aside.items():
+            print(f"set aside: {name}")
+            for problem in why:
+                print(f"  {problem}")
+        return 1 if config.set_aside else 0
     except ConfigError as error:
         print(f"the configuration at {config_path()} cannot be used:", file=sys.stderr)
         for problem in error.problems:

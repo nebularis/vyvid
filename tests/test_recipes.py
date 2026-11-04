@@ -350,8 +350,8 @@ def test_resume_refuses_bad_output_a_missing_recipe_and_a_step_that_is_not_glue(
 
 def test_a_domains_glue_step_is_refused_at_load(tmp_path):
     manifest = '[[recipes]]\nname = "r"\ndescription = "d"\nsteps = [{ step = "glue", command = ["sh", "-c", "true"] }]\n'
-    with pytest.raises(ConfigError, match="a cloned domain runs no code"):
-        World(tmp_path, manifest=manifest)
+    w = World(tmp_path, manifest=manifest)
+    assert "tools" not in w.config.domains and "a cloned domain runs no code" in " ".join(w.config.set_aside["tools"])
 
 
 def test_a_recipe_that_cannot_be_used_is_refused_with_every_problem(tmp_path):

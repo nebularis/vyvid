@@ -56,6 +56,11 @@ def _visible(line: str) -> str:
     return "".join(f"<U+{ord(c):04X}>" if unicodedata.category(c) == "Cf" else c for c in line)
 
 
+def hidden(text: str) -> list[str]:
+    """The kinds of hidden text a line holds: ``invisible`` for a format character, ``html-comment`` for a comment."""
+    return [kind for kind, hit in (("invisible", any(unicodedata.category(c) == "Cf" for c in text)), ("html-comment", HTML_COMMENT in text)) if hit]
+
+
 def _files(folder: Path) -> list[Path]:
     """Every file and every link in the folder, without following a link and without the ``.git`` folder."""
     found: list[Path] = []
@@ -127,9 +132,8 @@ def _content(folder: Path, path: Path) -> list[Finding]:
     out = []
     for n, raw in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
         line = raw.removeprefix("﻿") if n == 1 else raw
-        checks = [("invisible", any(unicodedata.category(c) == "Cf" for c in line)), ("html-comment", HTML_COMMENT in line),
-                  ("base64", bool(BASE64_RE.search(line))), ("url", bool(URL_RE.search(line))), ("command", bool(COMMANDS.search(line)))]
-        out += [Finding(rel, n, kind, _cut(_visible(line))) for kind, hit in checks if hit]
+        kinds = hidden(line) + [kind for kind, hit in (("base64", BASE64_RE.search(line)), ("url", URL_RE.search(line)), ("command", COMMANDS.search(line))) if hit]
+        out += [Finding(rel, n, kind, _cut(_visible(line))) for kind in kinds]
     return out
 
 
