@@ -155,6 +155,25 @@ def test_a_knowledge_domain_gives_no_skill_and_an_addition_with_no_skill_is_name
     assert not written and any("gives knowledge alone" in n for n in notes)
 
 
+def test_a_private_domains_skill_is_never_written_into_a_checkout_and_reaches_the_users_folder(tmp_path):
+    config, code = world(tmp_path)
+    manifest = config.domains["lifecycle"].path / "domain.toml"
+    manifest.write_text(manifest.read_text(encoding="utf-8").replace('visibility = "public"', 'visibility = "private"').replace("rules = []", 'rules = []\nskill_values = { status = "private-words" }'), encoding="utf-8")
+    config = load(tmp_path / "config.toml")
+    written, notes = skills.for_project(config, config.projects["proj"])
+    assert not written and any("since it is private" in n for n in notes)
+    assert skills.install_project(config, config.projects["proj"], dry_run=False) == 0
+    assert not (code / ".claude" / "skills").exists()
+    target = tmp_path / "client"
+    assert install.install(config, "claude-code", target, dry_run=False) == 0
+    assert (target / "skills" / "lifecycle" / "SKILL.md").is_file()
+
+
+def test_a_projects_work_table_gives_its_locations_once(tmp_path):
+    config, _ = world(tmp_path, '[projects.work]\nstatus = "code:docs/developer/status"\n', values="")
+    assert "docs/developer/status." in composed(config)
+
+
 def test_coverage_names_a_line_with_no_home_and_a_map_gives_it_one(tmp_path, capsys):
     config, code = world(tmp_path)
     project = config.projects["proj"]

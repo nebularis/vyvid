@@ -63,6 +63,33 @@ PDD = { defined = "docs:developer/pending-design-decisions.md", type = "pending-
 TSD = { pattern = 'TSD-\d+[a-z]?', defined = "docs:architecture/triple-store-discovery.md" }
 ADR = { pattern = 'ADR-A-?[A-Za-z]{0,4}-?\d+[a-z]?', defined = "docs:architecture/decisions/" }
 
+# Where the project's status records are, for `vyd board`, `vyd work` and `vyd here`. Every key is optional. These are LATTICE's settings, and a project that wants only
+# status records and plans declares an empty [projects.work].
+# [projects.work]
+# status = "docs:developer/status"
+# plans = "docs:developer/plans"
+# sketches = "docs:developer/sketches"
+# validation = "docs:developer/validation"
+# decisions = "docs:architecture/decisions"
+# index = "docs:developer/INDEX.md"
+# roadmap = "docs:developer/ROADMAP.md"
+# sweep = ["docs:architecture", "code:.claude/skills"]    # folders `vyd work rename` rewrites besides the records' own
+# levels = ["epic", "unit", "slice"]                      # largest first. The last is a board row and the one before it a record
+# ladder = ["planned", "briefed", "building", "built", "verified", "merged", "tagged"]
+# aside = ["blocked", "dropped"]
+# main = "main"
+# presence = ".local/agents"                              # default a folder in the checkout's git directory
+# roadmap_section = "9"                                   # numbers the roadmap's decisions headings 9.1 and 9.2
+# [projects.work.markers]                                 # the text of a project's existing markers, so its committed regions stay readable
+# index_begin = "<!-- BEGIN GENERATED work-board. Written by `mise run build:work` from the status records. Edit a status record, never this region. -->"
+# [projects.work.commands]                                # what the messages tell a person to run
+# build = "mise run build:work"
+# [[projects.work.rename]]                                # how a unit's historic identifiers cross to the grammar
+# unit = "computable-contract-substrate"
+# prefixes = ["CCS", "HQ"]
+# patterns = ['C(\d+[a-z]?(?:\d+[a-z]?)*)', '(F\d+)']
+# packs = ['computable-contract-substrate-c(\d+[a-z]?(?:\d+[a-z]?)*)']
+
 # For `vyd check identifiers`. An unresolved mention of a family with `removable = true` is reported and never failed, since the entry is
 # meant to disappear. `exceptions` lists identifiers mentioned and defined nowhere, one per line with a reason after `#`. `defined_only = true`
 # reads a bare match of a loose pattern as a mention only where the family's source defines it, so `UTF-8` is not read as a slice.

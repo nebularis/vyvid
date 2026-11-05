@@ -41,7 +41,13 @@ vyd kb pull [domain ...] [--due]       # fast-forward pull, only the domains who
 vyd kb record <path> ... -m <message>  # stage changed register files, then commit and push as the domain's policy says
 vyd check citations [--staged] [--message <file>] [paths ...] # refuse lines a public project adds, or a commit message or pull request text, that cite an entry of a private scope or of the project's private documents
 vyd docs record <path> ... -m <message> [--in folder] # stage paths in the project's documents folder, outside its code repository, then commit and push as its git.docs policy says
-vyd board [folder] [--state <word>]    # the slices of the folder's project, in one set of documents and no other branch
+vyd board [folder] [--all] [--fetch] [--measure] [--commits] [--here] [--state <word>] # where every record and slice is, across every local and remote branch, once the project declares work settings. --here reads the families of type slice in the one checkout
+vyd work build [--check]               # write the index's generated region from the status records, or fail if it is stale
+vyd work roadmap [--check] [--fetch]   # write the roadmap's generated regions from every branch
+vyd work check [--staged]              # hold the status records to the ladder and the grammar and the index's region to the records, as a hook runs it
+vyd work parse <record>                # a status record's board as read
+vyd work rename | normalise | adopt [--apply] # move older boards and identifiers onto the board's shape. Each reports without --apply
+vyd here [--role build|review|read] [--model m] [--on ids] [--leave] # who else is working in this checkout
 vyd check identifiers [--json] [--all] [folder] # fail on an identifier the tracked Markdown mentions and nothing defines, or one a family defines twice
 vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
@@ -58,6 +64,29 @@ vyd handoff <name> [--module M] [--unit U] [--in folder] # the exact commands fo
 vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
 ```
 
+## The work board
+
+A project keeps one status record per unit of work, each with a board of slices whose state is a word of a ladder and the day it was reached. `vyd board` reads those boards at the tip of every local and remote branch without a checkout, joins them per slice, and prints where everything is, what differs from the trunk, which branches moved a slice, and any double claim. Another branch's files are read as data, and nothing in them is run or used as a path. `vyd work` writes the generated regions of a project's index and roadmap, checks the records for a hook, and moves older boards onto the standard shape. `vyd here` keeps one small file per session, in the checkout's git directory unless the project names a folder, so a second session sees that one is already building there. The session comes from `CLAUDE_CODE_SESSION_ID` or `AGENT_SESSION_ID`, and from `VYD_SESSION_ID` and `VYD_CLIENT` for a client that sets neither.
+
+Every key of the `work` table is optional, and a project with the table gets a `status` and a `plans` folder under its documents.
+
+```toml
+[project.work]
+status = "docs:work/records"         # default docs:status
+plans = "docs:work/briefs"           # default docs:plans
+index = "docs:work/board.md"        # the file holding the generated region
+roadmap = "docs:work/programme.md"    # the file holding the generated regions
+validation = "docs:work/packs" # also sketches, reviews, decisions, crosswalk and sweep
+levels = ["epic", "unit", "slice"]       # largest first, and the last two name a record and a board row. Default unit, slice
+ladder = ["planned", "briefed", "building", "built", "verified", "merged", "tagged"]
+aside = ["blocked", "dropped"]           # a held word and a dropped word
+main = "main"
+presence = ".local/agents"               # default a folder in the checkout's git directory
+slice_pattern = '[A-Z]{2,5}-\d+[a-z]?'    # what a slice identifier looks like
+```
+
+A word of the ladder is dated from `dated_from`, which is the third word unless the project names another, counts as done from `done_from` and as closed from `closed_from`. The text of the generated regions' markers is `markers`, and the commands the messages name are `commands`, both defaulting to `vyd work`. `[[project.work.rename]]` declares how a unit's historic identifiers cross to the grammar. A repository's own vyvid.toml may name only paths inside the repository, and a command that writes refuses a project declared by a vyvid.toml nobody has trusted with `vyd trust`.
+
 ## Skills that reach an agent
 
 A domain ships `skills/<name>/SKILL.md`, the format Claude Code and VS Code both read. A project's `vyvid.toml` says what it uses, and `vyd install --project` composes each skill and writes it into the checkout, under `.claude/skills` unless `skill_targets` says otherwise, to be committed. Every clone and worktree then has its skills, and so does a contributor without `vyd`. `vyd check skills` fails when a committed skill differs from what its sources compose to.
@@ -72,7 +101,7 @@ skill_targets = [".claude/skills", ".github/skills"]
 hook_clients = ["claude-code", "copilot", "codex"]
 ```
 
-Every generated skill opens on the same block, kept in one place, saying to ask the index before any decision and any search, and naming the registers to ask. A composed file names no folder of one machine. A client prefers a personal skill to a project's of the same name, so `vyd install --client` writes no skill for a domain a configured project uses. `vyd check skills --from old/SKILL.md --map map.tsv` fails on any line of an old skill that is in no composed skill and no row of the map, so a move loses nothing.
+Every generated skill opens on the same block, kept in one place, saying to ask the index before any decision and any search, and naming the registers to ask. A composed file names no folder of one machine, and a private domain's skills are never composed into a checkout, since they would be committed. They go to the user's folder. A client prefers a personal skill to a project's of the same name, so `vyd install --client` writes no skill for a domain a configured project uses. `vyd check skills --from old/SKILL.md --map map.tsv` fails on any line of an old skill that is in no composed skill and no row of the map, so a move loses nothing.
 
 `vyd install --project` also registers `vyd-hook` with each client in `hook_clients`. It runs before a tool call in Claude Code and Codex, and after one in Copilot, whose documents give a hook no way to add context before one. When a search runs in a shell, Bash or PowerShell, or through a search tool, before any index question in that session, or after 15 searches since the last, it reminds the agent. It never refuses, and a failure in it says nothing. Only Claude Code has been run. Where `vyd-hook` is not installed, the registered command does nothing.
 

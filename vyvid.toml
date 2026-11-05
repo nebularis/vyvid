@@ -44,3 +44,8 @@ steps = [
   { step = "linked", edges = ["decidedBy", "supports", "enforcedBy", "bearsOn"], direction = "both" },
   { step = "take", n = 4, per_kind = true },
 ]
+
+[project.work]
+status = "docs:developer/status"
+plans = "docs:developer/plans"
+sketches = "docs:developer/sketches"

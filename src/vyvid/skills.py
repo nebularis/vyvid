@@ -123,9 +123,25 @@ def header(values: dict[str, str], lines: list[str]) -> str:
             f"The index answers from these, among others:\n\n{where}\n")
 
 
+def work_values(project: Scope | None) -> dict[str, str]:
+    """The locations a project's ``work`` table gives, relative to its checkout, so they are stated once."""
+    work = project.work if project is not None else None
+    if work is None or project.code is None:
+        return {}
+    out = {}
+    for key in ("status", "plans", "sketches", "validation", "decisions", "index", "roadmap"):
+        path = getattr(work, key, None)
+        if path is not None:
+            try:
+                out[key] = path.relative_to(project.code).as_posix()
+            except ValueError:  # a documents folder outside the code folder keeps its project-relative name out of the file
+                out[key] = path.name
+    return out
+
+
 def compose(text: str, scope: Scope, project: Scope | None, additions: str, name: str) -> Written:
     """The skill ``text`` of ``scope``, with what ``project`` adds, its values filled and the header placed first."""
-    values = {**DEFAULT_VALUES, **scope.skill_values, **(project.skill_values if project is not None else {})}
+    values = {**DEFAULT_VALUES, **scope.skill_values, **work_values(project), **(project.skill_values if project is not None else {})}
     keys, body = front_matter(text)
     add_keys, add_body = front_matter(additions)
     description = add_keys.get("description", keys.get("description", ""))
@@ -163,6 +179,10 @@ def for_project(config: Config, project: Scope) -> tuple[list[Written], list[str
         domain = config.domains[name]
         if not domain.trusted:
             notes.append(f"no skill from domain {name}, whose trust is {domain.trust}, which gives knowledge alone")
+            continue
+        if domain.visibility == "private":
+            # A composed skill is committed, so a private domain's text would travel with the repository. Its skills stay in the user's folder.
+            notes.append(f"no skill from domain {name} in this checkout, since it is private. vyd install --client writes its skills to the user's folder")
             continue
         for short, path in found(domain).items():
             extra = additions / name / f"{short}.md" if additions is not None else None

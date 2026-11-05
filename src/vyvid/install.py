@@ -52,7 +52,7 @@ def generated(text: str) -> bool:
 def bound(config: Config) -> set[str]:
     """The domains a configured project uses. A personal skill takes the place of a project's of the same name in a client, so
     these reach an agent through the skills composed into each project, and never from the user's folder."""
-    return {name for project in config.projects.values() for name in config.domain_order(project)}
+    return {name for project in config.projects.values() for name in config.domain_order(project) if config.domains[name].visibility != "private"}
 
 
 def skill(domain: Scope) -> str:

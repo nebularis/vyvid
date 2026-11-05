@@ -34,11 +34,12 @@
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
 | VYD-12 | optional agent coordination | planned | VYD-11 |
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
+| VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | building 2026-11-05 | |
 | VYD-16 | skills that reach an agent | built 2026-11-05, building 2026-11-05 | |
 | VYD-17 | the reminder hook | built 2026-11-05, building 2026-11-05 | |
-| VYD-18 | the work board in Вивід | building 2026-11-05 | |
+| VYD-18 | the work board in Вивід | built 2026-11-05, building 2026-11-05 | |
 | VYD-19 | the lifecycle domain | building 2026-11-05 | |
 | VYD-20 | generated regions and a release | building 2026-11-05 | |
 
@@ -82,3 +83,4 @@
 - 2026-11-05. VYD-16 built: `vyd install --project` composes a domain's skills with a project's additions into its checkout, `vyd check skills` fails on drift and on a line with no home, and each skill opens on the index-first block.
 - 2026-11-05. VYD-17 built: `vyd-hook` reminds and never refuses, for Claude Code and Codex before a tool and Copilot after one, since Copilot documents a hook's added context on `postToolUse` only. Run for real in Claude Code on a scratch project, where the agent reported the reminder and the search still ran. Copilot and Codex are from their documents, not run.
 - 2026-11-05. The generated-region half of VYD-20 built: the identifiers check reads no mention between declared markers. The tag follows the board.
+- 2026-11-05. VYD-18 built: `vyd board` reads every branch, `vyd work` builds and checks the register and roadmap and migrates boards, and `vyd here` records who is in a checkout, each from a project's `work` table. On a clone of LATTICE at bce4dc9a, `board --all` matched the old tool in 515 of 517 lines, and the two that differ name a fuller command, and `work build` wrote a byte-identical register. A private domain's skill is also never composed into a checkout.
