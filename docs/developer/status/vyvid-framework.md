@@ -30,10 +30,11 @@
 | VYD-8b | documentation beside symbols | built 2026-11-04 | |
 | VYD-8c | the Python domain and test bed | built 2026-11-05, building 2026-11-04 | |
 | VYD-9 | a project with private docs | built 2026-11-04 | |
-| VYD-10 | private rules as a domain | planned | VYD-6 |
+| VYD-10 | private rules as a domain | building 2026-11-05 | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
 | VYD-12 | optional agent coordination | planned | VYD-11 |
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
+| VYD-22 | one install for every client, and missing domains | building 2026-11-05 | VYD-16 |
 | VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 | |

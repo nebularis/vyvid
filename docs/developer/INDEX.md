@@ -34,10 +34,11 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-8b | vyvid-framework | documentation beside symbols | built 2026-11-04 |
 | VYD-8c | vyvid-framework | the Python domain and test bed | built 2026-11-05, building 2026-11-04 |
 | VYD-9 | vyvid-framework | a project with private docs | built 2026-11-04 |
-| VYD-10 | vyvid-framework | private rules as a domain | planned |
+| VYD-10 | vyvid-framework | private rules as a domain | building 2026-11-05 |
 | VYD-11 | vyvid-framework | vyvid's own contract | built 2026-11-04 |
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
 | VYD-13 | vyvid-framework | work tracked in a tracker | planned |
+| VYD-22 | vyvid-framework | one install for every client, and missing domains | building 2026-11-05 |
 | VYD-21 | vyvid-framework | cloud agents with chosen domains | planned |
 | VYD-14 | vyvid-framework | Linux and Windows in Docker | planned |
 | VYD-15 | vyvid-framework | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 |
