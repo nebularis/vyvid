@@ -36,12 +36,12 @@
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
 | VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
-| VYD-15 | experiments recorded and an adoption baseline | building 2026-11-05 | |
+| VYD-15 | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 | |
 | VYD-16 | skills that reach an agent | built 2026-11-05, building 2026-11-05 | |
 | VYD-17 | the reminder hook | built 2026-11-05, building 2026-11-05 | |
 | VYD-18 | the work board in Вивід | built 2026-11-05, building 2026-11-05 | |
-| VYD-19 | the lifecycle domain | building 2026-11-05 | |
-| VYD-20 | generated regions and a release | building 2026-11-05 | |
+| VYD-19 | the lifecycle domain | built 2026-11-05, building 2026-11-05 | |
+| VYD-20 | generated regions and a release | built 2026-11-05, building 2026-11-05 | |
 
 ## History
 
@@ -84,3 +84,4 @@
 - 2026-11-05. VYD-17 built: `vyd-hook` reminds and never refuses, for Claude Code and Codex before a tool and Copilot after one, since Copilot documents a hook's added context on `postToolUse` only. Run for real in Claude Code on a scratch project, where the agent reported the reminder and the search still ran. Copilot and Codex are from their documents, not run.
 - 2026-11-05. The generated-region half of VYD-20 built: the identifiers check reads no mention between declared markers. The tag follows the board.
 - 2026-11-05. VYD-18 built: `vyd board` reads every branch, `vyd work` builds and checks the register and roadmap and migrates boards, and `vyd here` records who is in a checkout, each from a project's `work` table. On a clone of LATTICE at bce4dc9a, `board --all` matched the old tool in 515 of 517 lines, and the two that differ name a fuller command, and `work build` wrote a byte-identical register. A private domain's skill is also never composed into a checkout.
+- 2026-11-05. VYD-19 built: `vyvid-lifecycle` holds the lifecycle, design, branching and publication-hygiene skills, `vyvid-rdf-modelling` the modelling rules, and the Tools, Python, Haskell and triple-store domains their skills. LATTICE's 11 old skill files compose from them and from drafted additions with 0 lines unplaced by `vyd check skills`, on a scratch clone. VYD-20 built: tagged v0.2.0.
