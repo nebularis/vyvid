@@ -56,7 +56,7 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "skill_values", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
+DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "skill_values", "skill_prefix", "always_rules", "user_skills", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
 # The file a repository names its own project in, and what it may not set or hold.
@@ -71,7 +71,7 @@ MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 TRUSTS = ("own", "reviewed", "knowledge")
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 # The keys of a manifest whose value is a path or a list of them.
-MANIFEST_PATHS = ("rules", "skills", "facets", "register_types", "vocabulary")
+MANIFEST_PATHS = ("rules", "always_rules", "skills", "facets", "register_types", "vocabulary")
 # What each key of a managed domain's git policy may be, the first being the default.
 GIT_CHOICES = {"pull": ("on-start", "daily", "manual"), "commit": ("manual", "auto"), "push": ("manual", "auto")}
 # The edges a recipe's linked step may follow, which the index stores between entries.
@@ -229,6 +229,8 @@ class Scope:
     rules: list[Path] = field(default_factory=list)
     skills: list[Path] = field(default_factory=list)
     skill_values: dict[str, str] = field(default_factory=dict)  # what ``{{name}}`` in a skill becomes
+    always_rules: list[Path] = field(default_factory=list)  # domains only: rule files a client loads in every session
+    user_skills: bool = False  # domains only: its skills go to the user's folder, which a private domain's always do
     skill_additions: Path | None = None  # projects only: the folder of <domain>/<skill>.md it adds to a domain's skills
     skill_prefix: str | None = None  # projects only: what its composed skills' names start with
     skill_targets: tuple[str, ...] = (".claude/skills",)  # projects only: where in the checkout composed skills are written
@@ -705,6 +707,11 @@ def _skill_prefix(value, where: str, problems: list[str]) -> str | None:
     return value
 
 
+def _skill_prefix_or_empty(value, where: str, problems: list[str]) -> str | None:
+    """A domain's prefix, where empty means each skill keeps its folder's name."""
+    return "" if value == "" else _skill_prefix(value, where, problems)
+
+
 def _inside_checkout(value, key: str, where: str, problems: list[str]) -> tuple[str, ...]:
     """Folders named relative to a checkout, none of which may climb out of it by name."""
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
@@ -948,6 +955,9 @@ def _domain(name: str, root: Path | None, merged: dict, kb: Path | None, where: 
         rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
         skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
         skill_values=_skill_values(merged.get("skill_values"), where, problems),
+        skill_prefix=_skill_prefix_or_empty(merged.get("skill_prefix"), where, problems),
+        always_rules=_paths(merged.get("always_rules"), bases, where, problems),
+        user_skills=merged.get("user_skills") is True,
         facets=_paths(merged.get("facets", "self:facets.md"), bases, where, problems),
         register_types=_paths(merged.get("register_types", "self:register-types.toml"), bases, where, problems),
         vocabulary=_paths(merged.get("vocabulary"), bases, where, problems),

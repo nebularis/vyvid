@@ -164,9 +164,19 @@ def skill_name(scope: Scope, short: str, project: Scope | None) -> str:
     prefix = project.skill_prefix if project is not None and project.skill_prefix is not None else ""
     if prefix:
         return prefix + short.removeprefix(f"{scope.name}-")
+    if project is None and scope.skill_prefix is not None:
+        return scope.skill_prefix + short
     if project is not None and scope is project:
         return short
     return short if short == scope.name or short.startswith(f"{scope.name}-") else f"{scope.name}-{short}"
+
+
+def absent(config: Config, project: Scope) -> list[str]:
+    """The domains this project names that are not here: never configured, or configured with no folder. Their skills cannot be
+    composed, which must never read as there being none."""
+    gone = [f"{name}, which is not configured here" for name in project.dropped]
+    return gone + [f"{name}, whose folder {config.domains[name].path} is missing" for name in config.domain_order(project)
+                   if config.domains[name].path is None or not config.domains[name].path.is_dir()]
 
 
 def for_project(config: Config, project: Scope) -> tuple[list[Written], list[str]]:
@@ -216,6 +226,9 @@ def install_project(config: Config, project: Scope, dry_run: bool) -> int:
         return 1
     if project.code is None:
         print(f"vyd: project {project.name} has no code folder to write skills into")
+        return 1
+    if gone := absent(config, project):
+        print(f"vyd: no skill was written or removed, since the project uses {'; '.join(gone)}")
         return 1
     skills, notes = for_project(config, project)
     for note in notes:
@@ -289,6 +302,9 @@ def check(config: Config, project: Scope, sources: list[Path], map_path: Path | 
     if project.code is None:
         print(f"vyd: project {project.name} has no code folder")
         return 1
+    if gone := absent(config, project):
+        print(f"skills check not run, since the project uses {'; '.join(gone)}")
+        return 2
     skills, notes = for_project(config, project)
     for note in notes:
         print(f"NOTE: {note}")

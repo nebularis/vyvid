@@ -636,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--unit", help="with a module, keep what it calls to the units whose name starts with this")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project's code index is used")
     i = sub.add_parser("install", help="write a client's user-level rule file and one skill per configured domain")
-    i.add_argument("--client", choices=sorted(install.CLIENTS), help="the client whose user-level folder is written. Needed without --project")
+    i.add_argument("--client", choices=sorted(install.CLIENTS), help="only this client. Every client whose folder exists, without it")
     i.add_argument("--project", action="store_true", help="compose this folder's project's skills and hooks into its checkout, to be committed")
     i.add_argument("--in", dest="folder", default=".", help="with --project, the folder whose project is written")
     i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings")
@@ -714,7 +714,9 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
                 return skills.install_project(config, project, arguments.dry_run) or _project_hooks(project, arguments.dry_run)
             if not arguments.client:
-                parser.error("vyd install needs --client, or --project")
+                if arguments.target:
+                    parser.error("--target needs --client")
+                return install.install_all(load(), arguments.dry_run)
             done = install.install(load(), arguments.client, arguments.target, arguments.dry_run)
             if arguments.hooks and not done:
                 root = (arguments.target or Path(install.CLIENTS[arguments.client])).expanduser()
@@ -733,6 +735,10 @@ def main(argv: list[str] | None = None) -> int:
         config, project = bind_in(configured, Path(arguments.folder))
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
         print("trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
+        for line in install.missing(config):
+            print(f"NOTE: {line}")
+        for line in install.out_of_date(config):
+            print(line)
         print(f"domains: {', '.join(config.domains) or 'none'}")
         print(f"projects: {', '.join(config.projects) or 'none'}")
         for name, why in config.set_aside.items():

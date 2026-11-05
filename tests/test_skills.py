@@ -200,16 +200,100 @@ def test_a_personal_skill_is_not_written_for_a_domain_a_project_uses(tmp_path):
     assert skills.INDEX_FIRST in (target / "rules" / "vyvid.md").read_text(encoding="utf-8")
 
 
-def test_a_domain_no_project_uses_gets_its_skills_in_the_users_folder_with_the_header(tmp_path):
+def public_domain_config(tmp_path, extra: str = ""):
     config, _ = world(tmp_path)
     path = tmp_path / "config.toml"
-    path.write_text(path.read_text(encoding="utf-8").replace('domains = ["lifecycle"]\n', "").replace('[projects.skill_values]\nstatus = "docs/developer/status"\n', ""), encoding="utf-8")
+    path.write_text(path.read_text(encoding="utf-8").replace('domains = ["lifecycle"]\n', "").replace('[projects.skill_values]\nstatus = "docs/developer/status"\n', "").replace('trust = "own"\n', f'trust = "own"\n{extra}', 1), encoding="utf-8")
     domain = config.domains["lifecycle"].path / "domain.toml"
-    domain.write_text(domain.read_text(encoding="utf-8").replace('rules = []', 'rules = []\nskill_values = { status = "status" }'), encoding="utf-8")
-    config = load(path)
+    domain.write_text(domain.read_text(encoding="utf-8").replace("rules = []", 'rules = []\nskill_values = { status = "status" }'), encoding="utf-8")
+    return load(path)
+
+
+def test_a_public_domains_skills_go_to_the_users_folder_only_when_its_entry_asks(tmp_path):
+    target = tmp_path / "client"
+    assert install.install(public_domain_config(tmp_path), "claude-code", target, dry_run=False) == 0
+    assert not (target / "skills" / "lifecycle").exists(), "it would sit beside a project's composed copy"
+    second = tmp_path / "second"
+    second.mkdir()
+    assert install.install(public_domain_config(second, "user_skills = true\n"), "claude-code", target, dry_run=False) == 0
+    assert skills.INDEX_FIRST in (target / "skills" / "lifecycle" / "SKILL.md").read_text(encoding="utf-8")
+
+
+def private(tmp_path, manifest_extra: str = 'skill_prefix = ""'):
+    domain = tmp_path / "private-domain"
+    (domain / "skills" / "lattice-boundaries").mkdir(parents=True)
+    (domain / "skills" / "lattice-boundaries" / "SKILL.md").write_text("---\nname: lattice-boundaries\ndescription: Personal rules\n---\n# Boundaries\n\nNever do this.\n", encoding="utf-8")
+    (domain / "rules").mkdir()
+    (domain / "rules" / "always.md").write_text("# Always\n\nRead this every session.\n", encoding="utf-8")
+    (domain / "domain.toml").write_text(f'name = "boundaries"\ndescription = "x"\nvisibility = "private"\nrules = []\nalways_rules = "self:rules/always.md"\n{manifest_extra}\n', encoding="utf-8")
+    path = tmp_path / "config.toml"
+    path.write_text(f'[[domains]]\nname = "boundaries"\npath = "{domain.as_posix()}"\ntrust = "own"\n', encoding="utf-8")
+    return load(path), domain
+
+
+def test_a_private_domain_reaches_each_client_under_its_own_name_with_its_rules_where_the_client_takes_them(tmp_path):
+    config, _ = private(tmp_path)
+    claude, copilot = tmp_path / "claude", tmp_path / "copilot"
+    assert install.install(config, "claude-code", claude, dry_run=False) == 0 and install.install(config, "copilot", copilot, dry_run=False) == 0
+    for root in (claude, copilot):
+        text = (root / "skills" / "lattice-boundaries" / "SKILL.md").read_text(encoding="utf-8")
+        assert text.startswith("---\nname: lattice-boundaries\n") and "Never do this." in text and skills.INDEX_FIRST in text
+        assert not (root / "skills" / "vyvid-domain-boundaries").exists()
+    assert "Read this every session." in (claude / "rules" / "always.md").read_text(encoding="utf-8")
+    assert not (copilot / "rules").exists() and not (copilot / "agents").exists()
+
+
+def test_a_hand_made_link_is_left_and_named_and_a_stale_generated_skill_goes(tmp_path, capsys):
+    config, domain = private(tmp_path)
+    target = tmp_path / "client"
+    (target / "skills").mkdir(parents=True)
+    (target / "skills" / "lattice-boundaries").symlink_to(domain / "skills" / "lattice-boundaries")
+    assert install.install(config, "claude-code", target, dry_run=False) == 1
+    assert "was not generated" in capsys.readouterr().out
+    (target / "skills" / "lattice-boundaries").unlink()
+    stale = target / "skills" / "gone" / "SKILL.md"
+    stale.parent.mkdir()
+    stale.write_text(f"---\nname: gone\n---\n{skills.MARK}\n", encoding="utf-8")
+    assert install.install(config, "claude-code", target, dry_run=False) == 0 and not stale.exists()
+
+
+def test_install_with_no_client_sets_up_each_client_found_and_config_says_when_they_are_stale(tmp_path, monkeypatch, capsys):
+    config, _ = private(tmp_path)
+    claude, copilot, absent = tmp_path / "c1", tmp_path / "c2", tmp_path / "c3"
+    claude.mkdir(), copilot.mkdir()
+    monkeypatch.setattr(install, "CLIENTS", {"claude-code": str(claude), "copilot": str(copilot), "other": str(absent)})
+    assert len(install.out_of_date(config)) == 2
+    assert install.install_all(config, dry_run=False) == 0
+    assert (claude / "skills" / "lattice-boundaries").is_dir() and (copilot / "skills" / "lattice-boundaries").is_dir() and not absent.exists()
+    assert install.out_of_date(config) == []
+    (claude / "skills" / "lattice-boundaries" / "SKILL.md").write_text(f"---\nname: x\n---\n{skills.MARK}\n", encoding="utf-8")
+    assert "claude-code: 1 installed" in install.out_of_date(config)[0]
+
+
+def test_a_missing_domain_is_named_gives_nothing_and_removes_nothing(tmp_path, capsys):
+    config, domain = private(tmp_path)
     target = tmp_path / "client"
     assert install.install(config, "claude-code", target, dry_run=False) == 0
-    assert skills.INDEX_FIRST in (target / "skills" / "lifecycle" / "SKILL.md").read_text(encoding="utf-8")
+    skill = target / "skills" / "lattice-boundaries" / "SKILL.md"
+    domain.rename(tmp_path / "away")
+    config = load(tmp_path / "config.toml")
+    capsys.readouterr()
+    assert install.install(config, "claude-code", target, dry_run=False) == 0
+    out = capsys.readouterr().out
+    assert "domain boundaries has no folder here" in out and skill.is_file(), "a skill of a domain absent for now stays"
+
+
+def test_a_project_whose_domain_is_missing_neither_writes_nor_removes_and_its_check_says_not_run(tmp_path, capsys):
+    config, code = world(tmp_path)
+    project = config.projects["proj"]
+    assert skills.install_project(config, project, dry_run=False) == 0
+    path = code / ".claude" / "skills" / "lifecycle" / "SKILL.md"
+    domain = config.domains["lifecycle"].path
+    domain.rename(tmp_path / "away")
+    capsys.readouterr()
+    assert skills.install_project(config, project, dry_run=False) == 1 and path.is_file()
+    assert "no skill was written or removed" in capsys.readouterr().out
+    assert skills.check(config, project, [], None) == 2 and "skills check not run" in capsys.readouterr().out
 
 
 # ---- The reminder hook -------------------------------------------------------------------------------

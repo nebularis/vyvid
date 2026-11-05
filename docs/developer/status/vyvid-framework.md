@@ -34,7 +34,7 @@
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
 | VYD-12 | optional agent coordination | planned | VYD-11 |
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
-| VYD-22 | one install for every client, and missing domains | building 2026-11-05 | VYD-16 |
+| VYD-22 | one install for every client, and missing domains | built 2026-11-05, building 2026-11-05 | VYD-16 |
 | VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 | |
@@ -88,3 +88,4 @@
 - 2026-11-05. VYD-19 built: `vyvid-lifecycle` holds the lifecycle, design, branching and publication-hygiene skills, `vyvid-rdf-modelling` the modelling rules, and the Tools, Python, Haskell and triple-store domains their skills. LATTICE's 11 old skill files compose from them and from drafted additions with 0 lines unplaced by `vyd check skills`, on a scratch clone. VYD-20 built: tagged v0.2.0.
 - 2026-11-05. VYD-17 run for real in Copilot in VS Code, with the Copilot session target and terminal commands allowed: the agent quoted the reminder word for word after `grep`, and the search still ran. The first run, with no terminal, showed that Copilot's own search tool is called `rg`, which is now read as a search. Codex is not run.
 - 2026-11-05. The maintainer decides that Windows is proven after LATTICE's switch, on their own Windows machine, not before VM-2. TD-3 stays open until then, and LATTICE's hooks must skip cleanly where `vyd` is missing or fails.
+- 2026-11-05. VYD-22 built: `vyd install` with no options sets up each client it finds, a public domain's skills stay out of the user's folder unless its entry asks, and a missing domain is named and removes nothing. A public domain in the user's folder would sit beside a project's composed copy.
