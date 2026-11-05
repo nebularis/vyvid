@@ -28,7 +28,7 @@
 | VYD-7 | the triple-store domain | built 2026-11-04 | |
 | VYD-8 | the Tools and Haskell domains | built 2026-11-04 | |
 | VYD-8b | documentation beside symbols | built 2026-11-04 | |
-| VYD-8c | the Python domain and test bed | building 2026-11-04 | |
+| VYD-8c | the Python domain and test bed | built 2026-11-05, building 2026-11-04 | |
 | VYD-9 | a project with private docs | built 2026-11-04 | |
 | VYD-10 | private rules as a domain | planned | VYD-6 |
 | VYD-11 | vyvid's own contract | built 2026-11-04 | |
@@ -77,3 +77,5 @@
 - 2026-11-04. VYD-9 built: a project's documents may sit outside its code, and an entry defined there is private to it, so `vyd check citations` refuses it in the code repository, in staged lines or in a commit message or pull request text. `vyd docs record` keeps those documents by their own git policy, and `vyd board` shows a project's slices. Run on a real project and its linked worktree, each answered from its own code and the one set of documents, and neither checkout changed.
 - 2026-11-04. VYD-8b built: module headers, named sections and block comments sit in the symbol store as documentation, and `find --kind symbol` gives them at most two fifths of its places. Measured on 19 Haskell questions, one list by raw similarity displaced two symbol answers, and the cap displaced none and answered 12 against 10. No Python result yet. `bench:lattice` was not run, since LATTICE's branches are being merged, and is owed.
 - 2026-11-05. VYD-15 to VYD-20 opened and marked building, the work that makes `vyvid` ready for LATTICE's switch, VYD-2b. Skills come first since a domain's skills reached no agent, and the sketch's cut of repeated index guidance is withdrawn.
+- 2026-11-05. VYD-8c built: `vyvid-python` holds 24 notes, tree-sitter matched `ast` on every class, function and method, and the measurements of `jedi`, `pyright`, scip, `jdtls` and Serena are in the symbol-indexing plan. Which `kind` to build first stays open.
+- 2026-11-05. VYD-15 baseline from `benchmark/adoption/measure.py` over this machine's transcripts. Since 2026-11-03, 43 sessions searched or asked, 23 never asked, 19 of the 20 that asked searched first, and there were 19.7 searches per ask. From 2026-10-29 to 2026-11-02, 72 sessions, 65 never asked, 117.7 searches per ask. Some of these searches are legitimate and the pattern also counts `sed` used to read, so the figures are a baseline to compare with, not a count of mistakes.

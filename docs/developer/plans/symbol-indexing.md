@@ -214,6 +214,83 @@ Each tool also listed the definition itself, which is not counted. The one quest
 
 **Undecided: which to register as a kind. The leaning is `jedi`,** as `kind = "jedi"` with no database, because it answers all the questions it can answer without a build, an index to keep fresh or an extra tool to decode the answer, and it was as accurate as `scip-python` on these five. It found as many uses of the first four questions as the configured `scip-python` and 4 of the 8 calls of `Model.question` against its 3. It costs nothing to name the command, since a call is a short script and the project's own sources are the only input. A `scip` kind remains the right one for a language that has no library like this, and for a team that already builds an index, but for Python its answer needs a reader and its index goes stale. The maintainer decides, on this evidence, and nothing was added to the hand-off in this slice.
 
+
+## Measured: how an agent reaches structure
+
+Measured 2026-11-04 and 2026-11-05 on an 8 GB arm64 Mac. The corpora are this repository, 60 tracked Python files, and LATTICE at commit 01bf8023, 559 tracked Python files of 121,044 lines and 227 Java files of 24,103 lines. Answers were fixed from `ast`, reading and search before any tool ran. What a project uses is its user's choice, so each column is a `kind` a user could register, and this section chooses nothing.
+
+**Python, 300 sites over 7 questions on LATTICE.** The questions are a function used across packages, a re-exported class, a method on typed receivers, a method on an untyped parameter, a base class, a constant and a name defined in six modules.
+
+| | `jedi` 0.20.1 | `pyright` 1.1.414 | `scip-python` 0.6.8 | Serena 2.1.0 (`pyright` 1.1.403) |
+|---|---|---|---|---|
+| Sites found, source roots set | 284 | 297 | 297 | 297 |
+| Sites found, no source roots | not run | 74 | 74 | 74 |
+| Peak memory, whole process tree | 118 MB | 395 MB | 1.28 to 1.78 GB to index | 566 to 647 MB |
+| Idle memory | none, no server | 358 MB | none | 420 to 507 MB |
+| First answer | 0.4 to 0.9 s | 0.6 to 1.0 s | 27 to 40 s to index | about 4.7 s |
+| Per question | 0.06 to 0.57 s | 0.02 to 0.50 s | 1.3 to 2.0 s | 0.12 to 0.7 s |
+| Largest answer | 6,031 bytes | 28,573 bytes | 6,045 bytes | 45,616 bytes |
+| After an edit | current at once | needs a change notice, then under 1 s | stale until indexed again | current on the next query |
+
+`jedi` misses 14 of 113 sites on one question, some of them ordinary relative imports, with the cause not found. The three others share `pyright`'s misses. Source roots decide more than the tool does, since 74 of 300 came with no warning. `pyright` took them only from a `pyrightconfig.json`, not from a client's settings, and Serena has no setting of its own for them. `scip-python` took them from `PYTHONPATH` too.
+
+**Java, 11 questions on LATTICE.**
+
+| | `jdtls` 1.63.0 | `scip-java` 0.13.2 | Serena 2.1.0 (`jdtls` 1.58.0) |
+|---|---|---|---|
+| Implementers of an interface, 6 true | 6, with its anonymous classes and lambdas | 2, the named classes | 6, a lambda shown as its enclosing method |
+| One answer across Maven modules | yes | no, two index files, and a module outside the source root is dropped in silence | yes |
+| Overloads told apart | yes | yes | yes |
+| What a method calls | yes, one callee missed of two | not possible | not possible |
+| Who calls | by call hierarchy, `close()` over-reported | references only | references only, `close()` over-reported |
+| First answer | about 30 s, under 6 s on restart | 74 s cold, 33 s warm, to index | 10 to 13 s |
+| Peak memory | 1.36 GB | 256 MB for the largest process, likely understated | 1.03 to 1.28 GB |
+| After an edit | needs a change notice, then under 1 s | stale until indexed again, 14 to 33 s | current on the next query, a new file one query later |
+
+`scip` has no query command, so its answers come from `scip print --json | jq`, and its SQLite conversion fails on one index of two and drops implementation links. SCIP holds no timestamp, commit or hash, so an index cannot be proven stale from its contents. The newest `scip-java`, 0.14.0, does not resolve from Maven Central, and 0.13.2 needs a newer bash than macOS ships. Serena's bundled Java 21 cannot load a project on release 25, and then a method's references come back empty with no error, until a JDK 25 runtime is named.
+
+**What each runs on a clone.** Planted modules, build steps and configuration each wrote a marker if run.
+
+| Tool | What ran |
+|---|---|
+| `jedi`, `pyright` | no planted code. `pyright` runs the first `python` on `PATH` |
+| `scip-python` | no planted code, in a smaller trial. It runs `python` and `pip` from `PATH` |
+| `scip-java` | a project's `exec-maven-plugin` step and annotation processor, and its tests unless they are skipped |
+| `jdtls` | no planted code. It writes `.project`, `.classpath` and `.settings` into each module, and classes into `target/` |
+| Serena | no planted code from opening a project. A project's `.serena/project.yml` is a separate matter, below |
+
+**Serena's trust surface.** A hostile `.serena/project.yml` in a clone was honoured while Serena treated the project as untrusted. It replaced the tool list with `serena_repl`, which runs Python by `exec`, and its prompt text reached the agent through `initial_instructions`. With the trust list missing from a user's configuration every project counts as trusted, and the file's commands ran at server start before any tool call. Moving Serena's folder out of the repository falls back to an in-repository one unless the moved folder exists. Its defaults also open a browser dashboard and send a usage ping on every start, which an environment variable stops. It downloads language servers with no hash check.
+
+**How a client reaches a server, from each client's documents.** Claude Code has `jdtls-lsp` and `pyright-lsp` plugins and a read-only `LSP` tool, whose server starts when a file of that language is first edited, and which cloud sessions do not start. VS Code lists `#search/usages` for references, implementations and definitions, without saying what serves it. Serena is reached over MCP by any client that has it. None was driven in practice.
+
+## Measured: blind questions on what we built
+
+Questions written by an agent that read only sketches and architecture documents, 15 on this repository and 26 on LATTICE, and judged by an independent agent against the code, five places each. Each corpus had one judge, spot-checked only in part, so this shows where the gaps are and is not a benchmark.
+
+| Corpus and run | Answered | Partly | Not |
+|---|---|---|---|
+| this repository, `find --kind symbol` | 8 | 6 | 1 |
+| this repository, plain `find` | 8 | 5 | 2 |
+| LATTICE, symbols of `tools/` and `platform/` only | 2 | 6 | 18 |
+| LATTICE, symbols of all its Python | 8 | 8 | 10 |
+| LATTICE, plain `find` | 3 | 13 | 10 |
+| LATTICE, Markdown chunks of its documents, a trial | 15 | 9 | 2 |
+
+A project should index all its tracked code. The Markdown row answers what was designed, not what was built, and 12 of its 15 answers came from the document the question was written from, so it is an upper bound on a different question.
+
+## Measured: Markdown chunks in plain `find`
+
+7,611 chunks of 280 documents, 11.7 MB of vectors, mixed into plain `find` on the bake-off's 43 scored questions, whose expected answers are register entries.
+
+| Way | hit@5 | MRR | Chunks in the top 5 | Expected entries lost |
+|---|---|---|---|---|
+| Registers alone | 0.884 | 0.806 | 0 | none |
+| Mixed, no cap | 0.744 | 0.653 | 2.44 | 6 |
+| At most 3 of 8 places | 0.791 | 0.667 | 2.15 | 4 |
+| At most 1 of 8 places | 0.884 | 0.703 | 0.92 | none, ranked lower |
+
+No cap makes mixing safe, and the two kinds score too alike, medians 0.753 and 0.743, for a score to keep them apart. A document search therefore belongs behind its own kind, and is not built yet.
+
 ## Questions for the maintainer
 
 - **VYD-Q28. Which extractor?** Leaning the general tree-sitter extractor above, with no compiler index until a question needs one.

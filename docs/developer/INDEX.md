@@ -32,16 +32,16 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-7 | vyvid-framework | the triple-store domain | built 2026-11-04 |
 | VYD-8 | vyvid-framework | the Tools and Haskell domains | built 2026-11-04 |
 | VYD-8b | vyvid-framework | documentation beside symbols | built 2026-11-04 |
-| VYD-8c | vyvid-framework | the Python domain and test bed | building 2026-11-04 |
+| VYD-8c | vyvid-framework | the Python domain and test bed | built 2026-11-05, building 2026-11-04 |
 | VYD-9 | vyvid-framework | a project with private docs | built 2026-11-04 |
 | VYD-10 | vyvid-framework | private rules as a domain | planned |
 | VYD-11 | vyvid-framework | vyvid's own contract | built 2026-11-04 |
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
 | VYD-13 | vyvid-framework | work tracked in a tracker | planned |
 | VYD-14 | vyvid-framework | Linux and Windows in Docker | planned |
-| VYD-15 | vyvid-framework | experiments recorded and an adoption baseline | building |
-| VYD-16 | vyvid-framework | skills that reach an agent | building |
-| VYD-17 | vyvid-framework | the reminder hook | building |
-| VYD-18 | vyvid-framework | the work board in Вивід | building |
-| VYD-19 | vyvid-framework | the lifecycle domain | building |
-| VYD-20 | vyvid-framework | generated regions and a release | building |
+| VYD-15 | vyvid-framework | experiments recorded and an adoption baseline | building 2026-11-05 |
+| VYD-16 | vyvid-framework | skills that reach an agent | building 2026-11-05 |
+| VYD-17 | vyvid-framework | the reminder hook | building 2026-11-05 |
+| VYD-18 | vyvid-framework | the work board in Вивід | building 2026-11-05 |
+| VYD-19 | vyvid-framework | the lifecycle domain | building 2026-11-05 |
+| VYD-20 | vyvid-framework | generated regions and a release | building 2026-11-05 |
