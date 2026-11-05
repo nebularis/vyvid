@@ -381,3 +381,14 @@ def test_the_command_line_writes_a_project(tmp_path, monkeypatch, capsys):
     assert cli.main(["install", "--project", "--in", str(code)]) in (0, 1)
     out = capsys.readouterr().out
     assert "lifecycle" in out or "not trusted" in out
+
+
+def test_a_skills_check_that_did_not_run_exits_two_and_never_one(tmp_path, monkeypatch, capsys):
+    config, code = world(tmp_path)
+    project = config.projects["proj"]
+    monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "config.toml"))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    assert cli.main(["check", "skills", str(elsewhere)]) == 2
+    assert "no skills to check" in capsys.readouterr().out
+

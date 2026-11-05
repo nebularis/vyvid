@@ -677,7 +677,7 @@ def main(argv: list[str] | None = None) -> int:
             config, project = bind_in(load(), Path(arguments.folder))
             if project is None:
                 print(f"vyd: no project claims {arguments.folder}, so there are no skills to check")
-                return 1
+                return 2
             return skills.check(config, project, arguments.sources, arguments.map)
         if arguments.command == "check":
             if arguments.check_command == "identifiers":

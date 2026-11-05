@@ -298,10 +298,10 @@ def check(config: Config, project: Scope, sources: list[Path], map_path: Path | 
     """Fail where a committed skill differs from what its sources compose to, or a line of ``sources`` has no home."""
     if not project.trusted:
         print(f"vyd: project {project.name}'s vyvid.toml is not trusted, so its skills were not checked")
-        return 1
+        return 2
     if project.code is None:
         print(f"vyd: project {project.name} has no code folder")
-        return 1
+        return 2
     if gone := absent(config, project):
         print(f"skills check not run, since the project uses {'; '.join(gone)}")
         return 2
