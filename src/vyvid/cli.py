@@ -48,6 +48,11 @@
     remove the index stores of linked checkouts that no longer exist
 ``vyd domain new <name> [--registers <type>] [--path <folder>]``
     write a domain folder and print the lines to add to your configuration, which it leaves alone
+``vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge]`` and ``vyd domain remove <name>``
+    add a domain to your configuration, or take it out, keeping your comments. Setting trust own or reviewed needs a person at a terminal
+``vyd project add <name> | set <name> <key> <value> | remove <name> | scan <name> [--apply]`` and ``vyd family add | remove``
+    declare a project, change one of its keys, register the families its documents hold, in your configuration or with --file in the
+    repository's vyvid.toml. Each takes --dry-run, which prints the change and writes nothing
 ``vyd domain audit <folder> [--json]`` and ``vyd domain review-path <domain> <commit>``
     the facts about a folder someone else wrote, read and never run, and where its review is recorded
 ``vyd install --client claude-code [--target folder] [--dry-run]``
@@ -72,13 +77,23 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, handoff, identifiers, install, kb, moves, newdomain, recipes, skills
+from . import __version__, ask, audit, board, citations, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind_in, file_scope, layers, project_file, resolve
 from .work import command as work_command
+
+
+cf_trusts = configuration.TRUSTS
+cf_visibilities = configuration.VISIBILITIES
+
+
+def _writes(parser, hidden_file: bool = False) -> None:
+    """The options every command that changes a configuration takes."""
+    parser.add_argument("--file", action="store_true", help=argparse.SUPPRESS if hidden_file else "change the repository's vyvid.toml, not your configuration")
+    parser.add_argument("--dry-run", action="store_true", help="print the change and write nothing")
 
 
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
@@ -631,6 +646,52 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("name")
     p.add_argument("--registers", default="note", metavar="TYPE", help="the register type of its first register, note by default")
     p.add_argument("--path", type=Path, help="the folder to write, the knowledge base's domains/<name> by default")
+    p = d.add_parser("add", help="add a domain to your configuration")
+    p.add_argument("name")
+    p.add_argument("--path", help="the domain's folder, the knowledge base's domains/<name> by default")
+    p.add_argument("--remote", help="the repository to clone it from, cloned later with vyd kb clone")
+    p.add_argument("--trust", choices=cf_trusts, default="knowledge", help="what it gives an agent. knowledge by default. own and reviewed need a person at a terminal")
+    p.add_argument("--commit", help="with --trust reviewed, the commit that was reviewed")
+    p.add_argument("--visibility", choices=cf_visibilities, help="private unless this says public")
+    _writes(p, hidden_file=True)
+    p = d.add_parser("remove", help="take a domain out of your configuration, refused while a project uses it. Its folder is left alone")
+    p.add_argument("name")
+    _writes(p, hidden_file=True)
+    pr = sub.add_parser("project", help="declare a project, change it, remove it, or find the registers in its documents").add_subparsers(dest="project_command", required=True)
+    p = pr.add_parser("add", help="declare a project. In a git checkout, its code folder and remotes are read from it")
+    p.add_argument("name")
+    p.add_argument("--code", help="its code folder, the git checkout you are in by default")
+    p.add_argument("--docs", help="its documents folder, when they are kept apart from the code")
+    p.add_argument("--contract", action="append", default=[], help="a rule file, such as docs:CONTRACT.md. Repeat for several")
+    p.add_argument("--remote", action="append", default=[], help="a remote that identifies the checkout, the checkout's own remotes by default. Repeat for several")
+    p.add_argument("--domain", action="append", default=[], help="a configured domain it uses. Repeat for several")
+    p.add_argument("--visibility", choices=cf_visibilities, default="private", help="private by default")
+    _writes(p)
+    p = pr.add_parser("set", help="set a plain key of a project, such as docs, visibility or domains")
+    p.add_argument("name")
+    p.add_argument("key")
+    p.add_argument("value", nargs="+", help="one value, or several for a list key")
+    _writes(p)
+    p = pr.add_parser("remove", help="take a project out of your configuration. Its index store, logs and folders are left alone")
+    p.add_argument("name")
+    _writes(p)
+    p = pr.add_parser("scan", help="find the registers in a project's documents and propose a family for each, writing them with --apply")
+    p.add_argument("name")
+    p.add_argument("--apply", action="store_true", help="write the proposed families")
+    _writes(p)
+    fa = sub.add_parser("family", help="declare or remove an identifier family of a project").add_subparsers(dest="family_command", required=True)
+    p = fa.add_parser("add", help="declare a family and the register that defines it")
+    p.add_argument("project")
+    p.add_argument("name")
+    p.add_argument("--defined", required=True, help="the register, such as docs:standards.md")
+    p.add_argument("--type", required=True, help="its register type, such as standard or debt")
+    p.add_argument("--pattern", help="a regular expression for its identifiers, where PREFIX-1 is not their form")
+    p.add_argument("--removable", action="store_true", help="its entries are meant to disappear, so an unresolved mention is reported and never failed")
+    _writes(p)
+    p = fa.add_parser("remove", help="remove a family from a project. Its register is left alone")
+    p.add_argument("project")
+    p.add_argument("name")
+    _writes(p)
     p = d.add_parser("audit", help="report links, file types, paths, patterns, hidden text and commands in a folder, and run nothing from it")
     p.add_argument("folder", type=Path)
     p.add_argument("--json", action="store_true")
@@ -700,6 +761,11 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "store":
             return store_command(arguments)
         if arguments.command == "domain":
+            if arguments.domain_command == "add":
+                return configure.domain_add(arguments.name, arguments.path, arguments.remote, arguments.trust, arguments.commit, arguments.visibility,
+                                            arguments.file, arguments.dry_run, _person)
+            if arguments.domain_command == "remove":
+                return configure.domain_remove(arguments.name, arguments.file, arguments.dry_run, _person)
             if arguments.domain_command == "new":
                 return newdomain.new(arguments.name, arguments.registers, arguments.path)
             if arguments.domain_command == "audit":
@@ -709,6 +775,21 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError as error:
                 parser.error(str(error))
             return 0
+        if arguments.command == "project":
+            c = arguments.project_command
+            if c == "add":
+                return configure.project_add(arguments.name, arguments.code, arguments.docs, arguments.contract, arguments.remote, arguments.domain,
+                                             arguments.visibility, arguments.file, arguments.dry_run, _person)
+            if c == "set":
+                return configure.project_set(arguments.name, arguments.key, arguments.value, arguments.file, arguments.dry_run, _person)
+            if c == "remove":
+                return configure.project_remove(arguments.name, arguments.file, arguments.dry_run, _person)
+            return configure.project_scan(arguments.name, arguments.apply, arguments.file, arguments.dry_run, _person)
+        if arguments.command == "family":
+            if arguments.family_command == "add":
+                return configure.family_add(arguments.project, arguments.name, arguments.defined, arguments.type, arguments.pattern, arguments.removable,
+                                            arguments.file, arguments.dry_run, _person)
+            return configure.family_remove(arguments.project, arguments.name, arguments.file, arguments.dry_run, _person)
         if arguments.command == "handoff":
             from .build import store_dir
 

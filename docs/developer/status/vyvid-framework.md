@@ -36,7 +36,7 @@
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
 | VYD-22 | one install for every client, and missing domains | built 2026-11-05, building 2026-11-05 | VYD-16 |
 | VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
-| VYD-23 | configuration from the command line | building 2026-11-05 | |
+| VYD-23 | configuration from the command line | built 2026-11-05, building 2026-11-05 | |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 | |
 | VYD-16 | skills that reach an agent | built 2026-11-05, building 2026-11-05 | |
@@ -90,3 +90,4 @@
 - 2026-11-05. VYD-17 run for real in Copilot in VS Code, with the Copilot session target and terminal commands allowed: the agent quoted the reminder word for word after `grep`, and the search still ran. The first run, with no terminal, showed that Copilot's own search tool is called `rg`, which is now read as a search. Codex is not run.
 - 2026-11-05. The maintainer decides that Windows is proven after LATTICE's switch, on their own Windows machine, not before VM-2. TD-3 stays open until then, and LATTICE's hooks must skip cleanly where `vyd` is missing or fails.
 - 2026-11-05. VYD-22 built: `vyd install` with no options sets up each client it finds, a public domain's skills stay out of the user's folder unless its entry asks, and a missing domain is named and removes nothing. A public domain in the user's folder would sit beside a project's composed copy.
+- 2026-11-05. VYD-23 written on its branch, not yet merged: `vyd domain add | remove`, `vyd project add | set | remove | scan` and `vyd family add | remove` in `vyvid.configure`, each checked by the real loader before it writes and keeping the file's comments, with `--dry-run` and `--file`. VYD-Q35 to VYD-Q41 answered as leaned and `vyd init` deferred. tomlkit moves a `[[projects]]` that follows a `[[domains]]`, so a command splices a table found by its header and uses tomlkit inside it.

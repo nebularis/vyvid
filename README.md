@@ -57,12 +57,36 @@ vyd trust [path]                       # a person trusts a configuration outside
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install [--client name] [--project] [--in folder] [--hooks] [--target folder] [--dry-run] # set up each client found, its rule file and the skills of private domains
 vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change
+vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge] [--commit <hash>] [--dry-run] # add a domain to your configuration, keeping your comments. A trust of own or reviewed needs a person at a terminal. A remote is cloned later by vyd kb clone
+vyd domain remove <name> [--dry-run]   # take a domain out of your configuration, refused while a project uses it. Its folder is left alone
+vyd project add <name> [--code <folder>] [--docs <folder>] [--contract <path>] [--remote <url>] [--domain <name>] [--visibility public|private] [--file] [--dry-run] # declare a project. In a git checkout its code folder and remotes are read from it
+vyd project set <name> <key> <value> ... [--file] [--dry-run] # set a plain key of a project, such as docs, visibility or domains
+vyd project remove <name> [--dry-run]  # take a project out of your configuration. Its index store, logs and folders are left alone
+vyd project scan <name> [--apply] [--file] [--dry-run] # read the tables of the project's documents and propose a family for each register. A table it cannot place is named, never guessed
+vyd family add <project> <name> --defined <path> --type <type> [--pattern <regex>] [--removable] [--file] [--dry-run] # declare an identifier family and the register that defines it
+vyd family remove <project> <name> [--file] [--dry-run] # remove a family. Its register is left alone
 vyd domain audit <folder> [--json] [--allow <scope>] # list the links, files, paths, hidden text, commands and qualified mentions of other scopes in a domain you did not write, running nothing from it
 vyd find <words> --kind symbol [--in folder] # the project's functions, types and classes ranked by meaning, with the comments and module headers its authors wrote around the code, from source parsed apart from the graph. Needs vyvid[symbols]
 vyd read <package:Module.name>         # the source lines of a symbol or of a section of prose around the code, read inside the repository
 vyd handoff <name> [--module M] [--unit U] [--in folder] # the exact commands for the compiler index a project registers, printed and never run
 vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
 ```
+
+## Setting up without editing TOML
+
+Everything the configuration holds can be written by hand, and a file edited by hand stays as it is. The commands above write it for you when you would rather not. Each checks the whole file with the real loader before it writes, keeps your comments and the order of your tables, and takes `--dry-run`, which prints the change and the file it would write and writes nothing. They write your own configuration, or with `--file` the `vyvid.toml` of the repository you are in, which may not hold a code folder, a remote or a path outside the repository.
+
+```bash
+cd ~/work/some-project
+vyd domain add tools --remote https://github.com/example/vyvid-tools
+vyd kb clone tools
+vyd project add some-project --docs ~/work/private-docs/some-project --contract docs:CONTRACT.md --domain tools
+vyd project scan some-project --apply
+vyd config
+vyd build
+```
+
+A command never records trust and never deletes a folder, a clone or a store. Trust `own` or `reviewed`, and any change that reaches what a client loads or runs, needs a person at a terminal, as `vyd trust` does. [docs/GUIDE.md](docs/GUIDE.md) has the same steps in full.
 
 ## The work board
 

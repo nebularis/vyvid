@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.10**, inspected on **5 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.11**, inspected on **5 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -304,6 +304,43 @@ Use a real commit hash, preferably the full hash. This is a change to the existi
 
 **Reviewed trust is not a checkout pin.** It enables instructions when HEAD matches the configured commit. If HEAD moves, the domain falls back to knowledge-only standing until you review the new revision and update your configuration.
 
+### Add domains without editing the file
+
+Every entry in this section can be written by hand, and a hand-edited configuration stays as valid as it ever was. The commands below exist for the moments when you would rather not remember each key, or when an agent is setting up a project for you and you want it to use a path that is checked before anything is written.
+
+```bash
+vyd domain add tools --remote https://github.com/example/vyvid-tools
+```
+
+**What it writes, and where.** One `[[domains]]` entry, appended to your user configuration, the file `vyd config` names. If the file does not exist yet, the command creates it, and the folder around it if that is missing, readable by you alone. The rest of the file is left as it was, comments and the order of your tables included. The command prints the lines it adds as a diff, and the path of the file it writes, before it writes them.
+
+**Why it checks first.** The new text of the whole file is loaded by the same loader `vyd config` uses before anything reaches the disk. If that finds a problem, such as a name that exists, a parent that is no domain, a remote that carries a password, or a manifest in the folder that sets something only you may set, the command lists every problem, writes nothing, and exits with 1. The file is then replaced whole, in UTF-8 with no byte-order mark and `\n` line endings, and keeps the permissions it had.
+
+| Option | Meaning |
+|---|---|
+| `--path <folder>` | The domain's folder. Without it, and with a knowledge base configured, the folder is `domains/<name>` under it |
+| `--remote <url>` | The repository the domain is cloned from |
+| `--trust own\|reviewed\|knowledge` | What the domain may give an agent. The default is `knowledge` |
+| `--commit <hash>` | With `reviewed`, the commit you read |
+| `--visibility public\|private` | A domain is private unless you say it is public |
+| `--dry-run` | Print the change and write nothing |
+
+**Trust is always written, and defaults to knowledge.** The loader gives a domain without a remote the standing `own`, since it assumes you wrote it. A command that wrote nothing about trust would hand that standing to any folder an agent named, so this one writes `trust = "knowledge"` unless you ask for more. A knowledge domain gives its entries to the index and nothing that instructs an agent, so `vyd install --project` leaves its skills out and prints a note saying so. When you want a domain's skills in a project, add it with `--trust reviewed --commit <hash>` once you have read it, or with `--trust own` if you wrote it.
+
+**Raising trust needs a person.** `--trust own` and `--trust reviewed` make a domain's rules, skills and recipes reach agents, so they are refused unless standard input is a terminal, which is the check `vyd trust` makes. The message says that a person must run the command. This is a speed bump and not a proof, since an agent can be given a pseudo-terminal, and an agent that can run commands as you can also edit the file, so your client's permission settings remain the control that matters. `--dry-run` is not refused, so an agent can show you exactly what it would ask you to run.
+
+**A remote is not cloned by this command.** Cloning contacts a network and then falls under the domain's git policy, which `vyd kb` manages. When the folder does not exist, the command prints the command that clones it, such as `vyd kb clone tools`, and stops there. A path given without a remote is a folder you made or cloned yourself, and the command says so if it is missing.
+
+To take a domain out:
+
+```bash
+vyd domain remove tools
+```
+
+The command refuses while a project of your configuration uses the domain, naming that project, and also while the repository you are standing in declares a project in its `vyvid.toml` that does, and while another domain lists it as a parent. Remove or change those first. It never deletes the domain's folder or its clone. It removes the entry, and says where the folder was left.
+
+The command that writes a domain's folder, `vyd domain new`, does not add it to the configuration. `vyd domain add` is the next step.
+
 ---
 
 ## 4. Bind Vyvid to a project
@@ -432,6 +469,56 @@ Project selection generally favours the most specific containing project folder.
 
 **Always check `vyd context` in the folder where you will work.** A working command that answers from the general scope alone is not evidence that your project is configured correctly.
 
+### Declare a project from the command line
+
+The project entries above can also be written by a command. The default target is your user configuration, because that is where a path of your own machine belongs.
+
+```bash
+cd ~/work/example-service
+vyd project add example-service --domain lifecycle --domain tools
+```
+
+**What it fills in for you.** Run in a git checkout, `--code` is that checkout, and `--remote` is the checkout's own remotes, each written as the matcher expects, as `host/owner/repository` in lower case without a scheme, a user or `.git`. A remote that carries a password or a token is reported by its host and refused. The entry follows the shape of the example configuration, with `name`, `visibility`, `code`, `match`, `docs`, `contract` and `domains` in that order.
+
+| Option | Meaning |
+|---|---|
+| `--code <folder>` | The code folder. The checkout you are in by default |
+| `--docs <folder>` | The documents folder, when they are kept apart from the code |
+| `--contract <path>` | A rule file, such as `docs:CONTRACT.md`. Repeat for several |
+| `--remote <url>` | A remote that identifies the checkout. Repeat for several |
+| `--domain <name>` | A configured domain the project uses. Repeat for several |
+| `--visibility public\|private` | Private by default, since it is the cheaper one to loosen later |
+| `--file` | Write the repository's `vyvid.toml` instead |
+| `--dry-run` | Print the change and write nothing |
+
+**What it refuses.** A name that is not a lower-case name, a name a project or a domain already has, and a domain nobody configured, each with the loader's own message. A path is written absolute, with `~` for your home folder, and `..` is resolved before it is written.
+
+**Binding a domain that gives more than knowledge needs a person.** A domain whose trust is `own` or `reviewed` brings rules and extractors that run for every project that uses it. Naming one in `--domain`, or in `project set domains`, is therefore asked of a person at a terminal, like the trust itself. A knowledge domain can be bound by anyone.
+
+To change a plain key afterwards:
+
+```bash
+vyd project set example-service docs ~/work/example-service-documents
+vyd project set example-service domains lifecycle tools
+vyd project set example-service visibility public
+```
+
+The keys are `docs`, `code`, `visibility`, `docs_visibility`, `doc_share`, `skill_prefix`, `skill_additions`, `domains`, `contract`, `skills`, `facets`, `register_types`, `vocabulary`, `skill_targets`, `hook_clients` and `remote`. A list key takes several values, and replaces the list. Anything else is refused with a reason. `families` has its own commands, in the next section. `moves`, `extractors` and `recipes` stay hand-edited, since each is a table whose meaning a one-line command would hide. `skills`, `skill_additions`, `hook_clients` and `skill_targets` change what a client loads or runs, so they need a person at a terminal.
+
+```bash
+vyd project remove example-service
+```
+
+This removes the entry. The project's index store, its logs, its code folder and its documents are left as they were, and the command says so.
+
+**Writing the repository's file instead.** With `--file`, a command edits the `vyvid.toml` at the root of the repository you are in, and creates it if the repository has none. A file that is committed may not hold what is yours alone, so these are refused with `--file`:
+
+- `--code` and `--remote`, which a `vyvid.toml` may not set at all
+- a `--docs`, `--contract` or other path that is outside the repository. The message says that it belongs in your user configuration. Paths inside are written as `code:` paths, so they mean the same in every clone
+- `project remove`, since removing the project of a `vyvid.toml` would leave an empty file, and a command never deletes a file. Delete it yourself
+
+Changing a `vyvid.toml` changes the bytes you trusted. The command says that the trust it had lapses, and that `vyd trust`, run by a person in a terminal in that repository, restores it. No command here records trust.
+
 ---
 
 ## 5. Add your project’s knowledge
@@ -462,6 +549,45 @@ A family’s `rule` identifies its definition format:
 | `question` | A recognised question lead or question table row |
 
 Use an explicit `pattern` when your identifiers differ from the default. A family can also name further places that define its entries with `also`, after the one in `defined`.
+
+### Let Vyvid propose your families
+
+A register's header is its schema, so the tables of a documents folder already say which families it has. `vyd project scan` reads them.
+
+```bash
+vyd project scan example-service
+```
+
+It reads the Markdown files under the project's documents folder, skipping hidden folders, links that leave the folder and anything inside a code fence. For each table whose first column holds identifiers of one prefix and a number, such as `TD-3` or `SL-12`, it asks the register types which type the header belongs to. A register type may declare **signs**, the columns that only a register of that type has, such as `Debt` for a debt register, `Capability` for a capability register, `Stratum` for a standard, `Slice` for a board and `Tool` for a note. A table whose header carries the signs of exactly one type is proposed, with the file and the number of rows counted. The output is the block of families it would add, to read before anything is written:
+
+```text
+[projects.families]
+SP = { defined = "docs:INDEX.md", type = "slice" }   # 1 row in INDEX.md
+STD = { defined = "docs:standards.md", type = "standard" }   # 1 row in standards.md
+TD = { defined = "docs:technical-debt.md", type = "debt" }   # 1 row in technical-debt.md
+```
+
+**What it does not guess.** A table is named, with the reason, and nothing is proposed for it, when its header carries the signs of no type or of several, when a column is neither declared nor on the unmapped list so that no register could read it, when its first column mixes identifiers with other text or several prefixes, or when two tables of one prefix differ in type or lie in different folders. A register with a header and no rows is named too, with the type its signs give if they give one and the `vyd family add` command to run, since its prefix cannot be told from no rows. A table with no identifiers is ignored. A family the project already declares is left alone and listed. If the files of a family lie in one folder and all share a type, the proposal is a glob such as `docs:status/*.md`.
+
+**A pattern is proposed only when the default does not fit.** A family's default pattern is its name, a dash, digits and an optional letter. If an identifier of the table is of another shape, such as `SL-1.2`, the proposal carries a pattern for the prefix and says so, because a pattern is the one part of a proposal that could read ordinary prose as an identifier. Read it before you apply it.
+
+With `--apply`, the families are written in one validated step, through the same path as `vyd family add`:
+
+```bash
+vyd project scan example-service --apply
+```
+
+To declare one family yourself, which is the right move for a table the scan named, or to remove one:
+
+```bash
+vyd family add example-service PRI --defined docs:principles.md --type principle
+vyd family add example-service TD --defined docs:technical-debt.md --type debt --removable
+vyd family remove example-service PRI
+```
+
+`--defined` is `docs:` or `code:` and a path, or a path that lies inside the documents or code folder, which is written in that form. A definition that leaves the project, by `..`, by a link or by a path outside, is refused, because the register it names is read into the index. The type must be one the project's register types declare, and the message lists them. `--pattern` is a regular expression and is checked to compile, `--removable` marks entries meant to disappear, and removing a family leaves its register as it is. Both take `--file`.
+
+A scan covers registers only. Recipes, extractors and moves stay in the file you edit.
 
 ### Create a first register
 
@@ -618,7 +744,7 @@ vyd find "validate requests" \
 
 Facet matching expands through the configured broader and related concepts. It is a relevance hint, not a strict technology or activity restriction.
 
-Use declared values. An unknown value is an error, not a request for Vyvid to invent a new tag.
+Use values your stack declares. A value no layer declares is an error, because `find` will not invent a tag from a word you typed. That does not close the list. A domain or a project can declare more values in a facet register of its own, and once it does, `find` accepts them and its entries can be tagged with them, as [Extend facets only where necessary](#extend-facets-only-where-necessary) explains.
 
 ### Read the result’s qualifications
 
@@ -1814,6 +1940,8 @@ The command:
 
 Despite the plural option name, `--registers` currently selects one initial register type, and without it the first register is a `note` register in `notes.md`.
 
+The command that adds the new domain to your configuration is `vyd domain add api-design --path ~/work/vyvid-api-design`, described in section 3.
+
 ### Edit the manifest
 
 The scaffold starts private. Make visibility an intentional decision.
@@ -1888,6 +2016,14 @@ Important rules:
 - Defining a new value does not automatically tag existing entries.
 
 Custom schemes are possible, but the standard `find` facet options remain Activity, Quality, and Technology.
+
+A project can do the same when a value means something only there, so it need not make a domain to hold one word. Write the same table in a file of the project, for example `docs/facets.md`, under the heading of the scheme it extends, and name the file in the project's `facets` key, by hand or with a command:
+
+```bash
+vyd project set example-service facets docs:facets.md
+```
+
+Registers are merged in the order of the stack, general first and the project last, so a project's value can name a domain's value as broader or related. A value is seen only by the stacks that hold its register, so a project's value means nothing to another project, and a domain's reaches every project using that domain. Rebuild with `vyd build`, and `--tech`, `--activity` or `--quality` then accept the new value. A slug that some other layer already defines stops the build with exit code 2, naming both places, since two meanings cannot share one slug. A project that adds nothing needs no file, and `facets = []` says so outright.
 
 ### Write a task-triggered skill
 
@@ -2481,6 +2617,96 @@ vyd docs record \
 ```
 
 This applies to a separate documents repository, not a way to bypass the code repository’s commit policy.
+
+### Set up a project whose documents live in another repository
+
+This guide has described the pieces of a project whose documents are kept apart from its code. Take the case where the code is in `~/work/some-project`, a repository you do not own or one whose history should not hold your plans, and your plans, standards and debts are in `~/work/private-docs/some-project`, a repository of your own. These commands take you from a configuration that names only the knowledge base to a working project, and each can be run with `--dry-run` first. In the output below, `<config>` stands for the path `vyd config` prints.
+
+Start in the code checkout, so that it can be read:
+
+```bash
+cd ~/work/some-project
+```
+
+Add the shared tools domain. It is a knowledge domain, and its clone is made later:
+
+```bash
+vyd domain add tools --remote https://github.com/example/vyvid-tools
+```
+
+```text
+writing <config>
+--- <config>
++++ after
+@@ -1,2 +1,7 @@
+ [framework]
+ kb = "~/work/vyvid-kb"
++
++[[domains]]
++name = "tools"
++remote = "https://github.com/example/vyvid-tools"
++trust = "knowledge"
+wrote <config>
+~/work/vyvid-kb/domains/tools does not exist yet. Clone it with: vyd kb clone tools
+```
+
+Clone it with the command it names:
+
+```bash
+vyd kb clone tools
+```
+
+Declare the project. Its code folder and its remotes are read from the checkout, and its documents are in the other repository:
+
+```bash
+vyd project add some-project \
+  --docs ~/work/private-docs/some-project \
+  --contract docs:CONTRACT.md \
+  --domain tools
+```
+
+```text
++[[projects]]
++name = "some-project"
++visibility = "private"
++code = "~/work/some-project"
++match = { remote = ["github.com/example/some-project"] }
++docs = "~/work/private-docs/some-project"
++contract = "docs:CONTRACT.md"
++domains = ["tools"]
+```
+
+The documents folder is outside the code folder, so the project's entries are private, and the citation check refuses a line of the code repository that cites one. Now let the scan read the tables of the documents folder:
+
+```bash
+vyd project scan some-project
+```
+
+```text
+project some-project: scanned ~/work/private-docs/some-project
+Proposed, to read before it is written to <config>:
+[projects.families]
+SP = { defined = "docs:INDEX.md", type = "slice" }   # 1 row in INDEX.md
+STD = { defined = "docs:standards.md", type = "standard" }   # 1 row in standards.md
+TD = { defined = "docs:technical-debt.md", type = "debt" }   # 1 row in technical-debt.md
+Write them with: vyd project scan some-project --apply
+```
+
+If the proposal is right, write it. If a table was named as not placed, declare its family yourself with `vyd family add` once you know its type:
+
+```bash
+vyd project scan some-project --apply
+```
+
+Check the result, build the index, and ask it something:
+
+```bash
+vyd config
+vyd build
+vyd find "how do we keep the export fast" --in ~/work/some-project
+```
+
+`vyd config` lists the domain and the project and reports every problem with the same loader that checked each write. `vyd build` indexes the registers of the other repository under the project's name, and `vyd find` answers from them in the folder of the code checkout. To change the project later, `vyd project set some-project docs <folder>` moves its documents, and `vyd family remove` drops a family. Nothing here records trust, deletes a folder or touches the other repository, and the configuration you now hold reads exactly as one you wrote by hand.
 
 ---
 

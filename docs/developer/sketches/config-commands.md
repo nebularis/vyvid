@@ -28,12 +28,11 @@ vyd project scan <name> [--apply]
 vyd family add <project> <name> --defined <path> --type <type> [--pattern <regex>] [--removable] [--dry-run]
 vyd family remove <project> <name> [--dry-run]
 
-vyd init [--file]
 ```
 
 - **`vyd project add`** fills in what it can see. Run in a checkout, `--code` is that checkout and `--remote` its remotes.
 - **`vyd project scan`** reads the documents folder for tables whose first column holds identifiers, proposes a family and a type for each from the header and the register types, and prints the block. With `--apply` it writes it. A table it cannot place is named, never guessed.
-- **`vyd init`** asks the same questions in turn at a terminal, and offers `vyvid.toml` with `--file` or the user's configuration otherwise.
+- **`vyd init`** would ask the same questions in turn at a terminal, and is deferred (VYD-Q39).
 
 For example, a project with its documents in a folder of a private repository would be set up like this.
 
@@ -56,13 +55,13 @@ vyd build
 
 ## 3. Questions
 
-- **VYD-Q35. How is TOML edited with its comments kept?** Leaning `tomlkit`, a small pure-Python library, as a new dependency, since an edit to a nested table in text is where a hand-written splice goes wrong. The alternative is the standard library, appending whole blocks and removing a table by its span, which adds no dependency and cannot edit in place.
-- **VYD-Q36. Which file does a command write when both could hold the setting?** Leaning that the user's configuration is the default, `--file` writes the repository's `vyvid.toml`, and a command refuses `--file` for what a `vyvid.toml` may not set.
-- **VYD-Q37. Should the verbs be nested under `vyd config`, or stand as nouns?** Leaning nouns, `vyd project add`, since `vyd domain` already exists and the other verbs read as actions on a thing.
-- **VYD-Q38. How far does `vyd project scan` go?** Leaning registers only, leaving recipes, extractors and moves to hand. A generated pattern is a further question, since it could read ordinary prose as an identifier, so a pattern is proposed only where the default does not fit, and is shown for a person to read.
-- **VYD-Q39. Does `vyd init` belong in the first cut?** Leaning later, since an interactive flow is the most code to test and the commands above serve a person and an agent alike.
-- **VYD-Q40. May an agent run these at all?** Leaning yes for what binds knowledge, as an agent setting up a project is a real use, with the terminal check on whatever raises trust. A client's permission settings remain the real control (SEC-22).
-- **VYD-Q41. What does a remove do to what depends on it?** Leaning that removing a domain a project uses is refused, naming the project, and that a remove never deletes a clone or a store.
+- **VYD-Q35. How is TOML edited with its comments kept?** Answered 2026-11-05, as leaned: `tomlkit`, a small pure-Python library, as a new dependency pinned exactly as the others are, since an edit to a nested table in text is where a hand-written splice goes wrong. Built, it edits and renders the values inside one table, and the command finds that table by its header and splices only its span. tomlkit alone moves a `[[projects]]` that follows a `[[domains]]` to join the other projects, which would change the layout of a file it was only asked to add a key to. The alternative was the standard library, appending whole blocks and removing a table by its span, which adds no dependency and cannot edit in place.
+- **VYD-Q36. Which file does a command write when both could hold the setting?** Answered 2026-11-05, as leaned: the user's configuration is the default, `--file` writes the repository's `vyvid.toml`, and a command refuses `--file` for what a `vyvid.toml` may not set.
+- **VYD-Q37. Should the verbs be nested under `vyd config`, or stand as nouns?** Answered 2026-11-05, as leaned: nouns, `vyd project add`, since `vyd domain` already exists and the other verbs read as actions on a thing.
+- **VYD-Q38. How far does `vyd project scan` go?** Answered 2026-11-05, as leaned: registers only, leaving recipes, extractors and moves to hand. A generated pattern is a further question, since it could read ordinary prose as an identifier, so a pattern is proposed only where the default does not fit, and is shown for a person to read.
+- **VYD-Q39. Does `vyd init` belong in the first cut?** Answered 2026-11-05, as leaned: later, and it is left out of this slice, since an interactive flow is the most code to test and the commands above serve a person and an agent alike.
+- **VYD-Q40. May an agent run these at all?** Answered 2026-11-05, as leaned: yes for what binds knowledge, as an agent setting up a project is a real use, with the terminal check on whatever raises trust. A client's permission settings remain the real control (SEC-22).
+- **VYD-Q41. What does a remove do to what depends on it?** Answered 2026-11-05, as leaned: removing a domain a project uses is refused, naming the project, and that a remove never deletes a clone or a store.
 
 ## 4. What it costs
 

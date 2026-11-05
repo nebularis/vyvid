@@ -1,4 +1,5 @@
 # An example configuration. Copy it to the path `vyd config` prints, or point VYVID_CONFIG at it.
+# Nothing here has to be written by hand. `vyd domain add`, `vyd project add`, `vyd project scan` and `vyd family add` write these entries and keep your comments, and each takes --dry-run.
 
 [framework]
 kb = "~/work/vyvid/kb"

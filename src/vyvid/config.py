@@ -1083,16 +1083,16 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
     )
 
 
-def read_project_file(path: Path) -> tuple[dict, list[str]]:
+def read_project_file(path: Path, text: str | None = None) -> tuple[dict, list[str]]:
     """The ``[project]`` table of a repository's vyvid.toml, and each reason it cannot be used. The file comes
     from whoever wrote the repository, so it may not set ``code``, ``git``, ``remote``, ``trust`` or ``match``, and
     every path it names must stay inside its folder after symlinks are resolved, with ``code:`` and ``docs:``
-    allowed. The table is empty when the file cannot be read at all."""
+    allowed. The table is empty when the file cannot be read at all. ``text`` is what the file would hold, to check an edit before it is written."""
     root = path.parent
     if not Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(root))):
         return {}, [f"{path}: is a link that leaves the repository, so it is not read"]
     try:
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw = tomllib.loads(path.read_text(encoding="utf-8") if text is None else text)
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         return {}, [f"{path}: does not parse ({error})"]
     table = raw.get("project")
@@ -1140,11 +1140,12 @@ def file_project(config: Config, path: Path, table: dict, code: Path, entry: dic
     return (None, [f"{path}: {p}" for p in problems]) if problems else (scope, [])
 
 
-def load(path: Path | None = None) -> Config:
+def load(path: Path | None = None, text: str | None = None) -> Config:
     """The configuration at ``path``, or at ``config_path()``. A missing file is an empty
-    configuration with only the general scope, so an unconfigured machine still answers."""
+    configuration with only the general scope, so an unconfigured machine still answers. ``text`` is what the
+    file would hold, to check an edit before it is written."""
     path = path or config_path()
-    raw = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    raw = tomllib.loads(text) if text is not None else tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     problems: list[str] = []
     framework = raw.get("framework", {})
     kb = Path(framework["kb"]).expanduser() if "kb" in framework else None
