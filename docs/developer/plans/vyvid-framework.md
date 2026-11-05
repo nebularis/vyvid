@@ -49,6 +49,13 @@ gantt
   VYD-12 agent coordination           :s12, 38, 42
   section trackers
   VYD-13 work tracked in a tracker    :s13, 42, 47
+  section ready for LATTICE
+  VYD-15 experiments recorded and an adoption baseline :s15, 30, 31
+  VYD-16 skills that reach an agent :s16, 30, 31
+  VYD-17 the reminder hook :s17, 30, 31
+  VYD-18 the work board in Вивід :s18, 30, 31
+  VYD-19 the lifecycle domain :s19, 30, 31
+  VYD-20 generated regions and a release :s20, 30, 31
   section portability
   VYD-14 Linux and Windows in Docker  :s14, 47, 49
 ```
@@ -84,6 +91,12 @@ Units are agent days, as estimates. VYD-0 and VYD-0b run first and in parallel, 
 | **VYD-12** | Optional agent coordination, as the [agent coordination sketch](../sketches/agent-coordination.md) answers it: claims of slices, units and next identifiers granted or refused atomically, held as leases renewed by every `vyd` command, logged as events, behind one interface with three choices, `none` by default, a local SQLite store, or a shared server | With `local`, two agents claiming one slice on one machine get one grant and one refusal naming the holder, a lapsed lease shows as stale, and two branches never take the same next identifier. With `none`, nothing changes from today |
 | **VYD-13** | Work tracked in a tracker, as the [work-tracking sketch](../sketches/work-tracking-domains.md) answers it: a domain manifest's `requires`, `vyd doctor`, packages installed only with consent and never by a pull, an extractor run in a separate process, in Вивід's environment by default or in one a project names, the `work-tracking` domain with `jira` and `azure-devops` under it, and work items as a kind of record of their own beside the entries | A project on Jira sees its work items on `vyd board`, a missing package or credential is named by `vyd doctor`, a pull raising a requirement installs nothing until the user agrees, and two projects pinning different versions of one tracker package both build |
 | **VYD-14** | The whole suite run in a Linux container and on Windows, once everything else is built, clearing TD-3, and a security test of the domain review. Linux containers run on any host. Windows containers need a Windows host, so the slice chooses between a Windows machine, a hosted Windows runner and a virtual machine | `mise run check` passes on Linux and on Windows, a family pattern's time limit is shown to fire on both, and the security test below has run with each technique it found recorded |
+| **VYD-15** | Experiments recorded and an adoption baseline | The measurements of vyd-8c, scip, language servers and serena are in the plan, and `benchmark/adoption` counts how often a search tool comes before the index in a client's transcripts |
+| **VYD-16** | Skills that reach an agent | A domain ships `skills/<name>/skill.md`, a project adds to one by heading, `vyd install --project` writes the composed skills into the project and `vyd check skills` fails on drift or on a source line with no home, and every generated skill opens on the index-first header naming where its registers are |
+| **VYD-17** | The reminder hook | `vyd install` registers a pre-tool hook for Claude Code, Copilot and Codex that reminds and never refuses when a search runs in a shell, Bash or PowerShell, before any index question in that session |
+| **VYD-18** | The work board in вивід | `vyd board`, `vyd work` and `vyd here` give every feature of LATTICE's board across branches, with level names, locations and the state ladder set by configuration |
+| **VYD-19** | The lifecycle domain | `vyvid-lifecycle` holds the lifecycle, design, branching and publication skills, cites no project, requires only plans and status records, and takes a project's locations and additions |
+| **VYD-20** | Generated regions and a release | The identifiers check reads no mention from a declared generated region, and `vyvid` is tagged so a project can pin it |
 
 ## VYD-14's security test
 

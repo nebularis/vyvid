@@ -39,3 +39,9 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
 | VYD-13 | vyvid-framework | work tracked in a tracker | planned |
 | VYD-14 | vyvid-framework | Linux and Windows in Docker | planned |
+| VYD-15 | vyvid-framework | experiments recorded and an adoption baseline | building |
+| VYD-16 | vyvid-framework | skills that reach an agent | building |
+| VYD-17 | vyvid-framework | the reminder hook | building |
+| VYD-18 | vyvid-framework | the work board in Вивід | building |
+| VYD-19 | vyvid-framework | the lifecycle domain | building |
+| VYD-20 | vyvid-framework | generated regions and a release | building |

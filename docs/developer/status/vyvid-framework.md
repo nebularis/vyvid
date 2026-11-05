@@ -35,6 +35,12 @@
 | VYD-12 | optional agent coordination | planned | VYD-11 |
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
+| VYD-15 | experiments recorded and an adoption baseline | building 2026-11-05 | |
+| VYD-16 | skills that reach an agent | building 2026-11-05 | |
+| VYD-17 | the reminder hook | building 2026-11-05 | |
+| VYD-18 | the work board in Вивід | building 2026-11-05 | |
+| VYD-19 | the lifecycle domain | building 2026-11-05 | |
+| VYD-20 | generated regions and a release | building 2026-11-05 | |
 
 ## History
 
@@ -70,3 +76,4 @@
 - 2026-11-04. VYD-8 built: symbols from tree-sitter in a SQLite store per checkout, `find --kind symbol`, `vyd handoff` with templates of our own and a guard for each silent failure, and the `vyvid-haskell` domain of measured findings. No symbol enters the graph, and the bake-off is unchanged. By measurement every symbol is embedded with its doc first, at 6.18 MB and 29.6 s for 3,415 symbols, on 16 questions in two languages. All 7 Python questions were answered, and 5 of 9 Haskell questions lost every expected symbol from the top five. The handoff's silent failures were each shown firing, and an untrusted file now gets neither a database opened nor a command printed. The condition on LATTICE's own row waits for its switch.
 - 2026-11-04. VYD-9 built: a project's documents may sit outside its code, and an entry defined there is private to it, so `vyd check citations` refuses it in the code repository, in staged lines or in a commit message or pull request text. `vyd docs record` keeps those documents by their own git policy, and `vyd board` shows a project's slices. Run on a real project and its linked worktree, each answered from its own code and the one set of documents, and neither checkout changed.
 - 2026-11-04. VYD-8b built: module headers, named sections and block comments sit in the symbol store as documentation, and `find --kind symbol` gives them at most two fifths of its places. Measured on 19 Haskell questions, one list by raw similarity displaced two symbol answers, and the cap displaced none and answered 12 against 10. No Python result yet. `bench:lattice` was not run, since LATTICE's branches are being merged, and is owed.
+- 2026-11-05. VYD-15 to VYD-20 opened and marked building, the work that makes `vyvid` ready for LATTICE's switch, VYD-2b. Skills come first since a domain's skills reached no agent, and the sketch's cut of repeated index guidance is withdrawn.
