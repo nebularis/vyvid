@@ -1980,7 +1980,7 @@ Step W13.5 { vyd context "$T\lattice" --no-pull; vyd config "$T\lattice" }
 Step W13.6 {
     vyd find sparql query efficiency --kind standard --activity query-writing --in "$T\lattice" --no-log
     vyd read TSD-01 --in "$T\lattice" --no-log
-    vyd read STD-026 --in "$T\lattice" --no-log
+    vyd read $('STD' + '-026') --in "$T\lattice" --no-log
 }
 ```
 
@@ -2000,7 +2000,7 @@ Step W13.7 { mise run bootstrap }
 
 ```powershell
 Step W13.8a { Set-Location "$T\lattice"; mise run graph:ask -- find sparql query efficiency --kind standard --activity query-writing }
-Step W13.8b { Set-Location "$T\lattice"; mise run graph:ask -- read TSD-01; mise run graph:ask -- read STD-026 }
+Step W13.8b { Set-Location "$T\lattice"; mise run graph:ask -- read TSD-01; mise run graph:ask -- read $('STD' + '-026') }
 Step W13.8c { Set-Location "$T\lattice"; mise run work:board }
 Step W13.8d { Set-Location "$T\lattice"; mise run check:identifiers }
 Step W13.8e { Set-Location "$T\lattice"; mise run vyd -- check skills }
