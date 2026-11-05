@@ -253,6 +253,11 @@ def test_each_clients_input_and_output_shape(tmp_path):
     assert run("codex", {"session_id": "d", "tool_name": "Bash", "tool_input": {"command": "rg x"}}, tmp_path)["hookSpecificOutput"]["additionalContext"]
 
 
+def test_copilots_own_search_tool_as_it_really_sent_it_gets_a_reminder(tmp_path):
+    call = {"sessionId": "e", "cwd": "/x", "toolName": "rg", "toolArgs": {"pattern": "a", "paths": "README.md", "output_mode": "count"}, "toolResult": {"resultType": "success"}}
+    assert set(run("copilot", call, tmp_path)) == {"additionalContext"}
+
+
 def test_whatever_goes_wrong_it_says_nothing_and_exits_zero(monkeypatch, capsys, tmp_path):
     monkeypatch.setenv("VYVID_HOOK_STATE", str(tmp_path))
     for text in ("not json", "[]", '{"tool_name": 3}'):

@@ -18,7 +18,7 @@ import tempfile
 import time
 from pathlib import Path
 
-SEARCH_TOOLS = {"Grep", "Glob", "grep", "glob", "search", "semantic_search", "grep_search", "file_search"}
+SEARCH_TOOLS = {"Grep", "Glob", "grep", "glob", "rg", "search", "semantic_search", "grep_search", "file_search"}  # rg is Copilot's
 SHELL_TOOLS = {"Bash", "PowerShell", "bash", "powershell", "shell", "exec_command", "run_in_terminal", "runInTerminal", "execute"}
 SEARCH = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+|\benv\s+\S+\s+|\bsudo\s+)(?:git\s+grep|grep|egrep|fgrep|rg|ag|ack|sed|awk|find|fd|Select-String|sls|findstr|Get-ChildItem|gci|ls\s+-R|dir\s+/s)\b", re.M | re.I)
 ASK = re.compile(r"(?:\bgraph:ask\b(?:\s+--)?|\bvyd)\s+(?:find|read|node|exists|reaches|recipe\s+run|context)\b")
