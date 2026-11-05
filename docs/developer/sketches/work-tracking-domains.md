@@ -8,7 +8,7 @@
 
 ## 1. The problem
 
-LATTICE tracks work in its own repository. A slice's state is its row on its unit's status board, and the board is read across branches (`lattice:ADR-A151`). Most teams track work in a tracker instead, such as Jira or Azure DevOps (ADO), and a contract for such a team has to say two things LATTICE's never needed to:
+LATTICE tracks work in its own repository. A slice's state is its row on its unit's status board, and the board is read across branches. Most teams track work in a tracker instead, such as Jira or Azure DevOps (ADO), and a contract for such a team has to say two things LATTICE's never needed to:
 
 - **where a slice's state is read from,** since the tracker holds it and the repository does not
 - **how an agent changes it,** claiming an item, moving it along, commenting or linking a branch, since a tracker is changed through its API and not by a commit

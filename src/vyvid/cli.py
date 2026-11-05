@@ -451,6 +451,7 @@ def _question(arguments, parser) -> int:
         a = ask.open_stack(config, folder, scope=getattr(arguments, "scope", ""))
     except ValueError as error:
         parser.error(str(error))
+    a.logging = not getattr(arguments, "no_log", False)
     if command == "misses":
         return ask.misses(a, arguments.limit, arguments.near, again=True)
     if command == "find":
@@ -481,6 +482,8 @@ def _questions(sub) -> None:
         p.add_argument("--in", dest="folder", default=".", help="the folder whose stack the question is asked in")
         if name not in ("misses", "gap", "close"):
             p.add_argument("--scope", default="", help="scopes to add to the stack for this question, or only:a,b to read those alone")
+        if name in ("find", "read"):
+            p.add_argument("--no-log", action="store_true", help="write nothing to the ask and miss logs for this call, such as for a benchmark")
         return p
 
     p = asking("find", "entries ranked by how close their meaning is to your words")

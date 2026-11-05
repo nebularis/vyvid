@@ -6,8 +6,8 @@
 Both sides answer every question through their own find, with no kind filter and the question's
 facets as given (a value the index does not know is stripped, and a kind in the facets file is
 ignored, as the original scoring did). LATTICE runs in its own interpreter, from its checkout, with its
-logs redirected into the output folder. Vyvid runs through ``vyvid.ask.find`` over the configuration,
-which must declare the checkout as a project with its families and its term extractor, and its index
+logs redirected into the output folder. Vyvid logs nothing, since it sets ``Asker.logging`` false, and runs
+through ``vyvid.ask.find`` over the configuration, which must declare the checkout as a project with its families and its term extractor, and its index
 must be built with embeddings on.
 
 Questions without an ``expect`` list (the negative ones) are not scored. The metric:
@@ -146,6 +146,7 @@ def run_vyvid(checkout: Path, config_path: Path, questions: list[dict], out: Pat
 
     config = load(config_path)
     a = ask.open_stack(config, checkout, model=embed.Model(config.embedding))
+    a.logging = False  # the questions are not an agent's, so they stay out of the user's logs
     known = ask.facet_values(a)
     results = {}
     for q in questions:

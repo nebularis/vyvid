@@ -263,3 +263,75 @@ def test_a_branch_older_than_the_move_answers_only_for_what_it_changed(configure
     code, out = check(w, "--ref", "old", capsys=capsys)
     assert code == 1 and out.out.splitlines() == ["TSD TSD-2 changed"]
 
+
+
+# ---- copy_removed -----------------------------------------------------------------------------
+
+
+def removed(world):
+    """Both moves declare that the project removed its copy, which is trimmed to the headings and to the row that stays."""
+    config = world.tmp / "config.toml"
+    config.write_text(config.read_text(encoding="utf-8").replace(f'commit = "{world.commit[:8]}"', f'commit = "{world.commit[:8]}"\ncopy_removed = true'), encoding="utf-8")
+    world.config = load(config)
+    assert all(m.copy_removed for m in world.config.projects["lattice"].moves)
+
+
+TRIMMED_STD = "| ID | Claim |\n|---|---|\n| STD-029 | **Stays.** |\n"
+TRIMMED_RECORD = "# Record\n\n## TSD-1. First\n\n## TSD-2. Second\n\n### Detail\n\n## Other\n"
+
+
+def trim(w):
+    write(w.code / "docs/standards.md", TRIMMED_STD)
+    write(w.code / "docs/record.md", TRIMMED_RECORD)
+
+
+def test_a_removed_copy_is_one_line_and_no_difference(configured, capsys):
+    w = configured
+    trim(w)
+    assert check(w, capsys=capsys)[0] == 1, "without the key the trimmed copy differs"
+    removed(w)
+    code, out = check(w, capsys=capsys)
+    assert code == 0 and out.out.splitlines() == ["TSD - copy-removed", "STD - copy-removed"]
+    code, out = check(w, "--json", capsys=capsys)
+    assert code == 0 and json.loads(out.out) == [{"family": "TSD", "id": "-", "state": "copy-removed"}, {"family": "STD", "id": "-", "state": "copy-removed"}]
+
+
+def test_a_ref_carrying_the_removal_reports_it_without_ancestry(configured, capsys):
+    w = configured
+    removed(w)
+    git(w.code, "checkout", "-q", "-b", "squashed")
+    trim(w)
+    commit(w.code)
+    git(w.code, "checkout", "-q", "main")
+    trim(w)  # an uncommitted copy of the same text, so the branch is not an ancestor of the tree
+    code, out = check(w, "--ref", "squashed", capsys=capsys)
+    assert code == 0 and out.out.splitlines() == ["TSD - copy-removed", "STD - copy-removed"]
+
+
+def test_an_older_branch_that_edited_a_moved_entry_is_still_caught(configured, capsys):
+    w = configured
+    removed(w)
+    git(w.code, "checkout", "-q", "-b", "old")
+    write(w.code / "docs/standards.md", STANDARDS.replace("**Moves.**", "**Changed.**").replace("| STD-031 | **Moves too.** |\n", ""))
+    write(w.code / "docs/record.md", RECORD.replace("Body two.", "Edited.").replace("## Other", "## TSD-3. Third\n\nNew.\n\n## Other").replace("## TSD-1. First\n\nBody one.\n\n", ""))
+    commit(w.code)
+    git(w.code, "checkout", "-q", "main")
+    trim(w)
+    code, out = check(w, "--ref", "old", capsys=capsys)
+    # the branch's removals of STD-031 and TSD-1 lose nothing, its edit and its addition do
+    assert code == 1 and out.out.splitlines() == ["TSD TSD-2 changed", "TSD TSD-3 added", "STD STD-030 changed"]
+
+
+def test_a_removed_copy_whose_file_is_absent_at_the_ref_is_file_absent(configured, capsys):
+    w = configured
+    removed(w)
+    (w.code / "docs/record.md").unlink()
+    commit(w.code)
+    code, out = check(w, "--ref", "main", capsys=capsys)
+    assert code == 0 and out.out.splitlines() == ["TSD - file-absent", "STD - copy-removed"]
+
+
+def test_copy_removed_must_be_a_boolean(world):
+    with pytest.raises(ConfigError) as error:
+        world.write_config(extra='\n[[projects.moves]]\nfamily = "A"\nto = "triple-stores"\nsource = "code:x"\ncommit = "abcdef1"\ncopy_removed = "yes"\n')
+    assert "copy_removed" in "\n".join(error.value.problems)

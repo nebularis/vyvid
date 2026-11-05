@@ -217,6 +217,7 @@ class Move:
     source: Path | None  # the file the knowledge came from, as it stood at ``commit``
     commit: str
     rows: dict[str, str] = field(default_factory=dict)
+    copy_removed: bool = False  # the project has removed its copy, so ``vyd move check`` does not compare it
 
 
 @dataclass
@@ -650,6 +651,8 @@ def _moves(raw, bases: dict[str, Path | None], where: str, problems: list[str]) 
             issues.append(f"{here} needs a 'source' path")
         if not isinstance(rows, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in rows.items()) or ("rows" in spec and not rows):
             issues.append(f"{here} has 'rows' that is not a table of local identifiers to identifiers in '{to}'")
+        if not isinstance(spec.get("copy_removed", False), bool):
+            issues.append(f"{here} needs copy_removed to be true or false")
         if issues:
             problems += issues
             continue
@@ -657,7 +660,7 @@ def _moves(raw, bases: dict[str, Path | None], where: str, problems: list[str]) 
             problems.append(f"{here} is declared twice, and a whole family cannot also be moved row by row")
             continue
         source = _expand(spec["source"], bases, where, problems)
-        out.append(Move(family, to, source, commit.lower(), dict(rows)))
+        out.append(Move(family, to, source, commit.lower(), dict(rows), spec.get("copy_removed", False)))
     return out
 
 

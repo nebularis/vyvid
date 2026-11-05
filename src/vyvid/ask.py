@@ -377,6 +377,7 @@ class Asker:
     model: object | None = None
     scoped: list[Scope] | None = None  # the scopes this question reads when --scope changed the stack
     named: frozenset[str] = frozenset()  # the scopes --scope names
+    logging: bool = True  # false is --no-log, which skips the ask and miss logs for this call
 
     def choose(self, text: str) -> None:
         """Apply ``--scope``: ``a,b`` adds scopes to the stack, ``only:a,b`` reads those alone. Raises
@@ -1092,7 +1093,7 @@ def lookup(a: Asker, verb: str, argument: str) -> int:
 def log_miss(a: Asker, question: str) -> None:
     """A question that returns nothing names a gap in the vocabulary or the registers, and the log
     of them is what decides what to write next."""
-    if not a.config.logs:
+    if not a.config.logs or not a.logging:
         return
     private_dir(a.logs)
     private_file(a.miss_log)
@@ -1103,7 +1104,7 @@ def log_miss(a: Asker, question: str) -> None:
 def log_ask(a: Asker, verb: str, text: str, best: float | None, ids: list[str], asked: str | None = None) -> None:
     """One line per find, read or gap: when, which, the best meaning score, what it showed, the text,
     and for a gap the question asked just before it."""
-    if not a.config.logs:
+    if not a.config.logs or not a.logging:
         return
     private_dir(a.logs)
     private_file(a.ask_log)

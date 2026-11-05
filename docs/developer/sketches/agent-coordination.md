@@ -8,7 +8,7 @@
 
 ## 1. What LATTICE does today
 
-LATTICE's work board (`lattice:ADR-A151`) keeps a slice's state in its row on its unit's status board, inside the repository, so the state travels with the branch that builds it:
+LATTICE's work board keeps a slice's state in its row on its unit's status board, inside the repository, so the state travels with the branch that builds it:
 
 - **An agent marks before its first edit.** It sets the row to `building <day>`, regenerates the register, and commits that mark alone.
 - **The board is read across branches.** `mise run work:board` reads every local and remote branch tip through one `git cat-file --batch` and joins the rows per slice.
@@ -24,7 +24,7 @@ It works, and it has four costs that follow from git being the medium:
 | Every claim is a commit | the mark-alone commit before the first edit exists only so the board can see the claim |
 | A crashed session's claim stays | a `building` row has no lease, so it reads as live until someone notices |
 
-LATTICE also renumbers register rows when two branches take the same next identifier, which is the same race at a finer grain (`lattice:STD-276` to `lattice:STD-278`, and `lattice:TD-93`, collided in October 2026).
+LATTICE also renumbers register rows when two branches take the same next identifier, which is the same race at a finer grain (rows of its standards register and of its technical debt register collided in October 2026).
 
 ## 2. The proposal
 
@@ -59,11 +59,11 @@ The store holds what is live and short-lived. The repository holds what is durab
 | a slice's state, `built`, `verified`, `merged`, with its day | the status board, as today | it is the reviewed record of the work, and travels with the branch that did it |
 | the history of claims | the store's event log | audit, never reviewed line by line |
 
-This follows the rule LATTICE keeps for its platform, that anything persisted outside the authoritative store is marked as coordination or derived (`lattice:PRI-52`). Claims are coordination. They cannot be rebuilt from the repository, and need not be, since a lost claim costs only a fresh one.
+This follows the rule LATTICE keeps for its platform, that anything persisted outside the authoritative store is marked as coordination or derived. Claims are coordination. They cannot be rebuilt from the repository, and need not be, since a lost claim costs only a fresh one.
 
 ### Why not the index store
 
-The index is derived. A build deletes it and writes it again, it is opened read-only by every question so that many agents can ask at once (`lattice:TSD-38`), and nothing in it may be a source. A claim written there would be lost on the next rebuild, and a writer would contend with every reader. The coordination store is a separate database with its own lifetime.
+The index is derived. A build deletes it and writes it again, it is opened read-only by every question so that many agents can ask at once, and nothing in it may be a source. A claim written there would be lost on the next rebuild, and a writer would contend with every reader. The coordination store is a separate database with its own lifetime.
 
 ## 3. Options for the store
 

@@ -515,6 +515,28 @@ def test_every_find_and_read_is_logged_with_its_best_score(w, capsys):
     assert float(logged[0]["best"]) > 0.9
 
 
+def log_lines(w):
+    return [p.read_text(encoding="utf-8") for p in (w.ask.ask_log, w.ask.miss_log) if p.exists()]
+
+
+def test_no_log_leaves_both_logs_untouched(w, monkeypatch, capsys):
+    """--no-log on find and read, through the command, skips the ask log and the miss log, a weak find included."""
+    from vyvid import cli
+
+    w.entry("MEC-1", "Mechanism", "a ledger account")
+    w.vectorise()
+    monkeypatch.setenv("VYVID_CONFIG", str(w.tmp / "config.toml"))
+    monkeypatch.setattr(cli.ask, "open_stack", lambda *args, **kwargs: w.ask)
+    assert cli.main(["find", "--no-log", "ledger"]) == 0 and cli.main(["read", "--no-log", "MEC-1"]) == 0
+    w.ask.config.embedding = embed.ModelSpec(weak=1.5)
+    assert cli.main(["find", "--no-log", "ledger"]) == 0
+    capsys.readouterr()
+    assert log_lines(w) == []
+    assert cli.main(["find", "ledger"]) == 0  # a weak find without it logs both
+    capsys.readouterr()
+    assert [r["verb"] for r in ask.asks(w.ask)] == ["find"] and "find ledger" in w.ask.miss_log.read_text(encoding="utf-8")
+
+
 def test_a_gap_is_recorded_with_its_entry_and_line(w, capsys):
     """An agent records what reading found at the moment it finds it, with the entry it qualifies and
     the line it was read from, so the handoff report is a query rather than a memory."""

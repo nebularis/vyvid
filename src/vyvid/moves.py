@@ -11,11 +11,18 @@ A table family's entry is its row, and a heading family's its section, to the ne
 same or a higher level. A row move compares only the rows it names, since the project keeps its
 family. A table row is taken by its first cell, so a register whose identifier is in another column
 is not read.
+
+A move with ``copy_removed = true`` says the project has removed its copy, so the copy is not compared. With
+no ref that move is reported as ``copy-removed``. With a ref, the move is reported so where the source at the
+ref is byte-identical to the working tree's, since the ref then carries the removal, and no ancestry is
+read, which holds after a squash merge. Where the source at the ref differs, it is compared as usual, except
+that an entry the ref still has and the tree no longer has is dropped, since that removal loses nothing.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -26,6 +33,7 @@ from .extract import head
 from .registers import SEPARATOR_RE, _cells
 
 ABSENT = "file-absent"
+REMOVED = "copy-removed"
 
 
 def entries(rule: str, pattern, text: str) -> dict[str, str]:
@@ -75,6 +83,12 @@ def _at_fork(top: Path, commit: str, ref: str, rel: str, moved: str) -> str:
         return moved
 
 
+def _same(top: Path, ref: str, rel: str, source: Path) -> bool:
+    """Whether the file at the ref is byte-identical to the one in the working tree."""
+    done = subprocess.run(["git", "show", f"{ref}:{rel}"], cwd=top, capture_output=True)
+    return source.is_file() and done.returncode == 0 and done.stdout == source.read_bytes()
+
+
 def check(project: Scope, config: Config, ref: str | None) -> list[tuple[str, str, str]]:
     """``(family, identifier, state)`` for everything that differs, over every move of the project.
     Raises GitError for a rev that does not exist, and OSError for a file that cannot be read."""
@@ -92,6 +106,9 @@ def check(project: Scope, config: Config, ref: str | None) -> list[tuple[str, st
             old = git(top, "show", f"{move.commit}:{rel}")
         except GitError:
             raise GitError(f"{rel} cannot be read at {move.commit} in {top}") from None
+        if ref is None and move.copy_removed:
+            found.append((move.family, "-", REMOVED))
+            continue
         if ref is None:
             new = source.read_text(encoding="utf-8") if source.is_file() else None
         else:
@@ -105,18 +122,22 @@ def check(project: Scope, config: Config, ref: str | None) -> list[tuple[str, st
                 new = None
         if new is None:
             found.append((move.family, "-", ABSENT))
+        elif move.copy_removed and _same(top, ref, rel, source):
+            found.append((move.family, "-", REMOVED))
         else:
             differs = compare(move, family.rule, family.pattern, old, new)
             if ref is not None:
                 ours = {i for i, _ in compare(move, family.rule, family.pattern, _at_fork(top, move.commit, ref, rel, old), new)}
                 differs = [(i, state) for i, state in differs if i in ours]
+            if move.copy_removed:
+                differs = [(i, state) for i, state in differs if state != "removed"]
             found += [(move.family, i, state) for i, state in differs]
     return found
 
 
 def command(config: Config, project: Scope | None, ref: str | None, as_json: bool) -> int:
     """Print the differences, plain or as JSON. Returns 1 if there are any, 2 if something cannot be read.
-    A file absent at the ref is one line, ``file-absent``, and no difference, since the project removed it."""
+    A file absent at the ref is one line, ``file-absent``, and a removed copy one, ``copy-removed``, and neither is a difference."""
     if project is None or not project.moves:
         print("no move is declared for this folder's project")
         return 0
@@ -132,4 +153,4 @@ def command(config: Config, project: Scope | None, ref: str | None, as_json: boo
             print(*line)
         if not found:
             print("nothing differs")
-    return 1 if any(s != ABSENT for _, _, s in found) else 0
+    return 1 if any(s not in (ABSENT, REMOVED) for _, _, s in found) else 0

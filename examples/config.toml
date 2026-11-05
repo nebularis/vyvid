@@ -111,6 +111,7 @@ paths = ["code:ontology/**/*.ttl"]
 # to = "triple-stores"
 # source = "code:docs/architecture/triple-store-discovery.md"
 # commit = "4b94c0f0"
+# copy_removed = true  # optional. Set once the project has removed its copy, so vyd move check does not compare it and prints "copy-removed"
 #
 # Some rows of a family that stays, each to its identifier in the domain, so STD-030 resolves to triple-stores:RDF-5.
 # [[projects.moves]]
