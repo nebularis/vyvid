@@ -105,12 +105,14 @@ def test_an_exception_excuses_an_unresolved_identifier_and_a_stale_one_is_report
     commit(repo.code)
     repo.config('STD = { defined = "docs:standards.md", type = "standard", exceptions = "docs:family.txt" }\n', extra='identifiers = { exceptions = "docs:exceptions.txt" }\n')
     code, out = repo.check(capsys)
+    assert code == 0 and "stale:" not in out and "Reported, never failed:" in out and "2 stale exceptions (--all lists them)" in out, "a pass stays one line in a hook"
+    code, out = repo.check(capsys, "--all")
     assert code == 0 and "stale: STD-7 (docs/exceptions.txt:3)" in out and "stale: STD-8 (docs/family.txt:1)" in out
     assert "STD-9" not in out.replace("STD-9  #", "")
     assert [s["identifier"] for s in repo.report(capsys)[1]["stale"]] == ["STD-7", "STD-8"]
     write(repo.code / "docs/notes.md", "STD-1 only.\n")
     commit(repo.code)
-    assert "stale: STD-9" in repo.check(capsys)[1]
+    assert "stale: STD-9" in repo.check(capsys, "--all")[1]
 
 
 def test_the_first_row_committed_keeps_a_duplicated_number(tmp_path, monkeypatch, capsys):

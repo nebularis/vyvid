@@ -12,6 +12,7 @@ asked in one project never returns another project's entries.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 from importlib import resources
 
@@ -542,6 +543,7 @@ def test_misses_lists_each_question_once_newest_first(w, capsys):
     """The miss log is read at a handoff to decide what the index lacks, so a question asked three
     times is one row with its count, and the newest gap comes first."""
     w.ask.directory.mkdir(parents=True)
+    w.ask.miss_log.parent.mkdir(parents=True)
     w.ask.miss_log.write_text("2026-10-24T09:00:00+00:00\tfind a\n2026-10-26T09:00:00+00:00\tfind b\n"
                               "2026-10-25T09:00:00+00:00\tfind a\n2026-10-25T10:00:00+00:00\tfind a\n", encoding="utf-8")
     ask.misses(w.ask, 20)
@@ -564,6 +566,17 @@ def test_closing_a_gap_removes_its_lines_and_the_question_behind_it(w, capsys):
     assert [r["text"] for r in ask.asks(w.ask)] == ["something else", "another entry's gap"]
     assert not w.ask.miss_log.read_text(encoding="utf-8").strip()
     assert "closed 1 gap(s) on STD-280" in capsys.readouterr().out
+
+
+def test_misses_stay_with_the_scope_that_asked_them(w, capsys):
+    """Another scope's question is neither shown here nor removed because this index happens to answer it."""
+    w.entry("MEC-1", "Mechanism", "a ledger account")
+    w.vectorise()
+    theirs = dataclasses.replace(w.ask, project=dataclasses.replace(w.ask.home, name="elsewhere"))
+    ask.log_miss(theirs, "find ledger")
+    ask.misses(w.ask, 20, again=True)
+    out = capsys.readouterr().out
+    assert "find ledger" not in out and theirs.miss_log.read_text(encoding="utf-8").count("find ledger") == 1
 
 
 def test_misses_removes_a_question_the_index_now_answers(w, capsys):

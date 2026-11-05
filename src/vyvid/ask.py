@@ -444,9 +444,11 @@ class Asker:
 
     @property
     def logs(self) -> Path:
-        """Where the logs live. A linked checkout's questions go to the base store's logs, so a removed
-        worktree does not take its gaps with it."""
-        return store_dir(self.config) if self.project is not None and self.project.checkout is not None else self.directory
+        """Where the logs live, one folder per home scope, since asking again removes what the index now answers and
+        another project's questions are neither this index's to answer nor this project's to report. A linked checkout's
+        questions go under the base store, so a removed worktree does not take its gaps with it."""
+        base = store_dir(self.config) if self.project is not None and self.project.checkout is not None else self.directory
+        return base / "logs" / self.home.name
 
     @property
     def ask_log(self) -> Path:

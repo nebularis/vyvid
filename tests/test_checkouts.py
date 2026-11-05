@@ -154,7 +154,7 @@ def test_the_logs_stay_with_the_project_and_not_the_checkout(tmp_path, monkeypat
     a = repo.asker(wt)
     ask.log_ask(a, "find", "ledger", 0.9, ["STD-1"])
     ask.log_miss(a, "find nothing")
-    assert (tmp_path / "idx" / "asks.log").exists() and (tmp_path / "idx" / "misses.log").exists()
+    assert (tmp_path / "idx" / "logs" / "proj" / "asks.log").exists() and (tmp_path / "idx" / "logs" / "proj" / "misses.log").exists()
     assert not (a.directory / "asks.log").exists()
 
 
@@ -215,5 +215,5 @@ def test_prune_removes_only_the_store_of_a_removed_worktree(tmp_path, monkeypatc
     assert cli.main(["store", "prune"]) == 0
     assert f"removed {stores['gone']}" in capsys.readouterr().out
     assert not stores["gone"].exists() and stores["kept"].exists() and (stores["main"] / "store").exists()
-    assert "find lost" in (tmp_path / "idx" / "misses.log").read_text(encoding="utf-8"), "the gaps a removed worktree found are kept"
+    assert "find lost" in (tmp_path / "idx" / "logs" / "proj" / "misses.log").read_text(encoding="utf-8"), "the gaps a removed worktree found are kept"
     assert cli.main(["store", "prune"]) == 0 and "no checkout store is left behind" in capsys.readouterr().out

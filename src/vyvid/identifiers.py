@@ -308,15 +308,15 @@ def command(config: Config, project: Scope | None, as_json: bool, everything: bo
             print(f"variant: {', '.join(s for s in sorted(mention.spellings) if s != canonical)} -> {canonical} ({mention.family.name}): {_where(mention.sites, roots)}")
         for mention in findings.removable:
             print(f"removable: {_label(mention, project, sorted(mention.spellings)[0])} ({mention.family.name}) is no longer defined: {_where(mention.sites, roots)}")
+        for path, number, entry in findings.stale:
+            print(f"stale: {entry} ({_name(path, roots)}:{number}) is excused and nothing needs it")
     for identifier, path, number in gone or []:
         print(f"symbol gone: {identifier} is in no file the symbol store holds: {_name(path, roots)}:{number}")
-    for path, number, entry in findings.stale:
-        print(f"stale: {entry} ({_name(path, roots)}:{number}) is excused and nothing needs it")
     if project.private_docs and project.docs is not None and project.docs.is_dir() and subprocess.run(
             ["git", "-C", str(project.docs), "rev-parse", "--show-toplevel"], capture_output=True).returncode:
         print(f"not read: {project.docs} is in no git repository and only tracked files are scanned, so no mention in those documents was checked")
     print(f"{'identifier check failed' if failed else 'identifier check passed'}: {len(found)} identifiers mentioned in {len(paths)} files, "
-          f"{len(findings.unresolved)} unresolved, {len(settled)} defined twice, {len(findings.variants)} written under another spelling, "
+          f"{len(findings.unresolved)} unresolved, {len(settled)} defined twice. Reported, never failed: {len(findings.variants)} written under another spelling, "
           f"{len(findings.removable)} removable no longer defined, {len(findings.stale)} stale exceptions"
           + ("" if gone is None else f", {len(gone)} symbols gone") + ("" if everything else " (--all lists them)"))
     return int(failed)
