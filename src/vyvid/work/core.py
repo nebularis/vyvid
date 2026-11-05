@@ -153,6 +153,24 @@ def table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> list[str]:
     return out
 
 
+# The key under which the boards of an unpushed current branch are read, which no branch name can equal because it holds a space.
+THIS_CHECKOUT = "this checkout"
+
+
+def cut_label(text: str, limit: int = 30) -> str:
+    """A bar's label from a deliverable: the whole text within ``limit`` characters, otherwise the longest prefix that ends at a comma,
+    otherwise the last whole word, and a single word longer than ``limit`` is cut at ``limit``."""
+    if len(text) <= limit:
+        return text
+    comma = text.rfind(",", 0, limit)
+    if comma > 0:
+        return text[:comma + 1]
+    if text[limit].isspace():
+        return text[:limit]
+    space = text.rfind(" ", 0, limit)
+    return text[:space] if space > 0 else text[:limit]
+
+
 def plain(cell: str, limit: int = 0) -> str:
     """A cell as the generated tables carry it: a link reduced to its text, since the record's
     relative links do not resolve from another file, and no semicolon, since the writing rule
@@ -320,7 +338,7 @@ class Rules:
         others: dict[str, list[tuple[int, str]]] = {}
         for branch, units in boards.items():
             unit = units.get(name)
-            if branch != self.work.main and unit and unit.state and key(unit) > key(base):
+            if branch not in (self.work.main, THIS_CHECKOUT) and unit and unit.state and key(unit) > key(base):
                 others.setdefault(text(unit), []).append((self.rank(unit.state), branch))
         ordered = sorted(others.items(), key=lambda kv: (-max(r for r, _ in kv[1]), kv[0]))
         return own + "".join(f" · {state} on {', '.join(sorted(b for _, b in hold))}" for state, hold in ordered)
@@ -364,7 +382,7 @@ class Rules:
             start, end = days[0], days[-1]
             if start == end:
                 end = (datetime.date.fromisoformat(end) + datetime.timedelta(days=1)).isoformat()
-            label = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 .-]", " ", re.sub(r"'s\b", "", f"{slice_id} {row.deliverable[:30]}"))).strip()
+            label = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 .-]", " ", re.sub(r"'s\b", "", f"{slice_id} {cut_label(row.deliverable)}"))).strip()
             ident = re.sub(r"[^a-z0-9]", "", slice_id.lower()) or "s"
             by_unit.setdefault(unit, []).append(f"    {label} :{tag + ', ' if tag else ''}{ident}, {start}, {end}")
         if not by_unit:
@@ -541,9 +559,11 @@ class Repo(Rules):
                 out[line[18:]] = path
         return out
 
-    def branches(self) -> list[Branch]:
+    def branches(self, published: bool = False) -> list[Branch]:
         """Every branch, local or remote, one row each. Remotes that share a URL are one remote. Where
-        the local and remote tips differ, the tip read is the one further on, and ``drift`` says so."""
+        the local and remote tips differ, the tip read is the one further on, and ``drift`` says so.
+        With ``published`` only the branches known from a remote are returned, each at its remote tip,
+        so nothing of a local-only branch or of a local commit not pushed is read. It reads refs alone."""
         main = self.work.main
         urls = self.remotes()
         seen_urls: dict[str, str] = {}
@@ -560,12 +580,16 @@ class Repo(Rules):
                 if not name or name == "HEAD" or folded.get(remote_name, remote_name) != remote_name:
                     continue
                 remote.setdefault(name, (sha, day))
-        trees = self.worktrees()
+        if published:
+            local = {}
+        trees = {} if published else self.worktrees()
         main_sha = local.get(main, remote.get(main, ("", "")))[0]
         out: list[Branch] = []
         for name in sorted(set(local) | set(remote)):
             l, r = local.get(name), remote.get(name)
-            if l and r and l[0] != r[0]:
+            if published:
+                tip, day, drift = r[0], r[1], "pushed"
+            elif l and r and l[0] != r[0]:
                 ahead, behind = self.git("rev-list", "--count", "--left-right", f"{l[0]}...{r[0]}").split()
                 tip, day = (l if int(ahead) else r)
                 drift = f"local ahead {ahead}, behind {behind}" if int(ahead) and int(behind) else (
@@ -753,12 +777,17 @@ class Repo(Rules):
         the completed work, from every branch, dated by the newest day any board holds, and what waits on the maintainer."""
         w, main = self.work, self.work.main
         unit = self.title
-        found = self.branches()
+        found = self.branches(published=True)  # the roadmap is committed, so no local-only branch reaches it
         boards = {b.name: self.units_at(b.tip) for b in found}
-        joined = self.join(boards)
         # A record's own state and its documents come from the tree the roadmap is built in, which is the trunk
         # after a merge, so a branch sees its own records rather than the trunk's older copy of them.
         main_units = self.units_here()
+        # The tree being built is committed, so its boards count whether or not its branch is pushed. A branch
+        # no remote knows is read under a name that is not a branch, so its own name is never written.
+        current = self.git("symbolic-ref", "--short", "-q", "HEAD", check=False).strip()
+        if current:
+            boards[current if current in boards else THIS_CHECKOUT] = main_units
+        joined = self.join(boards)
         newest = max((d for j in joined.values() for r in j.rows.values() for _, d in r.trail if d), default="")
         glance = [f"Built from the status records on {len(found)} branches, the {w.unit}s' own state from this tree, the newest board day {newest or 'unknown'}.", ""]
         unit_rows = []
@@ -782,7 +811,7 @@ class Repo(Rules):
             for j in slices:
                 counts[j.winner[1].state or "?"] = counts.get(j.winner[1].state or "?", 0) + 1
             summary = ", ".join(f"{n} {st}" for st, n in sorted(counts.items(), key=lambda kv: -kv[1])) or "no board"
-            on = sorted({b for j in slices for b in j.moved})
+            on = sorted({b for j in slices for b in j.moved} - {THIS_CHECKOUT})
             unit_rows.append((named(name), record.kind, self.unit_state(name, record, boards), record.next, summary, ", ".join(on)))
         glance += table((unit, "Kind", "State", "Next", f"{self.piece}s", "Moved on"), unit_rows)
         count = NUMBER_WORDS.get(w.chart_after, str(w.chart_after))

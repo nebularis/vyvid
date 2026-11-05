@@ -43,7 +43,7 @@ vyd check citations [--staged] [--message <file>] [paths ...] # refuse lines a p
 vyd docs record <path> ... -m <message> [--in folder] # stage paths in the project's documents folder, outside its code repository, then commit and push as its git.docs policy says
 vyd board [folder] [--all] [--fetch] [--measure] [--commits] [--here] [--state <word>] # where every record and slice is, across every local and remote branch, once the project declares work settings. --here reads the families of type slice in the one checkout
 vyd work build [--check]               # write the index's generated region from the status records, or fail if it is stale
-vyd work roadmap [--check] [--fetch]   # write the roadmap's generated regions from every branch
+vyd work roadmap [--check] [--fetch]   # write the roadmap's generated regions from every branch a remote knows, read from its refs, so a branch never pushed is left out
 vyd work check [--staged]              # hold the status records to the ladder and the grammar and the index's region to the records, as a hook runs it
 vyd work parse <record>                # a status record's board as read
 vyd work rename | normalise | adopt [--apply] # move older boards and identifiers onto the board's shape. Each reports without --apply
@@ -66,7 +66,7 @@ vyd move check [--ref <git ref>] [--json] [folder] # compare what the project mo
 
 ## The work board
 
-A project keeps one status record per unit of work, each with a board of slices whose state is a word of a ladder and the day it was reached. `vyd board` reads those boards at the tip of every local and remote branch without a checkout, joins them per slice, and prints where everything is, what differs from the trunk, which branches moved a slice, and any double claim. Another branch's files are read as data, and nothing in them is run or used as a path. `vyd work` writes the generated regions of a project's index and roadmap, checks the records for a hook, and moves older boards onto the standard shape. `vyd here` keeps one small file per session, in the checkout's git directory unless the project names a folder, so a second session sees that one is already building there. The session comes from `CLAUDE_CODE_SESSION_ID` or `AGENT_SESSION_ID`, and from `VYD_SESSION_ID` and `VYD_CLIENT` for a client that sets neither.
+A project keeps one status record per unit of work, each with a board of slices whose state is a word of a ladder and the day it was reached. `vyd board` reads those boards at the tip of every local and remote branch without a checkout, joins them per slice, and prints where everything is, what differs from the trunk, which branches moved a slice, and any double claim. Another branch's files are read as data, and nothing in them is run or used as a path. `vyd work` writes the generated regions of a project's index and roadmap, the roadmap from the branches a remote knows at their remote tips and never from a local-only branch, checks the records for a hook, and moves older boards onto the standard shape. `vyd here` keeps one small file per session, in the checkout's git directory unless the project names a folder, so a second session sees that one is already building there. The session comes from `CLAUDE_CODE_SESSION_ID` or `AGENT_SESSION_ID`, and from `VYD_SESSION_ID` and `VYD_CLIENT` for a client that sets neither.
 
 Every key of the `work` table is optional, and a project with the table gets a `status` and a `plans` folder under its documents.
 

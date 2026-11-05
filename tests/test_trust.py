@@ -333,12 +333,12 @@ def test_trust_by_a_terminal_records_the_hash_and_a_one_byte_edit_undoes_it(tmp_
     assert json.loads(configuration.trust_file().read_text(encoding="utf-8")) == {str(w.path.resolve()): configuration._digest(w.path)}
     if os.name == "posix":
         assert configuration.trust_file().stat().st_mode & 0o777 == 0o600
-    assert configuration.trusted(load(w.path)) and cli.main(["config"]) == 0 and "trust: trusted" in capsys.readouterr().out
+    assert configuration.trusted(load(w.path)) and cli.main(["config"]) == 0 and "configuration trust: trusted" in capsys.readouterr().out
     assert w.run("r") == [] and marker.exists(), "trusted glue runs"
     w.path.write_text(w.path.read_text(encoding="utf-8") + " ", encoding="utf-8")
     assert not configuration.trusted(load(w.path))
     cli.main(["config"])
-    assert "trust: not trusted" in capsys.readouterr().out
+    assert "configuration trust: not trusted" in capsys.readouterr().out
 
 
 @pytest.mark.real_trust

@@ -33,7 +33,7 @@
     status records, where the project declares ``work`` settings. ``--here`` reads the slices of its families of type slice in the one
     checkout, as a project without those settings always is
 ``vyd work build | roadmap | check | parse | rename | normalise | adopt`` and ``vyd here``
-    the generated regions of the project's index and roadmap, the check a hook runs, a record's board as read, the moves of older
+    the generated regions of the project's index and roadmap (the roadmap from the branches a remote knows, never a local-only one), the check a hook runs, a record's board as read, the moves of older
     boards and identifiers onto the board's shape, and who else is working in this checkout
 ``vyd check identifiers [--json] [--all] [folder]``
     fail on an identifier the folder's tracked Markdown mentions and nothing defines, or that a family defines twice
@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import sys
 import time
@@ -523,6 +524,9 @@ def _doc_share(text: str) -> float:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # A git hook exports these, and under them `git -C <folder> rev-parse --show-toplevel` answers the folder itself. GIT_INDEX_FILE stays, as a partial commit's temporary index is what --staged reads.
+    for name in ("GIT_DIR", "GIT_WORK_TREE"):
+        os.environ.pop(name, None)
     parser = argparse.ArgumentParser(prog="vyd", description="Вивід: the contract and knowledge for the folder an agent is in")
     parser.add_argument("--version", action="version", version=f"Вивід (vyvid) {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -735,7 +739,7 @@ def main(argv: list[str] | None = None) -> int:
         configured = load()
         config, project = bind_in(configured, Path(arguments.folder))
         print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
-        print("trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
+        print("configuration trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
         for line in install.missing(config):
             print(f"NOTE: {line}")
         for line in install.out_of_date(config):

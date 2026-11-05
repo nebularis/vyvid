@@ -326,7 +326,9 @@ def test_an_untrusted_file_gives_knowledge_alone_and_runs_nothing(tmp_path, caps
     assert cli.main(["context", str(root), "--no-pull", "--json"]) == 0
     layer = json.loads(capsys.readouterr().out)["layers"][1]
     assert layer["rules"] == [] and layer["skills"] == [] and layer["withheld"]["trust"] == "a vyvid.toml nobody has trusted"
-    assert cli.main(["config", str(root)]) == 0 and "not trusted" in capsys.readouterr().out
+    assert cli.main(["config", str(root)]) == 0
+    text = capsys.readouterr().out
+    assert "project proj is declared in" in text and "which is not trusted, so it gives knowledge alone and runs nothing" in text
 
 
 @pytest.mark.real_trust

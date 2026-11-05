@@ -6,7 +6,9 @@ reads git runs it in a temporary repository, and none touches the real home."""
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -350,6 +352,19 @@ def test_gantt_draws_one_bar_per_dated_slice() -> None:
     assert RULES.gantt_text(RULES.join({}), "t") == [] and 'K2["built or verified"]' in "\n".join(RULES.gantt_key())
 
 
+@pytest.mark.parametrize("deliverable, label", [
+    ("track D, the prover spike, the pack that covers FM-D0 to FM-D4", "track D the prover spike"),
+    ("the evaluator and its compiled forms of the rules", "the evaluator and its compiled"),
+    ("the evaluator and its compilers forms of the rules", "the evaluator and its"),
+    ("a" * 40, "a" * 30),
+    ("the parser", "the parser"),
+])
+def test_a_bars_label_is_cut_at_a_comma_then_a_word_then_the_limit(deliverable: str, label: str) -> None:
+    board = f"**Status:** building 2026-10-30.\n\n| Slice | Deliverable | State | Blocked on |\n|---|---|---|---|\n| AL-2 | {deliverable} | building 2026-10-27 | |\n"
+    bars = [l for l in RULES.gantt_text(RULES.join({"main": {"alpha": RULES.parse_unit("alpha", board)}}), "t") if ":active," in l]
+    assert [b.split(" :")[0].strip() for b in bars] == [f"AL-2 {label}"]
+
+
 def test_render_regions_appends_replaces_and_is_idempotent() -> None:
     regions = {"glance": "G\n", "branches": "B\n"}
     mark = {n: RULES.markers_for(n) for n in regions}
@@ -496,6 +511,57 @@ def test_an_empty_table_gives_the_defaults_and_no_table_gives_none() -> None:
 def test_a_bad_setting_is_reported_and_names_the_key(raw, fragment) -> None:
     _, problems = parsed(raw)
     assert any(fragment in p for p in problems), problems
+
+
+def test_the_roadmap_names_only_branches_a_remote_knows_and_the_board_still_shows_the_rest(repo: Repo, capsys: pytest.CaptureFixture[str]) -> None:
+    record = (DEV / "status/alpha.md").as_posix()
+    on_branch(repo, "private-probe", record, with_a2("verified 2026-11-04, " + A2))
+    on_branch(repo, "shared", record, with_a2("built 2026-11-01, " + A2))
+    sh(repo.root, "git", "push", "-q", "origin", "shared")
+    unpushed = on_branch(repo, "shared", record, with_a2("merged 2026-11-03, " + A2), new=False)
+    assert sh(repo.root, "git", "rev-parse", "shared") == unpushed
+    roadmap = "\n".join(repo.roadmap_regions().values())
+    assert "private-probe" not in roadmap and "`shared`" in roadmap and "2026-11-04" not in roadmap and "2026-11-03" not in roadmap
+    assert "on 2 branches" in roadmap and "1 merged, 1 built, 1 planned" in roadmap
+    assert [b.name for b in repo.branches(published=True)] == ["main", "shared"] and not any(b.worktree for b in repo.branches(published=True))
+    assert repo.build_roadmap(check=False) == 0
+    assert "private-probe" not in repo.work.roadmap.read_text(encoding="utf-8")
+    assert "| private-probe |" in repo.board_text(False, False, False)
+
+
+def alpha_row(regions: dict[str, str]) -> list[str]:
+    return cells_of(regions["glance"], "[alpha](plans/alpha.md)")
+
+
+def test_a_local_only_current_branch_keeps_its_own_boards_and_its_name_stays_out(repo: Repo) -> None:
+    record = (DEV / "status/alpha.md").as_posix()
+    sh(repo.root, "git", "checkout", "-q", "-b", "wip-probe")
+    commit(repo.root, record, with_a2("built 2026-11-01, " + A2))
+    regions = repo.roadmap_regions()
+    assert "1 merged, 1 built, 1 planned" in alpha_row(regions)[4]
+    assert "wip-probe" not in "\n".join(regions.values()) and "on 1 branches" in regions["glance"]
+    assert "| `wip-probe` |" not in regions["branches"]
+
+
+def test_a_pushed_current_branch_shows_a_board_change_it_has_not_pushed(repo: Repo) -> None:
+    record = (DEV / "status/alpha.md").as_posix()
+    sh(repo.root, "git", "checkout", "-q", "-b", "cur")
+    commit(repo.root, record, with_a2("built 2026-11-01, " + A2))
+    sh(repo.root, "git", "push", "-q", "origin", "cur")
+    commit(repo.root, record, with_a2("merged 2026-11-03, " + A2))
+    regions = repo.roadmap_regions()
+    assert "2 merged, 1 planned" in alpha_row(regions)[4] and alpha_row(regions)[5] == "cur"
+
+
+def test_a_local_only_branch_stays_out_of_the_roadmap_when_another_branch_is_current(repo: Repo) -> None:
+    record = (DEV / "status/alpha.md").as_posix()
+    on_branch(repo, "private-probe", record, with_a2("verified 2026-11-04, " + A2))
+    sh(repo.root, "git", "checkout", "-q", "-b", "shared")
+    commit(repo.root, record, with_a2("built 2026-11-01, " + A2))
+    sh(repo.root, "git", "push", "-q", "origin", "shared")
+    regions = repo.roadmap_regions()
+    assert "private-probe" not in "\n".join(regions.values()) and "2026-11-04" not in "\n".join(regions.values())
+    assert "| private-probe |" in repo.board_text(False, False, False)
 
 
 # ---- the command line, over a repository that declares its own project ------------------------------------
@@ -740,3 +806,83 @@ def test_a_repository_file_may_name_only_paths_inside_the_repository(tmp_path, c
     _, problems = read_project_file(root / "vyvid.toml")
     assert any("work.index names 'docs:../../escape.md', which leaves the repository" in p for p in problems)
     assert run(["work", "check", "--in", str(root)], capsys)[0] == 2, "the project is set aside, so it declares no work settings"
+
+
+# ---- a git hook exports GIT_DIR ----------------------------------------------------------------------
+
+HOOK_PROGRAM = ("import sys\nfrom vyvid import config\nconfig.trusted = lambda c: True\nconfig.file_trusted = lambda p: True\n"
+                "from vyvid.cli import main\nsys.exit(main(sys.argv[1:]))")
+RECORD = "docs/developer/status/alpha.md"
+BETA = "# Beta: status\n\n**Unit ID:** `beta`\n**Status:** later. Slice BE-1 next.\n\n| Slice | Deliverable | State | Blocked on |\n|---|---|---|---|\n| BE-1 | the thing | planned | |\n"
+
+
+def committing(tmp_path: Path, monkeypatch, linked: bool) -> Path:
+    """A project with its index built and committed, and a real pre-commit hook that runs the staged check, in the
+    main checkout or in a linked worktree. Returns the folder to commit in."""
+    root = project(tmp_path)
+    assert cli.main(["work", "build", "--in", str(root)]) == 0
+    sh(root, "git", "add", "-A")
+    sh(root, "git", "commit", "-q", "--no-verify", "-m", "built")
+    hook = Path(sh(root, "git", "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks" / "pre-commit"
+    hook.parent.mkdir(exist_ok=True)
+    hook.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -c {shlex.quote(HOOK_PROGRAM)} work check --staged --in \"$PWD\"\n", encoding="utf-8")
+    hook.chmod(0o755)
+    if not linked:
+        return root
+    work = tmp_path / "linked"
+    sh(root, "git", "worktree", "add", "-q", "-b", "side", str(work))
+    return work
+
+
+def attempt(folder: Path, *args: str) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(["git", "commit", "-q", "-m", "x", *args], cwd=folder, capture_output=True, text=True, env=env)
+
+
+BOTH = pytest.mark.parametrize("linked", [False, True], ids=["main checkout", "linked worktree"])
+
+
+@BOTH
+def test_the_staged_check_does_not_crash_under_a_real_hook_and_picks_records_from_the_index(tmp_path, monkeypatch, linked) -> None:
+    folder = committing(tmp_path, monkeypatch, linked)
+    record = folder / RECORD
+    record.write_text(ALPHA.replace("building 2026-10-30. Slice", "later. Slice"), encoding="utf-8")
+    (folder / "note.txt").write_text("A note.\n", encoding="utf-8")
+    sh(folder, "git", "add", "note.txt")
+    assert attempt(folder).returncode == 0, "a record that is not staged is not checked"
+    record.write_text(ALPHA.replace("building 2026-10-30. Slice", "later. Slice") + "\n", encoding="utf-8")
+    sh(folder, "git", "add", RECORD)
+    refused = attempt(folder)
+    output = refused.stdout + refused.stderr
+    assert refused.returncode != 0 and "the Status line opens with 'later." in output
+    assert "Traceback" not in output and "ValueError" not in output
+    record.write_text(ALPHA + "\nA note.\n", encoding="utf-8")
+    sh(folder, "git", "add", RECORD)
+    assert attempt(folder).returncode == 0
+
+
+@BOTH
+@pytest.mark.xfail(strict=True, reason="the check takes the names of the staged records from the index and reads their text from the working tree, the debt row TD-4")
+def test_the_staged_check_reads_the_staged_text_of_a_record(tmp_path, monkeypatch, linked) -> None:
+    folder = committing(tmp_path, monkeypatch, linked)
+    record = folder / RECORD
+    record.write_text(ALPHA.replace("building 2026-10-30. Slice", "later. Slice"), encoding="utf-8")
+    sh(folder, "git", "add", RECORD)
+    record.write_text(ALPHA, encoding="utf-8")
+    assert attempt(folder).returncode != 0
+
+
+@BOTH
+def test_a_partial_commit_is_checked_against_its_temporary_index(tmp_path, monkeypatch, linked) -> None:
+    folder = committing(tmp_path, monkeypatch, linked)
+    beta = "docs/developer/status/beta.md"
+    (folder / beta).write_text(BETA, encoding="utf-8")
+    assert cli.main(["work", "build", "--in", str(folder)]) == 0
+    sh(folder, "git", "add", beta)
+    (folder / RECORD).write_text(ALPHA + "\nA note.\n", encoding="utf-8")
+    done = attempt(folder, RECORD)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert sh(folder, "git", "diff", "--cached", "--name-only") == beta, "the other staged file is left staged"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    checked = subprocess.run([sys.executable, "-c", HOOK_PROGRAM, "work", "check", "--staged", "--in", str(folder)], capture_output=True, text=True, env=env)
+    assert checked.returncode == 1 and "beta.md" in checked.stdout, "the real index does hold the bad file, so the temporary index is what left it out"
