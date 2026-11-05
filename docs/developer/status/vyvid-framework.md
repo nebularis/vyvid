@@ -36,6 +36,7 @@
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
 | VYD-22 | one install for every client, and missing domains | built 2026-11-05, building 2026-11-05 | VYD-16 |
 | VYD-21 | cloud agents with chosen domains | planned | VYD-10, VYD-19 |
+| VYD-23 | configuration from the command line | building 2026-11-05 | |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 | |
 | VYD-16 | skills that reach an agent | built 2026-11-05, building 2026-11-05 | |
