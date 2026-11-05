@@ -78,7 +78,11 @@ steps = [
 
 
 def skill(name: str) -> str:
-    return f"""{SPDX}
+    return f"""---
+name: {name}
+description: Use when working on {name}. Say here which tasks should load this skill.
+---
+{SPDX}
 
 # {name}
 
@@ -119,7 +123,7 @@ def new(name: str, registers: str, path: Path | None) -> int:
     if folder.exists() and (not folder.is_dir() or any(folder.iterdir())):
         print(f"vyd: {folder} exists and is not empty, so nothing is written")
         return 2
-    files = {"domain.toml": manifest(name, registers), "facets.md": FACETS, f"{plural(registers)}.md": register(registers), f"skills/{name}.md": skill(name)}
+    files = {"domain.toml": manifest(name, registers), "facets.md": FACETS, f"{plural(registers)}.md": register(registers), f"skills/{name}/SKILL.md": skill(name)}
     for relative, text in files.items():
         target = folder / relative
         target.parent.mkdir(parents=True, exist_ok=True)

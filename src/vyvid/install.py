@@ -11,10 +11,12 @@ overwritten, since it is somebody's own. Nothing is written into a project's fol
 from __future__ import annotations
 
 import json
+import shlex
 from importlib import resources
 from pathlib import Path
 
 from .config import Config, Scope, refusals
+from .skills import INDEX_FIRST, MARK as SKILL_MARK, compose, found, skill_name
 
 # The folder each supported client reads rules and skills from.
 CLIENTS = {"claude-code": "~/.claude"}
@@ -26,8 +28,10 @@ REVIEW_SKILL = f"{CORE_SKILL}domain-review"
 REVIEWER = "vyvid-domain-reviewer"
 REVIEW_DESCRIPTION = "Use before trusting a domain that someone else wrote, to review a quarantined clone of it for malicious instructions without running anything from it"
 
-RULE = """\
+RULE = f"""\
 # Вивід
+
+{INDEX_FIRST}
 
 Before the first task in a folder, run `vyd context` there and read each layer it lists, in order. The project's layer is last and overrides the ones before it.
 
@@ -42,7 +46,13 @@ At a handoff, report the questions the index answered weakly with `vyd misses --
 def generated(text: str) -> bool:
     """Whether a file was written by this command. A skill's marker follows its front matter, so any
     of the first lines may hold it."""
-    return MARK in text.splitlines()[:6]
+    return any(mark in text.splitlines()[:12] for mark in (MARK, SKILL_MARK))
+
+
+def bound(config: Config) -> set[str]:
+    """The domains a configured project uses. A personal skill takes the place of a project's of the same name in a client, so
+    these reach an agent through the skills composed into each project, and never from the user's folder."""
+    return {name for project in config.projects.values() for name in config.domain_order(project)}
 
 
 def skill(domain: Scope) -> str:
@@ -80,7 +90,9 @@ def files(config: Config, root: Path) -> list[tuple[Path, str]]:
     return [(root / "rules" / "vyvid.md", f"{MARK}\n\n{RULE}"),
             (root / "agents" / f"{REVIEWER}.md", reviewer_agent()),
             (root / "skills" / REVIEW_SKILL / "SKILL.md", review_skill()),
-            *((root / "skills" / f"{DOMAIN_SKILL}{d.name}" / "SKILL.md", skill(d)) for d in config.domains.values() if d.trusted)]
+            *((root / "skills" / f"{DOMAIN_SKILL}{d.name}" / "SKILL.md", skill(d)) for d in config.domains.values() if d.trusted and d.name not in bound(config)),
+            *((root / "skills" / skill_name(d, short, None) / "SKILL.md", compose(path.read_text(encoding="utf-8"), d, None, "", skill_name(d, short, None)).text)
+              for d in config.domains.values() if d.trusted and d.name not in bound(config) for short, path in found(d).items())]
 
 
 def install(config: Config, client: str, target: Path | None, dry_run: bool) -> int:
@@ -95,9 +107,10 @@ def install(config: Config, client: str, target: Path | None, dry_run: bool) -> 
     for line in refusals(list(config.domains.values())):
         print(line)
     left = 0
-    for d in (d for d in config.domains.values() if not d.trusted):
+    for d in (d for d in config.domains.values() if not d.trusted or d.name in bound(config)):
         old = root / "skills" / f"{DOMAIN_SKILL}{d.name}" / "SKILL.md"
-        print(f"no skill for domain {d.name}, whose trust is {d.trust}, which gives knowledge alone")
+        print(f"no skill for domain {d.name}, whose trust is {d.trust}, which gives knowledge alone" if not d.trusted
+              else f"no skill for domain {d.name} here, since a project uses it. vyd install --project composes it into that project")
         if old.exists() and generated(old.read_text(encoding="utf-8", errors="replace")):
             print(f"{'would remove' if dry_run else 'removed'} {old}")
             if not dry_run:
@@ -116,3 +129,57 @@ def install(config: Config, client: str, target: Path | None, dry_run: bool) -> 
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8", newline="\n")
     return 1 if left else 0
+
+
+# ---- The reminder hook -------------------------------------------------------------------------------
+
+
+def hook_command(client: str, ask: str) -> str:
+    """Runs where ``vyd-hook`` is installed and is silent where it is not, since a contributor may have no ``vyd``."""
+    return f"command -v vyd-hook >/dev/null 2>&1 && vyd-hook --client {client} --ask {shlex.quote(ask)} || echo '{{}}'"
+
+
+def powershell_command(client: str, ask: str) -> str:
+    quoted = ask.replace("'", "''")
+    return f"if (Get-Command vyd-hook -ErrorAction SilentlyContinue) {{ vyd-hook --client {client} --ask '{quoted}' }} else {{ '{{}}' }}"
+
+
+def merged_settings(path: Path, event: str, entry: dict) -> dict:
+    """The JSON at ``path`` with our entry for ``event`` in place of any earlier one, and everything else as it was."""
+    current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    hooks = current.setdefault("hooks", {})
+    rows = [row for row in hooks.get(event, []) if "vyd-hook" not in json.dumps(row)]
+    hooks[event] = [*rows, entry]
+    return current
+
+
+def hook_files(project_root: Path, clients: tuple[str, ...], ask: str) -> list[tuple[Path, str]]:
+    """Each client's hook file under ``project_root``, its text as it should be. Raises ValueError on a file that is not JSON."""
+    out = []
+    if "claude-code" in clients:
+        path = project_root / ".claude" / "settings.json"
+        entry = {"matcher": "Bash|PowerShell|Grep|Glob", "hooks": [{"type": "command", "command": hook_command("claude-code", ask), "timeout": 5}]}
+        out.append((path, merged_settings(path, "PreToolUse", entry)))
+    if "codex" in clients:
+        path = project_root / ".codex" / "hooks.json"
+        entry = {"matcher": "Bash", "hooks": [{"type": "command", "command": hook_command("codex", ask), "commandWindows": powershell_command("codex", ask), "timeout": 5}]}
+        out.append((path, merged_settings(path, "PreToolUse", entry)))
+    if "copilot" in clients:
+        # Copilot documents additionalContext on postToolUse only, so its reminder follows the search rather than preceding it.
+        out.append((project_root / ".github" / "hooks" / "vyvid.json", {"version": 1, "hooks": {"postToolUse": [
+            {"type": "command", "bash": hook_command("copilot", ask), "powershell": powershell_command("copilot", ask), "timeoutSec": 5}]}}))
+    return [(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n") for path, data in out]
+
+
+def install_hooks(project_root: Path, clients: tuple[str, ...], ask: str, dry_run: bool) -> int:
+    try:
+        rows = hook_files(project_root, clients, ask)
+    except (OSError, ValueError) as error:
+        print(f"vyd: the hook was not registered, since a client's settings file could not be read: {error}")
+        return 1
+    for path, text in rows:
+        print(f"{'would write' if dry_run else 'wrote'} {path}")
+        if not dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8", newline="\n")
+    return 0

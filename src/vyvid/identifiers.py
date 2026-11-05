@@ -130,7 +130,15 @@ def mentions(config: Config, project: Scope, paths: list[Path]) -> dict[tuple[st
         return True
 
     for path in paths:
+        ending = None
         for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if ending is not None:
+                if line.startswith(ending):
+                    ending = None
+                continue
+            ending = next((end for begin, end in project.identifiers.regions if line.startswith(begin)), None)
+            if ending is not None:
+                continue
             claimed: set[str] = set()
             spans: list[tuple[int, int]] = []
             for scope, family, form in named:

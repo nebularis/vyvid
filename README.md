@@ -58,6 +58,24 @@ vyd handoff <name> [--module M] [--unit U] [--in folder] # the exact commands fo
 vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
 ```
 
+## Skills that reach an agent
+
+A domain ships `skills/<name>/SKILL.md`, the format Claude Code and VS Code both read. A project's `vyvid.toml` says what it uses, and `vyd install --project` composes each skill and writes it into the checkout, under `.claude/skills` unless `skill_targets` says otherwise, to be committed. Every clone and worktree then has its skills, and so does a contributor without `vyd`. `vyd check skills` fails when a committed skill differs from what its sources compose to.
+
+A project adds to a domain's skill with `.vyvid/skills/<domain>/<skill>.md`. Text under `## A heading` joins the domain's section of that name, `## A heading (replace)` takes its place, and a new heading follows at the end. Its front matter may give its own `description`. `{{name}}` in a skill is filled from the project's `skill_values`, then the domain's, and a value nobody gives stops that skill being written. `skill_prefix` sets how the skills are named, and a project's own skills, in the folders its `skills` names, are composed the same way.
+
+```toml
+[project]
+skill_prefix = "acme-"
+skill_values = { status = "docs/status", ask = "vyd find" }
+skill_targets = [".claude/skills", ".github/skills"]
+hook_clients = ["claude-code", "copilot", "codex"]
+```
+
+Every generated skill opens on the same block, kept in one place, saying to ask the index before any decision and any search, and naming the registers to ask. A composed file names no folder of one machine. A client prefers a personal skill to a project's of the same name, so `vyd install --client` writes no skill for a domain a configured project uses. `vyd check skills --from old/SKILL.md --map map.tsv` fails on any line of an old skill that is in no composed skill and no row of the map, so a move loses nothing.
+
+`vyd install --project` also registers `vyd-hook` with each client in `hook_clients`. It runs before a tool call in Claude Code and Codex, and after one in Copilot, whose documents give a hook no way to add context before one. When a search runs in a shell, Bash or PowerShell, or through a search tool, before any index question in that session, or after 15 searches since the last, it reminds the agent. It never refuses, and a failure in it says nothing. Only Claude Code has been run. Where `vyd-hook` is not installed, the registered command does nothing.
+
 A domain gives knowledge alone unless its entry in your configuration says `trust = "own"`, or `trust = "reviewed"` with the `commit` you reviewed. A domain with a remote is knowledge by default and one with none is your own. A knowledge domain installs no rules or skills, its results are labelled as data, and a pull that changes its rules, skills or manifest is held until you run `vyd kb accept`. A configuration at a path other than your own, such as one named by `VYVID_CONFIG`, runs no glue and no command extractor until you run `vyd trust` in a terminal, and again after it changes.
 
 A project specialises a domain by keeping a register of the domain's register type in its own documents, such as a `note` register for the Tools domain, and by naming the domain's row in a row's `Specialises` column, qualified with the domain, as `tools:NOTE-1`. In a folder of the project `vyd find` ranks the project's row above the domain's and shows the domain's beneath it, and a row the project `Overrides` is shown only when its scope is named. A `vyvid.toml` that names a domain you have not configured does not set its project aside. `vyd context` and `vyd build` print a note, the domain is left out of the stack for that run, and a `Specialises` cell naming it stays unresolved. A project entry in your own configuration that names an unknown domain is still an error.

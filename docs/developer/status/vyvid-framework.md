@@ -36,8 +36,8 @@
 | VYD-13 | work tracked in a tracker | planned | VYD-12 |
 | VYD-14 | Linux and Windows in Docker | planned | VYD-13 |
 | VYD-15 | experiments recorded and an adoption baseline | building 2026-11-05 | |
-| VYD-16 | skills that reach an agent | building 2026-11-05 | |
-| VYD-17 | the reminder hook | building 2026-11-05 | |
+| VYD-16 | skills that reach an agent | built 2026-11-05, building 2026-11-05 | |
+| VYD-17 | the reminder hook | built 2026-11-05, building 2026-11-05 | |
 | VYD-18 | the work board in Вивід | building 2026-11-05 | |
 | VYD-19 | the lifecycle domain | building 2026-11-05 | |
 | VYD-20 | generated regions and a release | building 2026-11-05 | |
@@ -79,3 +79,6 @@
 - 2026-11-05. VYD-15 to VYD-20 opened and marked building, the work that makes `vyvid` ready for LATTICE's switch, VYD-2b. Skills come first since a domain's skills reached no agent, and the sketch's cut of repeated index guidance is withdrawn.
 - 2026-11-05. VYD-8c built: `vyvid-python` holds 24 notes, tree-sitter matched `ast` on every class, function and method, and the measurements of `jedi`, `pyright`, scip, `jdtls` and Serena are in the symbol-indexing plan. Which `kind` to build first stays open.
 - 2026-11-05. VYD-15 baseline from `benchmark/adoption/measure.py` over this machine's transcripts. Since 2026-11-03, 43 sessions searched or asked, 23 never asked, 19 of the 20 that asked searched first, and there were 19.7 searches per ask. From 2026-10-29 to 2026-11-02, 72 sessions, 65 never asked, 117.7 searches per ask. Some of these searches are legitimate and the pattern also counts `sed` used to read, so the figures are a baseline to compare with, not a count of mistakes.
+- 2026-11-05. VYD-16 built: `vyd install --project` composes a domain's skills with a project's additions into its checkout, `vyd check skills` fails on drift and on a line with no home, and each skill opens on the index-first block.
+- 2026-11-05. VYD-17 built: `vyd-hook` reminds and never refuses, for Claude Code and Codex before a tool and Copilot after one, since Copilot documents a hook's added context on `postToolUse` only. Run for real in Claude Code on a scratch project, where the agent reported the reminder and the search still ran. Copilot and Codex are from their documents, not run.
+- 2026-11-05. The generated-region half of VYD-20 built: the identifiers check reads no mention between declared markers. The tag follows the board.

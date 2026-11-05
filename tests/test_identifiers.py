@@ -227,3 +227,16 @@ def test_a_flag_that_is_not_true_or_false_is_refused(tmp_path, monkeypatch):
     repo.config('STD = { defined = "docs:standards.md", defined_only = "yes" }\n')
     with pytest.raises(ConfigError, match="removable and defined_only"):
         load(tmp_path / "config.toml")
+
+
+def test_a_generated_region_mentions_nothing_and_a_project_may_name_its_own_markers(tmp_path, monkeypatch, capsys):
+    repo = Repo(tmp_path, monkeypatch)
+    write(repo.code / "docs/roadmap.md", "Words.\n<!-- BEGIN GENERATED glance. Written by a tool -->\nSTD-98 in a region.\n<!-- END GENERATED glance -->\nMore words.\n")
+    write(repo.code / "docs/other.md", "@@from\nSTD-97 in another.\n@@to\n")
+    commit(repo.code)
+    code, out = repo.check(capsys)
+    assert code == 1 and "STD-98" not in out and "STD-97" in out
+    repo.config(extra='identifiers = { regions = [{ begin = "@@from", end = "@@to" }] }\n')
+    code, out = repo.check(capsys)
+    assert code == 1 and "STD-97" not in out and "STD-98" in out
+

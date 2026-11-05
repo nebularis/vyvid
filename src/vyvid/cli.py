@@ -28,8 +28,13 @@
     that cite an entry of a private scope or of the project's private documents
 ``vyd docs record <path> ... -m <message> [--in folder]``
     stage paths in the project's private documents folder, then commit and push them by its ``git.docs`` policy
-``vyd board [folder] [--state word]``
-    the slices of the folder's project, from its families of type slice, in one set of documents and no other branch
+``vyd board [folder] [--all] [--fetch] [--measure] [--commits] [--here] [--state word]``
+    where every record and slice of the folder's project is, across every local and remote branch, from the slice boards of its
+    status records, where the project declares ``work`` settings. ``--here`` reads the slices of its families of type slice in the one
+    checkout, as a project without those settings always is
+``vyd work build | roadmap | check | parse | rename | normalise | adopt`` and ``vyd here``
+    the generated regions of the project's index and roadmap, the check a hook runs, a record's board as read, the moves of older
+    boards and identifiers onto the board's shape, and who else is working in this checkout
 ``vyd check identifiers [--json] [--all] [folder]``
     fail on an identifier the folder's tracked Markdown mentions and nothing defines, or that a family defines twice
 ``vyd move check [--ref <git ref>] [--json] [folder]``
@@ -66,12 +71,13 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, handoff, identifiers, install, kb, moves, newdomain, recipes
+from . import __version__, ask, audit, board, citations, handoff, identifiers, install, kb, moves, newdomain, recipes, skills
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind_in, file_scope, layers, project_file, resolve
+from .work import command as work_command
 
 
 QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "gap", "close")
@@ -502,6 +508,12 @@ def _questions(sub) -> None:
     asking("close", "close the gaps recorded against entries whose signpost is now written").add_argument("ids", nargs="+")
 
 
+def _project_hooks(project, dry_run: bool) -> int:
+    """Register the reminder hook in the checkout, which the composed skills' values name the command for."""
+    ask = project.skill_values.get("ask", skills.DEFAULT_VALUES["ask"])
+    return install.install_hooks(project.code, project.hook_clients, ask, dry_run)
+
+
 def _doc_share(text: str) -> float:
     value = float(text)
     if not 0 <= value <= 1:
@@ -532,9 +544,39 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True)
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project's documents are kept")
-    p = sub.add_parser("board", help="the slices of a folder's project, from one set of documents and no other branch")
+    p = sub.add_parser("board", help="where every record and slice of a folder's project is, across every branch where it declares work settings")
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--state", help="only the slices whose state starts with this word")
+    p.add_argument("--all", action="store_true", help="every row, not only what differs from the trunk")
+    p.add_argument("--fetch", action="store_true", help="fetch every remote first")
+    p.add_argument("--measure", action="store_true", help="add each branch's content share on the trunk, the slow part")
+    p.add_argument("--commits", action="store_true", help="add the commit that set each printed row")
+    p.add_argument("--here", action="store_true", help="read the slices of the project's families of type slice in this one checkout")
+    w = sub.add_parser("work", help="the generated regions, the hook check and the migrations of a project's work board").add_subparsers(dest="work_command", required=True)
+    for name, helptext in (("build", "write the index's generated region from the status records in the working tree"),
+                           ("roadmap", "write the roadmap's generated regions from every branch")):
+        p = w.add_parser(name, help=helptext)
+        p.add_argument("--check", action="store_true", help="fail if the region is stale and write nothing")
+        if name == "roadmap":
+            p.add_argument("--fetch", action="store_true", help="fetch every remote first")
+    p = w.add_parser("check", help="hold the status records to the ladder and the grammar and the index's region to the records, as a hook runs it")
+    p.add_argument("--staged", action="store_true", help="only the status records staged, and the region when one or the index is")
+    p = w.add_parser("parse", help="print a status record's board as read")
+    p.add_argument("record", type=Path)
+    for name, helptext in (("rename", "build the crosswalk from historic ids and sweep every mention onto the grammar"),
+                           ("normalise", "rewrite every status record's board into the standard columns and state words"),
+                           ("adopt", "bring the slices a record's other tables, a Validation Pack or a plan name onto its board")):
+        p = w.add_parser(name, help=helptext + ". Reports without --apply")
+        p.add_argument("--apply", action="store_true", help="write the changes")
+    for p in w.choices.values():
+        p.add_argument("--in", dest="folder", default=".", help="the folder whose project is read")
+    p = sub.add_parser("here", help="who is in this checkout: write your presence, or list the live sessions")
+    p.add_argument("--in", dest="folder", default=".", help="the folder whose project is read")
+    p.add_argument("--role", choices=("build", "review", "read"), help="write your presence with this role")
+    p.add_argument("--model", default="", help="the model you run on, stated by hand since no client names it")
+    p.add_argument("--on", default="", help="the slices you are on, comma separated")
+    p.add_argument("--leave", action="store_true", help="remove your presence")
+    p.add_argument("--now", default="", help="the clock, as an ISO timestamp, for tests. The wall clock otherwise")
     r = sub.add_parser("resolve", help="the canonical scope:LOCAL an identifier names")
     r.add_argument("identifier")
     r.add_argument("--in", dest="folder", default=".")
@@ -548,6 +590,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--staged", action="store_true", help="the lines staged in the project's code repository, and its documents repository when those are public")
     p.add_argument("--message", metavar="FILE", help="a commit message or pull request text, every line of which is checked")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project is checked")
+    p = c.add_parser("skills", help="fail where a project's committed skills differ from their sources, or a line of a file named by --from has no home")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--from", dest="sources", type=Path, nargs="*", default=[], help="old skill files, each of whose lines must be in a composed skill or in --map")
+    p.add_argument("--map", type=Path, help="with one --from file, a tab-separated map with line and destination columns")
     p = c.add_parser("identifiers", help="fail on a mentioned identifier nothing defines, or one a family defines twice")
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--json", action="store_true")
@@ -590,7 +636,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--unit", help="with a module, keep what it calls to the units whose name starts with this")
     p.add_argument("--in", dest="folder", default=".", help="the folder whose project's code index is used")
     i = sub.add_parser("install", help="write a client's user-level rule file and one skill per configured domain")
-    i.add_argument("--client", required=True, choices=sorted(install.CLIENTS))
+    i.add_argument("--client", choices=sorted(install.CLIENTS), help="the client whose user-level folder is written. Needed without --project")
+    i.add_argument("--project", action="store_true", help="compose this folder's project's skills and hooks into its checkout, to be committed")
+    i.add_argument("--in", dest="folder", default=".", help="with --project, the folder whose project is written")
+    i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings")
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
@@ -606,7 +655,10 @@ def main(argv: list[str] | None = None) -> int:
             return docs_record(arguments)
         if arguments.command == "board":
             config, project = bind_in(load(), Path(arguments.folder))
-            return board.command(config, project, arguments.state)
+            return work_command.board(config, project, arguments)
+        if arguments.command in ("work", "here"):
+            config, project = bind_in(load(), Path(arguments.folder))
+            return (work_command.work if arguments.command == "work" else work_command.here)(config, project, arguments)
         if arguments.command == "resolve":
             config = load()
             scope = bind_in(config, Path(arguments.folder))[1] or config.general
@@ -621,6 +673,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if arguments.command == "build":
             return build_index(Path(arguments.folder), arguments.all, not arguments.no_embed)
+        if arguments.command == "check" and arguments.check_command == "skills":
+            config, project = bind_in(load(), Path(arguments.folder))
+            if project is None:
+                print(f"vyd: no project claims {arguments.folder}, so there are no skills to check")
+                return 1
+            return skills.check(config, project, arguments.sources, arguments.map)
         if arguments.command == "check":
             if arguments.check_command == "identifiers":
                 config, project = bind_in(load(), Path(arguments.folder))
@@ -649,7 +707,24 @@ def main(argv: list[str] | None = None) -> int:
             config, project = bind_in(load(), Path(arguments.folder))
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
         if arguments.command == "install":
-            return install.install(load(), arguments.client, arguments.target, arguments.dry_run)
+            if arguments.project:
+                config, project = bind_in(load(), Path(arguments.folder))
+                if project is None:
+                    print(f"vyd: no project claims {arguments.folder}, so there is nothing to compose")
+                    return 1
+                return skills.install_project(config, project, arguments.dry_run) or _project_hooks(project, arguments.dry_run)
+            if not arguments.client:
+                parser.error("vyd install needs --client, or --project")
+            done = install.install(load(), arguments.client, arguments.target, arguments.dry_run)
+            if arguments.hooks and not done:
+                root = (arguments.target or Path(install.CLIENTS[arguments.client])).expanduser()
+                entry = {"matcher": "Bash|PowerShell|Grep|Glob", "hooks": [{"type": "command", "command": install.hook_command("claude-code", "vyd find"), "timeout": 5}]}
+                path = root / "settings.json"
+                print(f"{'would write' if arguments.dry_run else 'wrote'} {path}")
+                if not arguments.dry_run:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(json.dumps(install.merged_settings(path, "PreToolUse", entry), indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+            return done
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
         if arguments.command == "trust":
@@ -671,6 +746,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"set aside: the project declared in {path}")
             for problem in why:
                 print(f"  {problem}")
+        if project is not None and project.work is not None:
+            w = project.work
+            print(f"work: records in {w.status}, plans in {w.plans}, levels {' > '.join(w.levels)}, ladder {' > '.join(w.ladder)}, aside {', '.join(w.aside)}, trunk {w.main}"
+                  + "".join(f", {k} {getattr(w, k)}" for k in ("index", "roadmap") if getattr(w, k) is not None))
         if project is not None and project.file is not None:
             print(f"project {project.name} is declared in {project.file}, which is " + ("trusted" if project.trusted else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository"))
         return 1 if config.set_aside or config.files_aside else 0

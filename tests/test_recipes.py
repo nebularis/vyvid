@@ -4,6 +4,7 @@ that vyd context lists."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import os
 import re
@@ -429,7 +430,7 @@ def test_recipe_list_and_context_name_the_recipes_of_the_stack(tmp_path, monkeyp
 def test_install_writes_the_rule_file_and_a_skill_per_domain(tmp_path):
     w = World(tmp_path)
     target = tmp_path / "client"
-    assert install.install(w.config, "claude-code", target, dry_run=False) == 0
+    assert install.install(replace(w.config, projects={}), "claude-code", target, dry_run=False) == 0
     rule = (target / "rules" / "vyvid.md").read_text(encoding="utf-8")
     assert rule.splitlines()[0] == install.MARK
     assert "run `vyd context`" in rule and "`vyd find`" in rule and "vyd recipe run" in rule and "vyd misses --near" in rule
@@ -439,7 +440,7 @@ def test_install_writes_the_rule_file_and_a_skill_per_domain(tmp_path):
     assert 'vyd recipe run notes "<question>"`. When a note decides it' in wide and "- NOTE (note) in " in wide
     tools = (target / "skills" / "vyvid-domain-tools" / "SKILL.md").read_text(encoding="utf-8")
     assert 'description: "Use when working on tools"' in tools and "## Recipes" not in tools
-    assert install.install(w.config, "claude-code", target, dry_run=False) == 0, "a file it generated is written again"
+    assert install.install(replace(w.config, projects={}), "claude-code", target, dry_run=False) == 0, "a file it generated is written again"
 
 
 def test_install_never_overwrites_a_file_it_did_not_generate(tmp_path, capsys):
@@ -447,7 +448,7 @@ def test_install_never_overwrites_a_file_it_did_not_generate(tmp_path, capsys):
     target = tmp_path / "client"
     (target / "rules").mkdir(parents=True)
     (target / "rules" / "vyvid.md").write_text("my own rule\n", encoding="utf-8")
-    assert install.install(w.config, "claude-code", target, dry_run=False) == 1
+    assert install.install(replace(w.config, projects={}), "claude-code", target, dry_run=False) == 1
     assert (target / "rules" / "vyvid.md").read_text(encoding="utf-8") == "my own rule\n"
     assert "left " in capsys.readouterr().out and (target / "skills" / "vyvid-domain-wide" / "SKILL.md").exists(), "the rest is still written"
 
@@ -455,7 +456,7 @@ def test_install_never_overwrites_a_file_it_did_not_generate(tmp_path, capsys):
 def test_install_dry_run_writes_nothing(tmp_path, capsys):
     w = World(tmp_path)
     target = tmp_path / "client"
-    assert install.install(w.config, "claude-code", target, dry_run=True) == 0
+    assert install.install(replace(w.config, projects={}), "claude-code", target, dry_run=True) == 0
     out = capsys.readouterr().out
     assert not target.exists() and f"would write {target / 'rules' / 'vyvid.md'}" in out and "vyvid-domain-wide" in out and "vyvid-domain-tools" in out
 

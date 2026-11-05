@@ -47,6 +47,7 @@ from .credentials import credential_problems, host_of, private_dir, private_file
 from .embed import ModelSpec
 from .patterns import SECONDS as PATTERN_SECONDS, Pattern
 from .symbols import LANGUAGES
+from .work import settings as work_settings
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
@@ -55,14 +56,15 @@ FAMILY_RE = re.compile(r"^[A-Za-z#][A-Za-z0-9#]*$")
 # a heading that opens with it, or a bold lead or table row of a plan or sketch that raises a question.
 RULES = ("table", "file", "heading", "question")
 # The keys a domain may declare, in its manifest or in the configuration.
-DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
+DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", "facets", "register_types", "rules", "skills", "skill_values", "vocabulary", "extractors", "remote", "git", "recipes", "trust", "commit"}
 # Whether a scope's entries may be cited in a public project's text. A domain is private until its author says otherwise.
 VISIBILITIES = ("public", "private")
 # The file a repository names its own project in, and what it may not set or hold.
 PROJECT_FILE = "vyvid.toml"
 PROJECT_REFUSED = ("code", "git", "remote", "trust", "match")
 PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
-                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index", "doc_share"}
+                "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index", "doc_share", "work",
+                "skill_values", "skill_additions", "skill_prefix", "skill_targets", "hook_clients"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -166,6 +168,8 @@ class Scan:
     skip: tuple[str, ...] = ()
     generated: Pattern | None = None
     exceptions: Path | None = None
+    # A region between lines starting with these is derived from elsewhere, so what it mentions is not a mention.
+    regions: tuple[tuple[str, str], ...] = (("<!-- BEGIN GENERATED", "<!-- END GENERATED"),)
 
 
 @dataclass(frozen=True)
@@ -224,6 +228,11 @@ class Scope:
     visibility: str = "public"  # one of VISIBILITIES
     rules: list[Path] = field(default_factory=list)
     skills: list[Path] = field(default_factory=list)
+    skill_values: dict[str, str] = field(default_factory=dict)  # what ``{{name}}`` in a skill becomes
+    skill_additions: Path | None = None  # projects only: the folder of <domain>/<skill>.md it adds to a domain's skills
+    skill_prefix: str | None = None  # projects only: what its composed skills' names start with
+    skill_targets: tuple[str, ...] = (".claude/skills",)  # projects only: where in the checkout composed skills are written
+    hook_clients: tuple[str, ...] = ("claude-code",)  # projects only: the clients install registers the reminder hook for
     facets: list[Path] = field(default_factory=list)
     register_types: list[Path] = field(default_factory=list)
     families: dict[str, Family] = field(default_factory=dict)
@@ -252,6 +261,7 @@ class Scope:
     identifiers: Scan = field(default_factory=Scan)  # projects only
     symbols: list[SymbolSpec] = field(default_factory=list)  # projects only: what to parse for symbols
     doc_share: float | None = None  # projects only: its own share of places for documentation
+    work: work_settings.Work | None = None  # projects only: where its status records are and the words of its work board
     code_index: list[CodeIndex] = field(default_factory=list)  # projects only: the compiler indexes it registers
     private_docs: bool = False  # projects only: the documents folder lies outside the code folder and is not declared public
     docs_git: GitPolicy = field(default_factory=GitPolicy)  # projects only: commit and push of the private documents (``git.docs``)
@@ -549,6 +559,9 @@ def leaving(manifest: dict, root: Path, tokens: dict[str, Path] | None = None, p
             check("moves.source", item.get("source") if isinstance(item, dict) else None)
         for item in manifest.get("symbols") if isinstance(manifest.get("symbols"), list) else []:
             check("symbols.paths", item.get("paths") if isinstance(item, dict) else None)
+        work = manifest.get("work")
+        for key in work_settings.PATH_KEYS + work_settings.LIST_PATH_KEYS:
+            check(f"work.{key}", work.get(key) if isinstance(work, dict) else None)
         for item in manifest.get("code_index") if isinstance(manifest.get("code_index"), list) else []:
             for key in ("database", "sources"):
                 check(f"code_index.{key}", item.get(key) if isinstance(item, dict) else None)
@@ -598,7 +611,7 @@ def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path 
 def _scan(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -> Scan:
     """The ``identifiers`` table of a project: ``skip``, ``generated`` and ``exceptions``."""
     raw = raw if isinstance(raw, dict) else {}
-    if unknown := sorted(set(raw) - {"skip", "generated", "exceptions"}):
+    if unknown := sorted(set(raw) - {"skip", "generated", "exceptions", "regions"}):
         problems.append(f"{where}: identifiers has unknown keys {', '.join(unknown)}")
     skip, generated = raw.get("skip", []), raw.get("generated")
     if not isinstance(skip, list) or not all(isinstance(g, str) for g in skip):
@@ -610,7 +623,11 @@ def _scan(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -
         problems.append(f"{where}: identifiers.generated does not compile: {error}")
         pattern = None
     baseline = _paths(raw.get("exceptions"), bases, where, problems)
-    return Scan(tuple(skip), pattern, baseline[0] if baseline else None)
+    regions = raw.get("regions", [{"begin": b, "end": e} for b, e in Scan.regions])
+    if not isinstance(regions, list) or not all(isinstance(r, dict) and set(r) == {"begin", "end"} and all(isinstance(v, str) and v for v in r.values()) for r in regions):
+        problems.append(f"{where}: identifiers.regions must be a list of tables, each with a begin and an end")
+        regions = []
+    return Scan(tuple(skip), pattern, baseline[0] if baseline else None, tuple((r["begin"], r["end"]) for r in regions))
 
 
 def _moves(raw, bases: dict[str, Path | None], where: str, problems: list[str]) -> list[Move]:
@@ -670,6 +687,43 @@ def _visibility(raw: dict, default: str, where: str, problems: list[str]) -> str
 def _paths(values, bases, where, problems) -> list[Path]:
     values = [values] if isinstance(values, str) else (values or [])
     return [p for v in values if (p := _expand(v, bases, where, problems)) is not None]
+
+
+def _skill_values(value, where: str, problems: list[str]) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
+        problems.append(f"{where}: skill_values must map names to text")
+        return {}
+    return dict(value)
+
+
+def _skill_prefix(value, where: str, problems: list[str]) -> str | None:
+    if value is not None and not (isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9-]*", value)):
+        problems.append(f"{where}: skill_prefix must be lower-case letters, digits and dashes")
+        return None
+    return value
+
+
+def _inside_checkout(value, key: str, where: str, problems: list[str]) -> tuple[str, ...]:
+    """Folders named relative to a checkout, none of which may climb out of it by name."""
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        problems.append(f"{where}: {key} must be a list of folders")
+        return ()
+    bad = [v for v in value if Path(v).is_absolute() or ".." in Path(v).parts or v.startswith("~")]
+    if bad:
+        problems.append(f"{where}: {key} names {', '.join(bad)}, which leaves the checkout")
+    return tuple(v for v in value if v not in bad)
+
+
+def _hook_clients(value, where: str, problems: list[str]) -> tuple[str, ...]:
+    known = ("claude-code", "copilot", "codex")
+    if value is None:
+        return ("claude-code",)
+    if not isinstance(value, list) or any(v not in known for v in value):
+        problems.append(f"{where}: hook_clients must be a list of {', '.join(known)}")
+        return ()
+    return tuple(value)
 
 
 def _share(value, default, where: str, problems: list[str]):
@@ -893,6 +947,7 @@ def _domain(name: str, root: Path | None, merged: dict, kb: Path | None, where: 
         remote=merged.get("remote"), git=_git_policy(merged.get("git"), where, problems), trust=trust, commit=commit,
         rules=_paths(merged.get("rules", "self:rules.md"), bases, where, problems),
         skills=_paths(merged.get("skills", "self:skills"), bases, where, problems),
+        skill_values=_skill_values(merged.get("skill_values"), where, problems),
         facets=_paths(merged.get("facets", "self:facets.md"), bases, where, problems),
         register_types=_paths(merged.get("register_types", "self:register-types.toml"), bases, where, problems),
         vocabulary=_paths(merged.get("vocabulary"), bases, where, problems),
@@ -996,12 +1051,18 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         domains=[d for d in p.get("domains", []) if d not in set_aside], recipes=_recipes(p.get("recipes"), name, "project", where, problems),
         rules=_paths(p.get("contract"), bases, where, problems),
         skills=_paths(p.get("skills"), bases, where, problems),
+        skill_values=_skill_values(p.get("skill_values"), where, problems),
+        skill_additions=_expand(p.get("skill_additions", "code:.vyvid/skills"), bases, where, problems) if code is not None else None,
+        skill_prefix=_skill_prefix(p.get("skill_prefix"), where, problems),
+        skill_targets=_inside_checkout(p.get("skill_targets", [".claude/skills"]), "skill_targets", where, problems),
+        hook_clients=_hook_clients(p.get("hook_clients"), where, problems),
         facets=_paths(p.get("facets"), bases, where, problems),
         register_types=_paths(p.get("register_types"), bases, where, problems),
         vocabulary=_paths(p.get("vocabulary"), bases, where, problems),
         families=_families(p.get("families"), where, problems, bases), identifiers=_scan(p.get("identifiers"), bases, where, problems),
         delegates={**p.get("delegates", {}), **{m.family: m.to for m in moves if not m.rows}}, moves=moves,
         extractors=_extractors(p.get("extractors"), where, problems, own=True),
+        work=work_settings.parse(p.get("work"), lambda v: _expand(v, bases, where, problems), where, problems),
         doc_share=_share(p.get("doc_share"), None, where, problems), symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
         uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
         specialises={k: v for k, s in p.get("specialises", {}).items()
@@ -1030,7 +1091,7 @@ def read_project_file(path: Path) -> tuple[dict, list[str]]:
         problems.append(f"{path}: [project] has unknown keys {', '.join(unknown)}")
     docs = table.get("docs", "code:docs")
     docs_dir = root / (docs.removeprefix("code:") if isinstance(docs, str) else "docs")
-    names = ("docs", "contract", "skills", "facets", "register_types", "vocabulary")
+    names = ("docs", "contract", "skills", "skill_additions", "facets", "register_types", "vocabulary")
     problems += [f"{path}: {key} names '{value}', which leaves the repository" for key, value in
                  leaving(table, root, {"code": root, "docs": docs_dir}, names, project=True)]
     return table, problems
