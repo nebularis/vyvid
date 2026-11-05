@@ -179,6 +179,14 @@ def absent(config: Config, project: Scope) -> list[str]:
                    if config.domains[name].path is None or not config.domains[name].path.is_dir()]
 
 
+def raise_hint(domain: Scope) -> str:
+    """The next step for a domain that gives knowledge alone, which is the person's to take."""
+    if domain.trust == "reviewed":
+        return f"It was reviewed at {domain.commit} and its folder is at another commit. After reading what changed, a person runs: vyd domain trust {domain.name} reviewed --commit <hash>"
+    return (f"If you wrote it, a person runs: vyd domain trust {domain.name} own. If someone else did, read it and run: "
+            f"vyd domain trust {domain.name} reviewed --commit <hash>")
+
+
 def for_project(config: Config, project: Scope) -> tuple[list[Written], list[str]]:
     """Every skill composed for ``project``, from its trusted domains and itself, and what it leaves out and why."""
     out: dict[str, Written] = {}
@@ -188,7 +196,7 @@ def for_project(config: Config, project: Scope) -> tuple[list[Written], list[str
     for name in config.domain_order(project):
         domain = config.domains[name]
         if not domain.trusted:
-            notes.append(f"no skill from domain {name}, whose trust is {domain.trust}, which gives knowledge alone")
+            notes.append(f"no skill from domain {name}, whose trust is {domain.trust}, which gives knowledge alone. " + raise_hint(domain))
             continue
         if domain.visibility == "private":
             # A composed skill is committed, so a private domain's text would travel with the repository. Its skills stay in the user's folder.

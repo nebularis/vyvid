@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Commands that edit the configuration: ``vyd domain add | remove``, ``vyd project add | set | remove | scan`` and
+"""Commands that edit the configuration: ``vyd domain add | remove | trust``, ``vyd project add | set | remove | scan`` and
 ``vyd family add | remove``.
 
 Every command works on text. It finds the table it changes by its header lines, edits that span and leaves
@@ -496,6 +496,72 @@ def domain_remove(name: str, file: bool, dry_run: bool, person: Callable[[], boo
 
         notes = [f"left {folder} as it is. A remove never deletes a clone or a folder"] if folder else []
         return run(target(False), Plan(edit, notes=notes), dry_run, person)
+    except Refusal as refusal:
+        return _fail(refusal.problems)
+
+
+TRUST_RANK = {"knowledge": 0, "reviewed": 1, "own": 2}  # what each gives: reviewed gives what own does, but only while the folder is at its commit
+
+
+def _head(folder: Path | None) -> str | None:
+    if folder is None or not folder.is_dir():
+        return None
+    done = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True)
+    return done.stdout.strip() or None if done.returncode == 0 else None
+
+
+def domain_trust(name: str, trust: str, commit: str | None, dry_run: bool, person: Callable[[], bool]) -> int:
+    """Change the trust of a configured domain. Raising it, or moving a reviewed commit, needs a person. Lowering does not."""
+    try:
+        config = _user_config()
+        if name in config.set_aside:
+            raise Refusal(f"domain '{name}' is set aside ({'; '.join(config.set_aside[name])}), so its trust is not changed. Fix that first")
+        if name not in config.domains:
+            raise Refusal(f"domain {name!r} is not configured. The configured domains are {', '.join(sorted(config.domains)) or 'none'}")
+        if trust not in cf.TRUSTS:
+            raise Refusal(f"trust is '{trust}', not one of {', '.join(cf.TRUSTS)}")
+        domain = config.domains[name]
+        if trust == "reviewed" and commit is None:
+            head = _head(domain.path)
+            raise Refusal("trust reviewed needs --commit, the commit you read. Name it yourself, since it is the record of what you reviewed"
+                          + (f". The folder's current head is {head}, which is help and never taken for you" if head else ""))
+        if trust != "reviewed" and commit is not None:
+            raise Refusal(f"--commit is for trust reviewed, and this is {trust}")
+        if commit is not None and not cf.COMMIT_RE.fullmatch(commit):
+            raise Refusal(f"--commit '{commit}' is not a commit of 7 to 64 hexadecimal characters")
+        if (domain.trust, (domain.commit or "").lower()) == (trust, (commit or "").lower()):
+            print(f"domain {name} already has trust {trust}" + (f" at {commit}" if commit else "") + ", so nothing is written")
+            return 0
+        raising = TRUST_RANK[trust] > TRUST_RANK[domain.trust] or (trust == "reviewed" == domain.trust)
+
+        def edit(lines: list[str], data: dict):
+            if name not in [d.get("name") for d in data.get("domains", []) if isinstance(d, dict)]:
+                raise Refusal(f"domain '{name}' is not declared in {cf.config_path()}, so this command does not change it")
+            entry = _find(lines, data, "domains", name)
+            lines = _set(lines, entry, (), "trust", trust)
+            if commit is not None:
+                lines = _set(lines, _find(lines, data, "domains", name), (), "commit", commit)
+            elif "commit" in next(d for d in data["domains"] if d.get("name") == name):
+                lines = _delete(lines, _find(lines, data, "domains", name), (), "commit")
+
+            def change(d: dict) -> None:
+                row = next(x for x in d["domains"] if x.get("name") == name)
+                row["trust"] = trust
+                row.pop("commit", None)
+                if commit is not None:
+                    row["commit"] = commit
+
+            return lines, change
+
+        install = "run vyd install --project in a project that uses it to pick up its skills" + (
+            ", and vyd install --client for the user's folder, since it is private" if domain.visibility == "private" else "")
+        notes = {"own": f"domain {name} now gives its rules, skills and recipes to every project that uses it, so its skills will compose. {install[0].upper() + install[1:]}",
+                 "reviewed": f"domain {name} now gives what own does while its folder is at commit {commit}, and knowledge alone at any other. "
+                             f"Its skills will compose. {install[0].upper() + install[1:]}. After a pull moves it, read what changed and name the new commit with this command",
+                 "knowledge": f"domain {name} now gives knowledge alone. A project already installed keeps the skills written for it until the next vyd install --project, which removes them"}
+        plan = Plan(edit, notes=[notes[trust]],
+                    gate=f"trust {trust}" + (f" at {commit}" if commit else "") + " gives the domain's rules, skills and recipes to every project that uses it" if raising else "")
+        return run(target(False), plan, dry_run, person)
     except Refusal as refusal:
         return _fail(refusal.problems)
 

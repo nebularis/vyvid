@@ -48,8 +48,8 @@
     remove the index stores of linked checkouts that no longer exist
 ``vyd domain new <name> [--registers <type>] [--path <folder>]``
     write a domain folder and print the lines to add to your configuration, which it leaves alone
-``vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge]`` and ``vyd domain remove <name>``
-    add a domain to your configuration, or take it out, keeping your comments. Setting trust own or reviewed needs a person at a terminal
+``vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge]``, ``vyd domain remove <name>`` and ``vyd domain trust <name> own|reviewed|knowledge [--commit <hash>]``
+    add a domain to your configuration, take it out, or change its trust, keeping your comments. Setting trust own or reviewed, or a new reviewed commit, needs a person at a terminal
 ``vyd project add <name> | set <name> <key> <value> | remove <name> | scan <name> [--apply]`` and ``vyd family add | remove``
     declare a project, change one of its keys, register the families its documents hold, in your configuration or with --file in the
     repository's vyvid.toml. Each takes --dry-run, which prints the change and writes nothing
@@ -654,6 +654,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--commit", help="with --trust reviewed, the commit that was reviewed")
     p.add_argument("--visibility", choices=cf_visibilities, help="private unless this says public")
     _writes(p, hidden_file=True)
+    p = d.add_parser("trust", help="change the trust of a configured domain. Raising it needs a person at a terminal")
+    p.add_argument("name")
+    p.add_argument("trust", choices=cf_trusts)
+    p.add_argument("--commit", help="with reviewed, the commit you read")
+    p.add_argument("--dry-run", action="store_true", help="print the change and write nothing")
     p = d.add_parser("remove", help="take a domain out of your configuration, refused while a project uses it. Its folder is left alone")
     p.add_argument("name")
     _writes(p, hidden_file=True)
@@ -764,6 +769,8 @@ def main(argv: list[str] | None = None) -> int:
             if arguments.domain_command == "add":
                 return configure.domain_add(arguments.name, arguments.path, arguments.remote, arguments.trust, arguments.commit, arguments.visibility,
                                             arguments.file, arguments.dry_run, _person)
+            if arguments.domain_command == "trust":
+                return configure.domain_trust(arguments.name, arguments.trust, arguments.commit, arguments.dry_run, _person)
             if arguments.domain_command == "remove":
                 return configure.domain_remove(arguments.name, arguments.file, arguments.dry_run, _person)
             if arguments.domain_command == "new":

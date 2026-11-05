@@ -16,7 +16,7 @@ from importlib import resources
 from pathlib import Path
 
 from .config import Config, Scope, refusals
-from .skills import INDEX_FIRST, MARK as SKILL_MARK, compose, found, skill_name
+from .skills import INDEX_FIRST, raise_hint, MARK as SKILL_MARK, compose, found, skill_name
 
 # The folder each supported client reads rules and skills from.
 CLIENTS = {"claude-code": "~/.claude", "copilot": "~/.copilot"}
@@ -160,7 +160,7 @@ def install(config: Config, client: str, target: Path | None, dry_run: bool) -> 
     for d in (d for d in config.domains.values() if here(d) and d.name not in users):
         old = root / "skills" / f"{DOMAIN_SKILL}{d.name}" / "SKILL.md"
         if not d.trusted:
-            print(f"no skill for domain {d.name}, whose trust is {d.trust}, which gives knowledge alone")
+            print(f"no skill for domain {d.name}, whose trust is {d.trust}, which gives knowledge alone. {raise_hint(d)}")
         if old.exists() and generated(old.read_text(encoding="utf-8", errors="replace")):
             print(f"{'would remove' if dry_run else 'removed'} {old}")
             if not dry_run:

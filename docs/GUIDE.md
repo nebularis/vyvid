@@ -300,7 +300,7 @@ trust = "reviewed"
 commit = "<the-commit-you-reviewed>"
 ```
 
-Use a real commit hash, preferably the full hash. This is a change to the existing entry, not a second `[[domains]]` entry with the same name.
+Use a real commit hash, preferably the full hash. This is a change to the existing entry, not a second `[[domains]]` entry with the same name. `vyd domain trust` makes the same change for you, as the next section explains.
 
 **Reviewed trust is not a checkout pin.** It enables instructions when HEAD matches the configured commit. If HEAD moves, the domain falls back to knowledge-only standing until you review the new revision and update your configuration.
 
@@ -325,11 +325,29 @@ vyd domain add tools --remote https://github.com/example/vyvid-tools
 | `--visibility public\|private` | A domain is private unless you say it is public |
 | `--dry-run` | Print the change and write nothing |
 
-**Trust is always written, and defaults to knowledge.** The loader gives a domain without a remote the standing `own`, since it assumes you wrote it. A command that wrote nothing about trust would hand that standing to any folder an agent named, so this one writes `trust = "knowledge"` unless you ask for more. A knowledge domain gives its entries to the index and nothing that instructs an agent, so `vyd install --project` leaves its skills out and prints a note saying so. When you want a domain's skills in a project, add it with `--trust reviewed --commit <hash>` once you have read it, or with `--trust own` if you wrote it.
+**Trust is always written, and defaults to knowledge.** The loader gives a domain without a remote the standing `own`, since it assumes you wrote it. A command that wrote nothing about trust would hand that standing to any folder an agent named, so this one writes `trust = "knowledge"` unless you ask for more. A knowledge domain gives its entries to the index and nothing that instructs an agent, so `vyd install --project` leaves its skills out and prints a note saying so. When you want a domain's skills in a project, add it with `--trust reviewed --commit <hash>` once you have read it, or with `--trust own` if you wrote it. A domain already in your configuration does not need removing and adding again. Raise it later with `vyd domain trust`, as in `vyd domain trust tools own`.
 
 **Raising trust needs a person.** `--trust own` and `--trust reviewed` make a domain's rules, skills and recipes reach agents, so they are refused unless standard input is a terminal, which is the check `vyd trust` makes. The message says that a person must run the command. This is a speed bump and not a proof, since an agent can be given a pseudo-terminal, and an agent that can run commands as you can also edit the file, so your client's permission settings remain the control that matters. `--dry-run` is not refused, so an agent can show you exactly what it would ask you to run.
 
 **A remote is not cloned by this command.** Cloning contacts a network and then falls under the domain's git policy, which `vyd kb` manages. When the folder does not exist, the command prints the command that clones it, such as `vyd kb clone tools`, and stops there. A path given without a remote is a folder you made or cloned yourself, and the command says so if it is missing.
+
+To change the trust of a domain that is already configured:
+
+```bash
+vyd domain trust tools own
+vyd domain trust tools reviewed --commit 3f9c2ab
+vyd domain trust tools knowledge
+```
+
+**Why it exists.** A domain added without a trust is a knowledge domain, and that gives no skills. Before this command the only ways to raise it were to edit the file by hand or to remove the domain and add it again, which is awkward when projects already use it, since `vyd domain remove` refuses while they do. The command changes the trust of the entry that is there.
+
+**What it changes.** The `trust` line of that entry and, for `reviewed`, its `commit` line, and nothing else. Your comments and layout stay as they are. A `trust` line written in an unusual place stays where it is, and an entry with no `trust` line gets one. Moving to `knowledge` removes the `commit` line, since only a reviewed domain takes one. The whole file is loaded by the real loader before it is written, as for `domain add`, and a refusal writes nothing. When the domain already has that trust and commit, the command says so, writes nothing and exits 0.
+
+**What needs a person.** Moving to `own` or `reviewed` from anything lower, and moving a `reviewed` domain to a different commit, make more of the domain reach agents, so they are refused unless standard input is a terminal, with the message `domain add --trust own` gives. `--dry-run` works without a terminal and says that a person must run it for real. Taking standing away needs no terminal, which covers moving to `knowledge` and moving `own` to `reviewed`. The second counts as lowering because a reviewed domain gives what an own domain gives only while its folder is at the commit you named, and gives knowledge alone at any other, so it can never give more than own does. Moving `reviewed` back to `own` is a raise.
+
+**The commit is always yours to name.** `reviewed` needs `--commit`, in the form the loader requires, which is 7 to 64 hexadecimal characters. The command never takes it from the clone's current head, since the point of the record is that a person names what they read. When the folder is a git checkout, a refusal prints its current head as help. `--commit` with `own` or `knowledge` is refused.
+
+**What it does not change.** The domain must be in your own configuration, and the command offers no `--file`, since a repository's `vyvid.toml` may not set trust. An unknown name is refused with the list of configured domains. After a change the command says what the domain now gives. For a raise, run `vyd install --project` in a project that uses it to compose its skills. For a lowering, a project already installed keeps the skills written for it until the next `vyd install --project`, which removes them.
 
 To take a domain out:
 

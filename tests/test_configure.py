@@ -240,6 +240,129 @@ def test_binding_a_domain_that_gives_more_than_knowledge_needs_a_person(tmp_path
     assert ok(capsys, "project", "set", "a", "domains", "mine", "theirs") and load().projects["a"].domains == ["mine", "theirs"]
 
 
+TRUSTED = ('# top\n[[domains]]\n# about d\nname = "d"   # keep me\npath = "{p}"\ntrust = "knowledge"\n\n# second\n[[domains]]\nname = "e"\ntrust = "own"\npath = "{q}"\n'
+           '\n[[domains]]\nname = "r"\npath = "{r}"\ntrust = "reviewed"\ncommit = "abcdef1"\n')
+
+
+def trusted(tmp_path, conf) -> str:
+    text = TRUSTED.format(p=(tmp_path / "d").as_posix(), q=(tmp_path / "e").as_posix(), r=(tmp_path / "r").as_posix())
+    conf.write_text(text, encoding="utf-8")
+    return text
+
+
+def test_raising_a_domains_trust_needs_a_person_and_dry_run_does_not(tmp_path, conf, capsys, monkeypatch):
+    before = trusted(tmp_path, conf)
+    for argv in (("d", "own"), ("d", "reviewed", "--commit", "abcdef2"), ("r", "own"), ("r", "reviewed", "--commit", "abcdef2")):
+        code, out, err = vyd(capsys, "domain", "trust", *argv)
+        assert code == 1 and "A person must run this command, in a terminal" in err, argv
+        assert conf.read_text(encoding="utf-8") == before
+    code, out, err = vyd(capsys, "domain", "trust", "d", "own", "--dry-run")
+    assert code == 0 and "a person must run it for real" in out and conf.read_text(encoding="utf-8") == before
+    person(monkeypatch)
+    assert ok(capsys, "domain", "trust", "d", "own") and load().domains["d"].trust == "own"
+    assert ok(capsys, "domain", "trust", "r", "reviewed", "--commit", "abcdef2") and load().domains["r"].commit == "abcdef2"
+
+
+def test_lowering_a_domains_trust_needs_no_terminal_and_own_to_reviewed_is_lowering(tmp_path, conf, capsys):
+    trusted(tmp_path, conf)
+    code, out, err = vyd(capsys, "domain", "trust", "e", "reviewed", "--commit", "abcdef1")
+    assert code == 0 and "knowledge alone at any other" in out, err
+    assert load().domains["e"].trust == "reviewed"
+    code, out, err = vyd(capsys, "domain", "trust", "r", "knowledge")
+    assert code == 0 and "until the next vyd install --project" in out, err
+    domain = load().domains["r"]
+    assert domain.trust == "knowledge" and domain.commit is None and "commit" not in tomllib.loads(conf.read_text(encoding="utf-8"))["domains"][2]
+    assert ok(capsys, "domain", "trust", "e", "knowledge") and load().domains["e"].trust == "knowledge"
+
+
+def test_reviewed_needs_a_commit_that_a_person_names_and_only_reviewed_takes_one(tmp_path, conf, capsys, monkeypatch):
+    person(monkeypatch)
+    folder = checkout(tmp_path, "d")
+    (folder / "f").write_text("x", encoding="utf-8")
+    git(folder, "add", "f")
+    git(folder, "-c", "user.name=t", "-c", "user.email=t@example.org", "commit", "-q", "-m", "x")
+    head = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    conf.write_text(f'[[domains]]\nname = "d"\npath = "{folder.as_posix()}"\ntrust = "knowledge"\n', encoding="utf-8")
+    before = conf.read_text(encoding="utf-8")
+    code, out, err = vyd(capsys, "domain", "trust", "d", "reviewed")
+    assert code == 1 and "needs --commit" in err and head in err and conf.read_text(encoding="utf-8") == before
+    for bad in ("zzzzzzz", "abc", 'abcdef1"\n[x]', "abcdef1\n"):
+        code, out, err = vyd(capsys, "domain", "trust", "d", "reviewed", "--commit", bad)
+        assert code == 1 and "hexadecimal" in err and conf.read_text(encoding="utf-8") == before, bad
+    for level in ("own", "knowledge"):
+        code, out, err = vyd(capsys, "domain", "trust", "d", level, "--commit", "abcdef1")
+        assert code == 1 and "--commit is for trust reviewed" in err and conf.read_text(encoding="utf-8") == before
+    assert ok(capsys, "domain", "trust", "d", "reviewed", "--commit", head[:12]) and load().domains["d"].commit == head[:12]
+
+
+def test_the_same_trust_and_commit_is_no_change(tmp_path, conf, capsys, monkeypatch):
+    before = trusted(tmp_path, conf)
+    for argv in (("d", "knowledge"), ("e", "own"), ("r", "reviewed", "--commit", "ABCDEF1")):
+        code, out, err = vyd(capsys, "domain", "trust", *argv)
+        assert code == 0 and "already has trust" in out and conf.read_text(encoding="utf-8") == before, argv
+
+
+def test_an_unknown_or_set_aside_domain_or_a_file_flag_is_refused(tmp_path, conf, capsys, monkeypatch):
+    person(monkeypatch)
+    before = trusted(tmp_path, conf)
+    code, out, err = vyd(capsys, "domain", "trust", "nope", "own")
+    assert code == 1 and "not configured" in err and "d, e, r" in err
+    code, out, err = vyd(capsys, "domain", "trust", 'd"\n[x]', "own")
+    assert code == 1 and "not configured" in err
+    with pytest.raises(SystemExit):
+        cli.main(["domain", "trust", "d", "own", "--file"])
+    capsys.readouterr()
+    assert conf.read_text(encoding="utf-8") == before
+    folder = tmp_path / "d"
+    folder.mkdir()
+    (folder / "domain.toml").write_text('name = "d"\ntrust = "own"\n', encoding="utf-8")
+    code, out, err = vyd(capsys, "domain", "trust", "d", "own")
+    assert code == 1 and "set aside" in err and conf.read_text(encoding="utf-8") == before
+
+
+def test_a_trust_change_keeps_comments_and_layout_and_adds_or_keeps_the_line_where_it_is(tmp_path, conf, capsys, monkeypatch):
+    person(monkeypatch)
+    text = trusted(tmp_path, conf)
+    assert ok(capsys, "domain", "trust", "d", "own")
+    assert conf.read_text(encoding="utf-8") == text.replace('trust = "knowledge"', 'trust = "own"', 1)
+    # no trust line at all, in a domain with a remote-free default of own
+    conf.write_text('# lead\n[[domains]]\nname = "x"   # c\npath = "p"\n\n[[domains]]\nname = "y"\npath = "q"\n', encoding="utf-8")
+    assert ok(capsys, "domain", "trust", "x", "knowledge")
+    assert conf.read_text(encoding="utf-8") == '# lead\n[[domains]]\nname = "x"   # c\npath = "p"\ntrust = "knowledge"\n\n[[domains]]\nname = "y"\npath = "q"\n'
+    # trust written first, before the name
+    conf.write_text('[[domains]]\ntrust = "knowledge"\nname = "x"\npath = "p"\n', encoding="utf-8")
+    assert ok(capsys, "domain", "trust", "x", "own")
+    assert conf.read_text(encoding="utf-8") == '[[domains]]\ntrust = "own"\nname = "x"\npath = "p"\n'
+    # a loader refusal writes nothing
+    conf.write_text('[[domains]]\nname = "x"\npath = "p"\ntrust = "knowledge"\nbogus = 1\n', encoding="utf-8")
+    before = conf.read_text(encoding="utf-8")
+    code, out, err = vyd(capsys, "domain", "trust", "x", "own")
+    assert code == 1 and conf.read_text(encoding="utf-8") == before
+
+
+def test_a_knowledge_domains_skill_composes_once_a_person_raises_its_trust(tmp_path, capsys, monkeypatch):
+    from test_skills import world
+
+    config, code = world(tmp_path)
+    path = tmp_path / "config.toml"
+    path.write_text(path.read_text(encoding="utf-8").replace('trust = "own"', 'trust = "knowledge"'), encoding="utf-8")
+    monkeypatch.setenv("VYVID_CONFIG", str(path))
+
+    def written() -> list[Path]:
+        return [p for p in code.rglob("SKILL.md") if ".vyvid" not in p.parts]
+
+    assert cli.main(["install", "--project", "--in", str(code)]) in (0, 1)
+    out = capsys.readouterr().out
+    assert not written() and "no skill from domain lifecycle" in out and "vyd domain trust lifecycle own" in out
+    assert vyd(capsys, "domain", "trust", "lifecycle", "own")[0] == 1
+    person(monkeypatch)
+    code_, out, err = vyd(capsys, "domain", "trust", "lifecycle", "own")
+    assert code_ == 0 and "vyd install --project" in out, err
+    assert cli.main(["install", "--project", "--in", str(code)]) == 0
+    capsys.readouterr()
+    assert written()
+
+
 # ---- project set ------------------------------------------------------------------------------------------
 
 

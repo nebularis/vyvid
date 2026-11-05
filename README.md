@@ -57,6 +57,7 @@ vyd trust [path]                       # a person trusts a configuration outside
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install [--client name] [--project] [--in folder] [--hooks] [--target folder] [--dry-run] # set up each client found, its rule file and the skills of private domains
 vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change
+vyd domain trust <name> own|reviewed|knowledge [--commit <hash>] [--dry-run] # change the trust of a configured domain, keeping your comments. Raising it, or moving a reviewed commit, needs a person at a terminal
 vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge] [--commit <hash>] [--dry-run] # add a domain to your configuration, keeping your comments. A trust of own or reviewed needs a person at a terminal. A remote is cloned later by vyd kb clone
 vyd domain remove <name> [--dry-run]   # take a domain out of your configuration, refused while a project uses it. Its folder is left alone
 vyd project add <name> [--code <folder>] [--docs <folder>] [--contract <path>] [--remote <url>] [--domain <name>] [--visibility public|private] [--file] [--dry-run] # declare a project. In a git checkout its code folder and remotes are read from it
@@ -86,7 +87,7 @@ vyd config
 vyd build
 ```
 
-A command never records trust and never deletes a folder, a clone or a store. Trust `own` or `reviewed`, and any change that reaches what a client loads or runs, needs a person at a terminal, as `vyd trust` does. [docs/GUIDE.md](docs/GUIDE.md) has the same steps in full.
+`vyd domain trust tools own` raises a domain you added as knowledge, or `vyd domain trust tools reviewed --commit <hash>` for one you read, so you need not edit the file or add the domain again. A command never records trust and never deletes a folder, a clone or a store. Trust `own` or `reviewed`, and any change that reaches what a client loads or runs, needs a person at a terminal, as `vyd trust` does. [docs/GUIDE.md](docs/GUIDE.md) has the same steps in full.
 
 ## The work board
 
