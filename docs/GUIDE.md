@@ -99,7 +99,7 @@ You need:
 - `uv`, for the installation examples below.
 - Network access to obtain dependencies and, on first semantic use, the embedding model.
 
-The commands below assume a POSIX-style shell. Configuration is TOML on every platform; use the corresponding shell syntax for environment variables on Windows.
+The commands below assume a POSIX-style shell. Configuration is TOML on every platform. Use the corresponding shell syntax for environment variables on Windows.
 
 ### Install from source
 
@@ -160,7 +160,7 @@ An editable tool runs that working tree. Changing branches or editing its source
 
 Semantic retrieval uses a local ONNX embedding model. The default is `BAAI/bge-small-en-v1.5`, pinned by revision and file hashes.
 
-The model is downloaded into the platform cache on first use. Embedding and ranking then run locally; Vyvid does not require a hosted embedding service.
+The model is downloaded into the platform cache on first use. Embedding and ranking then run locally. Vyvid does not require a hosted embedding service.
 
 To build the graph without producing embeddings:
 
@@ -278,7 +278,7 @@ Vyvid distinguishes three trust modes:
 | `reviewed` | Instructions enabled while the domain’s HEAD matches the reviewed commit |
 | `own` | Your own domain, whose instructions you accept without a reviewed-commit restriction |
 
-A domain with a remote defaults to `knowledge`. A domain without a remote defaults to `own`; do not rely on that default for someone else’s files.
+A domain with a remote defaults to `knowledge`. A domain without a remote defaults to `own`. Do not rely on that default for someone else’s files.
 
 Inspect a domain without running anything from it:
 
@@ -287,7 +287,7 @@ vyd domain audit ~/work/vyvid-kb/domains/lifecycle
 git -C ~/work/vyvid-kb/domains/lifecycle rev-parse HEAD
 ```
 
-Read its manifest, rules, skills, and other relevant files. The audit reports facts such as links, command-shaped text, hidden characters, and paths; it does not certify safety.
+Read its manifest, rules, skills, and other relevant files. The audit reports facts such as links, command-shaped text, hidden characters, and paths. It does not certify safety.
 
 After reviewing, change that domain’s existing configuration entry:
 
@@ -444,7 +444,7 @@ PDD = { defined = "docs:pending-design-decisions.md", type = "pending-decision" 
 ADR = { defined = "docs:decisions", rule = "file", type = "decision" }
 ```
 
-By default, family `STD` recognises identifiers shaped like `STD-1` or `STD-12a`.
+By default, family `STD` recognises identifiers shaped like `STD-1`, with an optional letter suffix.
 
 A family’s `rule` identifies its definition format:
 
@@ -748,7 +748,7 @@ Project skill destinations are configurable with `skill_targets`.
 
 Reminder-hook configuration supports `claude-code`, `copilot`, and `codex`. This does not mean `vyd install --client codex` is supported.
 
-Claude Code receives a user-level rule file. Copilot does not receive an equivalent always-on personal rule file from this integration; put essential project guidance in the instruction file your client actually loads.
+Claude Code receives a user-level rule file. Copilot does not receive an equivalent always-on personal rule file from this integration. Put essential project guidance in the instruction file your client actually loads.
 
 ### Public and private domain skills
 
@@ -776,7 +776,7 @@ It:
 - Does not replace project instructions.
 - Does not implement Git commit or merge gates.
 
-The upstream documentation reports exercised integrations for Claude Code and Copilot; Codex’s integration was not reported as exercised at the inspected revision.
+The upstream documentation reports exercised integrations for Claude Code and Copilot. Codex’s integration was not reported as exercised at the inspected revision.
 
 ### Handle missing sources honestly
 
@@ -905,7 +905,7 @@ It currently has no register. Its use is described in the next section.
 
 The tools, Python, and Haskell domains each declare a recipe named `how-do-i`.
 
-Recipes are selected by name across the active stack; a later declaration replaces an earlier one with the same name. They do not all run together.
+Recipes are selected by name across the active stack. A later declaration replaces an earlier one with the same name. They do not all run together.
 
 Check the effective recipe:
 
@@ -921,7 +921,7 @@ For a project using several such domains, define clearly named project recipes s
 
 The [lifecycle domain](https://github.com/nebularis/vyvid-lifecycle) supplies a detailed procedure for designing, planning, implementing, reviewing, and delivering work.
 
-It is **not an autonomous runner**. Skills tell agents how to behave; work commands read and maintain records; your client, maintainers, and project tooling control execution and permissions.
+It is **not an autonomous runner**. Skills tell agents how to behave. Work commands read and maintain records. Your client, maintainers, and project tooling control execution and permissions.
 
 ### 9.1 Enable the domain and work settings
 
@@ -982,7 +982,7 @@ The composition engine derives several location values from `project.work`, incl
 
 Some values need explicit attention:
 
-- Work configuration uses `reviews`; the skill placeholder is `review`.
+- Work configuration uses `reviews`. The skill placeholder is `review`.
 - Pending-decision and debt registers are not work-table paths.
 - Hook installation, full checks, merge checks, and publication checks are project-supplied commands, not facilities created merely by adopting the domain.
 
@@ -1006,7 +1006,7 @@ The core record pair is:
 
 A plan is not a progress journal. A status record is not a second design specification.
 
-Sketches, review requests, and separate validation documents support the process. The domain identifies plans and status records as the mandatory unit documents; its default slice-delivery procedure additionally calls for a Validation Pack. If you adopt a lighter evidence format, explicitly adapt that procedure rather than silently dropping it.
+Sketches, review requests, and separate validation documents support the process. The domain identifies plans and status records as the mandatory unit documents. Its default slice-delivery procedure additionally calls for a Validation Pack. If you adopt a lighter evidence format, explicitly adapt that procedure rather than silently dropping it.
 
 ### 9.4 Create a plan
 
@@ -1100,7 +1100,7 @@ APPQ = {
 }
 ```
 
-Merge these into your existing family table; do not duplicate the table declaration.
+Merge these into your existing family table. Do not duplicate the table declaration.
 
 The numeric slice pattern intentionally does not overlap the question pattern.
 
@@ -1154,7 +1154,7 @@ From `building` onward, states require dates by default:
 | APP-1 | Validate requests | building 2026-11-05, briefed 2026-11-04 | |
 ```
 
-The newest state comes first. The cell preserves the state trail; Git supplies commit history.
+The newest state comes first. The cell preserves the state trail. Git supplies commit history.
 
 The board does not infer `verified` from a successful test process or `merged` merely from a branch merge. Update records through the agreed workflow.
 
@@ -1174,7 +1174,7 @@ These answer different questions:
 - Where does the work stand across known branches?
 - Who has recently declared presence in this checkout?
 
-**Plain `vyd here` lists presence; it does not register you.**
+**Plain `vyd here` lists presence. It does not register you.**
 
 Register an actual role:
 
@@ -1430,7 +1430,7 @@ vyd work roadmap --check
 
 The roadmap can include programme summaries, branch information, completed work, decision information, and dated charts.
 
-Its branch inputs use remote-known branches at their remote tips, rather than indiscriminately publishing every local branch. The current working tree also supplies its own records; an unpushed current branch can contribute under an anonymous checkout label without publishing its branch name.
+Its branch inputs use remote-known branches at their remote tips, rather than indiscriminately publishing every local branch. The current working tree also supplies its own records. An unpushed current branch can contribute under an anonymous checkout label without publishing its branch name.
 
 Generated charts derive from recorded dates. They are not forecasts invented for undated planned work.
 
@@ -1687,7 +1687,7 @@ skill_targets = [".claude/skills", ".github/skills"]
 
 Without a project prefix, domain-qualified naming helps distinguish skills from different domains.
 
-A project prefix changes naming rules; two domains with the same short skill name can then collide. Inspect the generated set rather than assuming prefixing always increases uniqueness.
+A project prefix changes naming rules. Two domains with the same short skill name can then collide. Inspect the generated set rather than assuming prefixing always increases uniqueness.
 
 After any source or configuration change:
 
@@ -1719,7 +1719,7 @@ A local note can identify the shared entry it specialises:
 | TOOL-1 | **Use the repository's approved installation task for this checkout.** | tools:NOTE-1 |
 ```
 
-This is an example of the mechanism; choose a domain entry whose actual meaning is appropriate before creating the relationship.
+This is an example of the mechanism. Choose a domain entry whose actual meaning is appropriate before creating the relationship.
 
 In project retrieval, a specialising entry is presented with its domain guidance beneath it.
 
@@ -1820,7 +1820,7 @@ steps = [
 
 A parent must be configured on the machine. Declaring `parents` does not download or configure it.
 
-Manifest paths must remain inside the domain. A manifest cannot grant itself trust or set its remote or Git update policy; those belong in the user configuration.
+Manifest paths must remain inside the domain. A manifest cannot grant itself trust or set its remote or Git update policy. Those belong in the user configuration.
 
 ### Add useful entries
 
@@ -1911,7 +1911,7 @@ Then declare a family:
 RISK = { defined = "risks.md", type = "risk" }
 ```
 
-The default domain location for register-type declarations is `register-types.toml`; you can also name files explicitly with `register_types`.
+The default domain location for register-type declarations is `register-types.toml`. You can also name files explicitly with `register_types`.
 
 Use custom types and vocabulary where they change retrieval or checking. Avoid introducing distinctions with no consumer.
 
@@ -2029,7 +2029,7 @@ Its contract is:
 
 Useful entry fields include `kind`, `scope`, `claim`, `pointer`, and `signposts`.
 
-Glue replaces the accumulated result. It can therefore discard context as well as enrich it; test both inclusion and accidental-loss cases.
+Glue replaces the accumulated result. It can therefore discard context as well as enrich it. Test both inclusion and accidental-loss cases.
 
 ### Keep command execution visible
 
@@ -2156,7 +2156,7 @@ Vyvid checks the registered database and prints commands from its known template
 
 At the inspected revision, `hiedb` is the kind with implemented command templates.
 
-Use semantic symbol retrieval to locate likely code; use the compiler index for exact definition and reference questions.
+Use semantic symbol retrieval to locate likely code. Use the compiler index for exact definition and reference questions.
 
 ### Configure ontology extraction separately
 
@@ -2178,7 +2178,7 @@ vyd exists "retention"
 
 The extractor derives declared RDF/OWL terms and associated summaries from configured ontology files.
 
-The RDF-modelling domain supplies modelling procedure; it does not currently declare this extractor for you. Do not assume a configuration path such as `uses.rdf-modelling.owl-terms` is valid unless that domain actually declares the extractor.
+The RDF-modelling domain supplies modelling procedure. It does not currently declare this extractor for you. Do not assume a configuration path such as `uses.rdf-modelling.owl-terms` is valid unless that domain actually declares the extractor.
 
 ---
 
@@ -2315,7 +2315,7 @@ vyd kb pull tools
 vyd kb pull --due
 ```
 
-Pulls fast-forward; Vyvid does not merge or stash a diverged domain for you.
+Pulls fast-forward. Vyvid does not merge or stash a diverged domain for you.
 
 For a domain not marked `own`, updates to instruction-bearing files can be held for review. After reading the reported diff, a person can run:
 
@@ -2484,7 +2484,7 @@ Question logs live beside the index. To disable their creation:
 logs = false
 ```
 
-Changing this setting stops new logging; handle existing local logs according to your own retention policy.
+Changing this setting stops new logging. Handle existing local logs according to your own retention policy.
 
 The framework can also set a custom index store:
 
@@ -2554,21 +2554,21 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 | Symptom | Likely explanation and action |
 |---|---|
 | `vyd` is not found | Check the tool installation and uv executable path |
-| `uv tool install vyvid` fails | Use the Git-source installation; PyPI availability must not be assumed |
+| `uv tool install vyvid` fails | Use the Git-source installation. PyPI availability must not be assumed |
 | Context shows only general scope | Check the working folder, project binding, and `vyd config` |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |
-| A skill-only domain has no search results | Its procedure reaches agents through skills; it has no register to retrieve |
-| Contract or skills are withheld | Review trust standing; a person may need to trust the project file or review the current domain commit |
+| A skill-only domain has no search results | Its procedure reaches agents through skills. It has no register to retrieve |
+| Contract or skills are withheld | Review trust standing. A person may need to trust the project file or review the current domain commit |
 | A domain update is held | Read the reported diff, then have a person accept it if appropriate |
-| Semantic search cannot rank | Check model availability and build diagnostics; use direct source reading or textual `exists` while resolving it |
-| A high-ranked entry is wrong for the task | Read its status, evidence, flags, and non-coverage; similarity is not authority |
+| Semantic search cannot rank | Check model availability and build diagnostics. Use direct source reading or textual `exists` while resolving it |
+| A high-ranked entry is wrong for the task | Read its status, evidence, flags, and non-coverage. Similarity is not authority |
 | Source symbols are missing | Check the symbols extra, language declaration, paths, and Git tracking |
 | Ordinary search omits slices or terms | Request `--kind slice` or `--kind term` |
-| The board misses a fresh edit | The cross-branch view reads committed tips; inspect the local record or use the checkout-local view |
+| The board misses a fresh edit | The cross-branch view reads committed tips. Inspect the local record or use the checkout-local view |
 | Plain `vyd here` does not show you | Register with `--role` and ensure the session identifier is distinct |
 | A work index is stale | Update source records, run `vyd work build`, and include the generated change |
-| Skill checking exits 2 | The comparison did not run meaningfully; fix missing sources, binding, or trust |
-| The wrong `how-do-i` recipe runs | Inspect `vyd recipe list`; same-name recipes replace one another |
+| Skill checking exits 2 | The comparison did not run meaningfully. Fix missing sources, binding, or trust |
+| The wrong `how-do-i` recipe runs | Inspect `vyd recipe list`. Same-name recipes replace one another |
 | A custom extractor is absent | Inspect trust, command failure, protocol, and graph-validation diagnostics |
 | A public-text check passes despite sensitive prose | Citation checking is not a general confidentiality detector |
 
