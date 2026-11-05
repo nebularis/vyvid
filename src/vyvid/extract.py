@@ -462,13 +462,18 @@ def register_rows(ctx: Context) -> None:
                             ctx.add(subject, ki(prop), target)
                             out.bump(prop)
                 elif column.kind in ("names", "module"):
-                    # A name stays a literal unless an extractor of the project declared units. What a name
-                    # or a module means belongs to the project, so it is resolved only through those, and a
-                    # name they do not know is reported and kept. A module loses its code quotes and any
-                    # annotation in parentheses.
+                    # A names cell is an edge to the node of that name, which something derived may define, so a
+                    # check can ask whether it exists. A module stays a literal unless an extractor of the project
+                    # declared units. What a module means belongs to the project, so it is resolved only through
+                    # those, and a name they do not know is reported and kept. A module loses its code quotes,
+                    # a folder's trailing slash and any annotation in parentheses.
                     units = out.units.get(scope.name) if column.kind == "module" else None
-                    for name in (re.sub(r"\s*\(.*?\)", "", n).strip(" `") if column.kind == "module" else n.strip() for n in cell.split(",")):
+                    for name in (re.sub(r"\s*\(.*?\)", "", n).strip(" `").rstrip("/") if column.kind == "module" else n.strip() for n in cell.split(",")):
                         if not name:
+                            continue
+                        if column.kind == "names":
+                            ctx.add(subject, ki(prop), node(scope.name, name))
+                            out.bump(prop)
                             continue
                         if units and name in units:
                             for unit in units[name]:

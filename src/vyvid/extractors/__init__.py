@@ -26,11 +26,13 @@ quad must be in the ``index`` or ``terms`` graph, or the whole output is refused
 holds the fields of ``Result``::
 
     {"protocol": 1, "version": <optional string>, "problems": [...], "findings": [...],
-     "texts": {<node iri>: <text>}, "prefixes": {...}, "counts": {...}, "units": {<name>: [<unit>, ...]}}
+     "texts": {<node iri>: <text>}, "prefixes": {...}, "counts": {...}, "units": {<name>: [<unit>, ...]}, "unit_paths": {<path>: <unit>}}
 
 ``units`` names the units of the project, such as its modules or tool packages, and the units each name
 stands for, so an ``Owner`` or ``Provided by`` cell that names one is an edge to each, and a name that
 names none is reported and kept as written. With no units declared, every such cell stays as written.
+``unit_paths`` says which folder each unit sits in, so a term declared under one is owned by that unit, the
+longest path winning, and the two meet. A term under no path keeps the folder of its document as its owner.
 A ``texts`` key must be a subject of a quad it wrote. Exit zero is success. A non-zero exit, a
 timeout (``seconds``, COMMAND_SECONDS if unset), a missing or malformed ``result.json``, an unknown
 ``protocol``, malformed or misplaced quads, or a command that cannot start is a problem naming the
@@ -83,7 +85,8 @@ class Context:
 class Result:
     """What an extractor found. ``texts`` maps a node's IRI to the text to embed, ``prefixes`` maps a
     CURIE prefix to its namespace so a ``targets`` cell may name a term by it, and ``counts`` are
-    reported by the build. ``units`` maps a name a register's module column may use to the units it stands for."""
+    reported by the build. ``units`` maps a name a register's module column may use to the units it stands for,
+    and ``unit_paths`` a repository folder to the unit a term declared under it belongs to."""
 
     quads: list[ox.Quad] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
@@ -92,6 +95,7 @@ class Result:
     prefixes: dict[str, str] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=dict)
     units: dict[str, list[str]] = field(default_factory=dict)
+    unit_paths: dict[str, str] = field(default_factory=dict)
 
     def bump(self, key: str, by: int = 1) -> None:
         self.counts[key] = self.counts.get(key, 0) + by

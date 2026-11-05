@@ -30,7 +30,7 @@ from .extractors import command
 from .config import Config, Scope, extractor_runs, refusals, timeouts
 from .credentials import private_dir
 from .extract import Context, Extract, dangling, decisions, discoveries, questions, register_rows, technology_words
-from .model import FACETS_GRAPH, KI, TBOX_GRAPH
+from .model import FACETS_GRAPH, KI, TBOX_GRAPH, terms_graph
 from .citations import domain_citations
 from .resolve import forget, layers
 from .symbols import store as symbol_store
@@ -102,6 +102,26 @@ def load_vocabulary(store: ox.Store, stack: list[Scope], out: Extract) -> None:
                 out.problems.append(f"{path}: vocabulary of '{scope.name}' does not load, so its terms are absent ({error.__class__.__name__})")
 
 
+def own_terms_by_unit(out: Extract, scope_name: str, paths: dict[str, str]) -> None:
+    """Move each of the scope's terms from the folder of its document to the unit whose path holds that folder, the
+    longest path winning. It runs after every extractor of the scope, since any of them may declare the paths."""
+    declared = {unit for listed in out.units.get(scope_name, {}).values() for unit in listed}
+    out.problems += [f"unit_paths of '{scope_name}' gives {path} to '{unit}', which no extractor's units declare"
+                     for path, unit in paths.items() if unit not in declared]
+    graph, owned, prefix = terms_graph(scope_name), ox.NamedNode(f"{KI}ownedBy"), f"{KI}module/{scope_name}/"
+    longest = sorted(((path.rstrip("/"), unit) for path, unit in paths.items() if unit in declared), key=lambda p: -len(p[0]))
+
+    def placed(quad: ox.Quad) -> ox.Quad:
+        if quad.predicate != owned or quad.graph_name != graph:
+            return quad
+        folder = str(quad.object.value).removeprefix(prefix)
+        unit = next((u for path, u in longest if folder == path or folder.startswith(path + "/")), None)
+        return quad if unit is None else ox.Quad(quad.subject, owned, ox.NamedNode(prefix + unit), graph)
+
+    if longest:
+        out.quads = [placed(q) for q in out.quads]
+
+
 def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable: dict[str, set[str]],
                    out: Extract, folder: Path) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     """Run each extractor each project of the stack runs, its output belonging to the project.
@@ -111,6 +131,7 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
     prefixes: dict[str, dict[str, str]] = {}
     texts: dict[str, str] = {}
     for scope in (s for s in stack if s.kind == "project"):
+        unit_paths: dict[str, str] = {}
         for run in extractor_runs(config, scope):
             context = extractors.Context(scope, scope.code or scope.path or Path.cwd(), config, taggable, store)
             if "command" in run.settings and not cfg.may_run(config, scope, "extractors"):
@@ -126,8 +147,11 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
             texts.update(result.texts)
             for name, listed in result.units.items():
                 out.units.setdefault(scope.name, {}).setdefault(name, listed)
+            for path, unit in result.unit_paths.items():
+                unit_paths.setdefault(path, unit)
             for prefix, namespace in result.prefixes.items():
                 prefixes.setdefault(scope.name, {}).setdefault(prefix, namespace)
+        own_terms_by_unit(out, scope.name, unit_paths)
     return prefixes, texts
 
 

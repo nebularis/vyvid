@@ -19,7 +19,7 @@ from . import COMMAND_SECONDS, PROTOCOL, Context, Result
 
 STDERR = 2000  # the most of a command's standard error a problem keeps
 # The fields of result.json: a list of strings, or a mapping of one type to another.
-SHAPES = {"problems": [str], "findings": [str], "texts": {str: str}, "prefixes": {str: str}, "counts": {str: int}, "units": {str: [str]}}
+SHAPES = {"problems": [str], "findings": [str], "texts": {str: str}, "prefixes": {str: str}, "counts": {str: int}, "units": {str: [str]}, "unit_paths": {str: str}}
 
 
 class Failed(Exception):
