@@ -425,3 +425,13 @@ def test_trust_given_a_folder_or_the_file_and_refusing_a_file_that_cannot_be_use
     bad = repo(tmp_path, "bad", BASE.replace("[project.families]", 'code = "/x"\n\n[project.families]'))
     assert cli.main(["trust", str(bad / "vyvid.toml")]) == 1
     assert "cannot be used, so there is nothing to trust" in capsys.readouterr().err and not configuration.file_trusted(bad / "vyvid.toml")
+
+
+def test_vyd_context_answers_a_worktree_of_a_project_only_a_vyvid_toml_declares(tmp_path, monkeypatch, capsys):
+    root = repo(tmp_path)
+    worktree = tmp_path / "wt"
+    sh(root, "worktree", "add", "-q", str(worktree))
+    assert cli.main(["context", str(worktree), "--no-pull"]) == 0
+    out = capsys.readouterr().out
+    assert "project:" in out and "not the configured code folder" not in out
+

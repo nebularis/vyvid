@@ -148,7 +148,8 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     print(f"Вивід {__version__}: the contract for {folder.resolve()}")
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
     if project and project.checkout:
-        print(f"checkout: answering from {project.checkout}, not the configured code folder {configured.projects[project.name].code}")
+        entry = configured.projects.get(project.name)  # a project a vyvid.toml declares alone has no configured folder
+        print(f"checkout: answering from {project.checkout}" + (f", not the configured code folder {entry.code}" if entry is not None else ""))
     print("Read each layer's rules in this order. A later layer overrides an earlier one, and the project's is last.\n")
     for n, layer in enumerate(stack, 1):
         print((f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}") + f" ({layer['visibility']})")
