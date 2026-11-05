@@ -101,3 +101,9 @@ def test_a_python_definition_resolves_to_its_span(tmp_path):
     (tmp_path / "m.py").write_text('"""Doc."""\n\n\ndef f():\n    return 1\n\n\nclass C:\n    pass\n', encoding="utf-8")
     assert anchors.resolve_part(tmp_path, "m.py::f") == "m.py:4-5"
     assert anchors.resolve_part(tmp_path, "m.py::C") == "m.py:8-9"
+
+
+def test_a_toml_table_resolves_to_its_span(tmp_path):
+    (tmp_path / "t.toml").write_text('[tasks."a:b"]\nrun = "x"\n\n[tasks.c]\nrun = "y"\n', encoding="utf-8")
+    assert anchors.resolve_part(tmp_path, "t.toml::a:b") == "t.toml:1-3"
+    assert anchors.resolve_part(tmp_path, "t.toml::c") == "t.toml:4-5"

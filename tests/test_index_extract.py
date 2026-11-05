@@ -10,6 +10,7 @@ import pyoxigraph as ox
 import pytest
 
 from test_index_core import Words
+from vyvid import anchors
 from vyvid import build as builder
 from vyvid import embed, extract, extractors, facets, registers
 from vyvid.extractors import owl
@@ -294,6 +295,14 @@ def test_a_narrowed_by_cell_points_an_entry_at_the_addendum_by_its_day(world, tm
                                               if q.subject == node("proj", "MEC-1")}
     assert any("ADR-A129 has no addendum of that day" in p for p in world.out.problems)
     assert any("names no addendum" in p for p in world.out.problems)
+
+
+def test_a_pointer_at_the_whole_of_a_long_file_is_noted_and_a_short_one_is_not(world, tmp_path):
+    write(tmp_path / "code", "docs/long.md", [f"line {n}" for n in range(1, anchors.WHOLE_FILE + 2)])
+    write(tmp_path / "code", "docs/short.md", [f"line {n}" for n in range(1, 11)])
+    rows(world, tmp_path, "| ID | Claim | Pointer |", "| MEC-1 | **A claim.** | docs/long.md |", "| MEC-2 | **A claim.** | docs/short.md |")
+    assert [p for p in world.out.problems if "whole of" in p] == [
+        f"docs/developer/mechanisms.md:3: MEC-1 has a pointer at the whole of docs/long.md, {anchors.WHOLE_FILE + 1} lines, which read refuses"]
 
 
 # ---- Headings ------------------------------------------------------------------------------------

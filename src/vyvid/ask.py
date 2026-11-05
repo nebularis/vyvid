@@ -311,8 +311,7 @@ SELECT ?value ?other ?scheme WHERE {{
 SUPERSEDED = 0.01
 # find prints each answer's whole claim under its row when it shows this many rows or fewer.
 FULL_CLAIMS = 8
-# A pointer to more lines than this that names a whole file is a pointer defect, and read refuses it.
-WHOLE_FILE = 200
+WHOLE_FILE = anchors.WHOLE_FILE
 FALLBACK = (
     "If the question was what a class or property means, or whether one already exists, ask again\n"
     "with --kind term, since declared terms are searched only when that kind is named.\n"
@@ -987,13 +986,7 @@ def read_ranges(a: Asker, scope_name: str, subject: ox.NamedNode) -> list[tuple[
     return found
 
 
-def whole_file(root: Path, where: str) -> int | None:
-    """The length of the file a range covers whole, when it is longer than WHOLE_FILE, else None.
-
-    ``where`` is a label from read_ranges, so the row and pointed-at prefixes are dropped first."""
-    path, start, end = anchors.parse_range(where.removeprefix("row ").removeprefix("pointed-at "))
-    total = len((root / path).read_text(encoding="utf-8", errors="replace").splitlines())
-    return total if start == 1 and end in (None, total) and total > WHOLE_FILE else None
+whole_file = anchors.whole_file
 
 
 def canonical_of(a: Asker, identifier: str) -> tuple[str, str] | None:

@@ -428,6 +428,10 @@ def register_rows(ctx: Context) -> None:
         # The defining row, kept apart from the Pointer column so a reader prints it first.
         ctx.add(subject, ki("row"), ox.Literal(f"{row.source}:{row.line}-{row.line}"))
         ctx.add(subject, ki("pointer"), ox.Literal(",".join(row.pointer)))
+        root = scope.code or scope.path or Path.cwd()
+        for where in row.pointer:
+            if (total := anchors.whole_file(root, where)) is not None:
+                out.problems.append(f"{here} has a pointer at the whole of {anchors.parse_range(where)[0]}, {total} lines, which read refuses")
         for prop, cells in row.values.items():
             column = columns[prop]
             for cell in cells:

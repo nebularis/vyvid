@@ -707,3 +707,94 @@ def test_what_narrows_an_answer_is_that_sections_and_not_one_passed_on_the_way()
         ask.answer_from_sections(row, list(order), scores.get)
         assert row["narrowed"] == "register", "the narrowing the row itself states is kept"
 
+
+
+# ---- Exists, facet matching and the T-Box -------------------------------------------------------
+
+
+def exists(w, needle):
+    return {(r["where"], r["name"]) for r in w.ask.rows(ask.EXISTS, needle=ox.Literal(needle))}
+
+
+def test_exists_reaches_every_register_that_records_what_exists(w):
+    """One question, does this already exist, must not need to know which register holds the answer.
+    A pattern is found by its name and a capability by a word of its claim."""
+    w.entry("PAT-1", "Pattern", "Read a result in pages.")
+    w.entry("CAP-1", "Capability", "Resolves imports or names to a file.")
+    for ident in ("PAT-1", "CAP-1"):
+        w.fact(ident, "pointer", "reg.md:1-1")
+    w.store.add(ox.Quad(node("proj", "PAT-1"), RDFS_LABEL, ox.Literal("pagination"), index_graph("proj")))
+    assert ("pattern", "PAT-1") in exists(w, "pagination"), "a pattern must be found by its name"
+    assert ("capability", "CAP-1") in exists(w, "imports or names"), "a capability must be found by its claim"
+
+
+def test_a_principle_is_found_by_a_word_in_its_claim(w):
+    w.entry("PRI-1", "Principle", "Undetermined input is refused.")
+    w.fact("PRI-1", "pointer", "reg.md:1-1")
+    assert ("principle", "PRI-1") in exists(w, "Undetermined")
+
+
+def test_a_facet_value_matches_up_and_down_its_chain_but_not_its_siblings(w):
+    """A question about physical data modelling raises an entry tagged with the broader data modelling,
+    and the reverse. A sibling under the same group does not, or naming any design activity would
+    raise every design entry."""
+    w.facets()
+    values = ask.facet_values(w.ask)["Activity"]
+    assert {"data-modelling", "design"} <= values["physical-data-modelling"]
+    assert "physical-data-modelling" in values["data-modelling"]
+    assert "ux-design" not in values["physical-data-modelling"]
+
+
+def test_a_related_value_raises_entries_in_another_facet(w):
+    """UX design is an activity and interaction capability a quality, linked by skos:related. Naming
+    the activity raises entries tagged with the quality, while a value with no relation adds nothing
+    to another facet."""
+    w.facets()
+    wanted = ask.expand(w.ask, {"Activity": ["ux-design"]})
+    assert "accessibility" in wanted["qualities"] and "ux-design" in wanted["activities"]
+    assert set(ask.expand(w.ask, {"Activity": ["refactoring"]})) == {"activities"}
+
+
+PREFIX = (f"PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+          f"PREFIX skos: <http://www.w3.org/2004/02/skos/core#> PREFIX ki: <{KI}> ")
+
+
+@pytest.fixture(scope="module")
+def tbox():
+    store = ox.Store()
+    store.bulk_load(input=resources.files("vyvid").joinpath("data/knowledge.ttl").read_bytes(), format=ox.RdfFormat.TURTLE)
+    return store
+
+
+def names(store, query):
+    return sorted(str(r["t"].value).removeprefix(KI) for r in store.query(PREFIX + query))
+
+
+def test_the_tbox_parses_in_the_strict_store(tbox):
+    assert len(tbox) > 100
+
+
+def test_every_property_of_the_tbox_states_a_domain_and_a_range(tbox):
+    assert not names(tbox, "SELECT ?t WHERE { { ?t a owl:ObjectProperty } UNION { ?t a owl:DatatypeProperty } "
+                           "FILTER (NOT EXISTS { ?t rdfs:domain ?d } || NOT EXISTS { ?t rdfs:range ?r }) }")
+
+
+def test_every_class_and_property_of_the_tbox_has_a_comment(tbox):
+    assert not names(tbox, "SELECT ?t WHERE { { ?t a owl:Class } UNION { ?t a owl:ObjectProperty } UNION { ?t a owl:DatatypeProperty } "
+                           "FILTER NOT EXISTS { ?t rdfs:comment ?c } }")
+
+
+def test_the_derived_edge_is_the_only_one_marked_never_evidence(tbox):
+    assert names(tbox, 'SELECT ?t WHERE { ?t rdfs:comment ?c FILTER CONTAINS(STR(?c), "never evidence") }') == ["citedWith"]
+
+
+@pytest.mark.parametrize("facet", ["activity", "quality", "technology"])
+def test_the_facet_properties_range_over_skos_concepts(tbox, facet):
+    ranges = {str(r["t"].value) for r in tbox.query(PREFIX + f"SELECT ?t WHERE {{ ki:{facet} rdfs:range ?t }}")}
+    assert ranges == {"http://www.w3.org/2004/02/skos/core#Concept"}
+
+
+@pytest.mark.parametrize("kind", ["Decision", "PendingDecision", "Debt", "Backlog", "Note", "Discovery", "Standard", "Slice",
+                                  "Pattern", "Mechanism", "Capability", "Principle", "Epic", "Question"])
+def test_every_node_kind_is_a_subclass_of_node(tbox, kind):
+    assert tbox.query(PREFIX + f"ASK {{ ki:{kind} rdfs:subClassOf ki:Node }}")

@@ -186,3 +186,16 @@ def parse_range(text: str) -> tuple[str, int, int | None]:
         return text, 1, None
     start = int(match.group("start"))
     return match.group("path"), start, int(match.group("end") or start)
+
+
+# A pointer to more lines than this that names a whole file is a pointer defect, and read refuses it.
+WHOLE_FILE = 200
+
+
+def whole_file(root: Path, where: str) -> int | None:
+    """The length of the file a range covers whole, when it is longer than WHOLE_FILE, else None.
+
+    ``where`` is a label from read_ranges, so the row and pointed-at prefixes are dropped first."""
+    path, start, end = parse_range(where.removeprefix("row ").removeprefix("pointed-at "))
+    total = len((root / path).read_text(encoding="utf-8", errors="replace").splitlines())
+    return total if start == 1 and end in (None, total) and total > WHOLE_FILE else None
