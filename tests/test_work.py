@@ -886,3 +886,11 @@ def test_a_partial_commit_is_checked_against_its_temporary_index(tmp_path, monke
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     checked = subprocess.run([sys.executable, "-c", HOOK_PROGRAM, "work", "check", "--staged", "--in", str(folder)], capture_output=True, text=True, env=env)
     assert checked.returncode == 1 and "beta.md" in checked.stdout, "the real index does hold the bad file, so the temporary index is what left it out"
+
+
+@pytest.mark.real_trust
+def test_rename_refuses_an_untrusted_project_only_when_it_will_write(tmp_path, capsys) -> None:
+    root = project(tmp_path)
+    assert run(["work", "rename", "--in", str(root)], capsys)[0] == 0
+    code, _, err = run(["work", "rename", "--apply", "--in", str(root)], capsys)
+    assert code == 1 and "nobody has trusted" in err

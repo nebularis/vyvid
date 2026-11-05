@@ -128,13 +128,18 @@ def out_of_date(config: Config) -> list[str]:
     return lines
 
 
-def install_all(config: Config, dry_run: bool) -> int:
+def install_all(config: Config, dry_run: bool, hooks: bool = False) -> int:
     """Set up every client whose folder exists on this machine."""
     found_any = [c for c, folder in CLIENTS.items() if Path(folder).expanduser().is_dir()]
     if not found_any:
         print(f"vyd: no client's folder is here, so nothing was written. Name one with --client: {', '.join(sorted(CLIENTS))}")
         return 1
-    return max(install(config, client, None, dry_run) for client in found_any)
+    code = 0
+    for client in found_any:
+        code = max(code, install(config, client, None, dry_run))
+        if hooks:
+            user_hook(client, None, dry_run)  # a client with no user-level hook file does not change the exit code
+    return code
 
 
 def install(config: Config, client: str, target: Path | None, dry_run: bool) -> int:
@@ -239,4 +244,24 @@ def install_hooks(project_root: Path, clients: tuple[str, ...], ask: str, dry_ru
         if not dry_run:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8", newline="\n")
+    return 0
+
+
+def user_hook(client: str, target: Path | None, dry_run: bool) -> int:
+    """Register the reminder hook in a client's user-level settings. Only Claude Code documents such a file, so for any other
+    client nothing is written, the message names ``--project``, and the result is 1."""
+    if client != "claude-code":
+        print(f"vyd: {client} documents no user-level hook file, so no hook was written. Run vyd install --project to register the hook in a project's checkout")
+        return 1
+    path = (target or Path(CLIENTS[client])).expanduser() / "settings.json"
+    entry = {"matcher": "Bash|PowerShell|Grep|Glob", "hooks": [{"type": "command", "command": hook_command("claude-code", "vyd find"), "timeout": 5}]}
+    try:
+        text = json.dumps(merged_settings(path, "PreToolUse", entry), indent=2, ensure_ascii=False) + "\n"
+    except (OSError, ValueError) as error:
+        print(f"vyd: the hook was not registered, since {path} could not be read: {error}")
+        return 1
+    print(f"{'would write' if dry_run else 'wrote'} {path}")
+    if not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8", newline="\n")
     return 0

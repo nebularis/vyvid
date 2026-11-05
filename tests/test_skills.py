@@ -392,3 +392,21 @@ def test_a_skills_check_that_did_not_run_exits_two_and_never_one(tmp_path, monke
     assert cli.main(["check", "skills", str(elsewhere)]) == 2
     assert "no skills to check" in capsys.readouterr().out
 
+
+
+def test_user_hooks_are_written_for_claude_code_and_for_no_other_client(monkeypatch, capsys, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "absent.toml"))
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".copilot").mkdir()
+    assert cli.main(["install", "--client", "copilot", "--hooks"]) == 1
+    out = capsys.readouterr().out
+    assert "documents no user-level hook file" in out and "vyd install --project" in out
+    assert not (tmp_path / ".copilot" / "settings.json").exists()
+    assert cli.main(["install", "--client", "claude-code", "--hooks"]) == 0
+    assert "vyd-hook" in (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8")
+    (tmp_path / ".claude" / "settings.json").unlink()
+    assert cli.main(["install", "--hooks"]) == 0
+    assert "documents no user-level hook file" in capsys.readouterr().out
+    assert "vyd-hook" in (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8")
+    assert not (tmp_path / ".copilot" / "settings.json").exists()

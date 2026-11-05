@@ -85,7 +85,7 @@ def work(config: Config, project: Scope | None, arguments) -> int:
         return 0
     if require(project) is None:
         return 2
-    writes = {"build": not getattr(arguments, "check", True), "roadmap": not getattr(arguments, "check", True), "rename": True,
+    writes = {"build": not getattr(arguments, "check", True), "roadmap": not getattr(arguments, "check", True), "rename": getattr(arguments, "apply", False),
               "normalise": getattr(arguments, "apply", False), "adopt": getattr(arguments, "apply", False)}.get(command, False)
     if writes and refuse_untrusted(project):
         return 1

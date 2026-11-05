@@ -605,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
     p = c.add_parser("identifiers", help="fail on a mentioned identifier nothing defines, or one a family defines twice")
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--json", action="store_true")
-    p.add_argument("--all", action="store_true", help="also list each variant and each removable entry no longer defined")
+    p.add_argument("--all", action="store_true", help="also list each variant, each removable entry no longer defined and each stale exception")
     p = sub.add_parser("move", help="what a project moved to a domain").add_subparsers(dest="move_command", required=True)
     p = p.add_parser("check", help="compare each moved source file at its commit with a ref, by identifier")
     p.add_argument("folder", nargs="?", default=".")
@@ -647,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--client", choices=sorted(install.CLIENTS), help="only this client. Every client whose folder exists, without it")
     i.add_argument("--project", action="store_true", help="compose this folder's project's skills and hooks into its checkout, to be committed")
     i.add_argument("--in", dest="folder", default=".", help="with --project, the folder whose project is written")
-    i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings")
+    i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings, for a client that documents a place for one")
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
@@ -724,16 +724,10 @@ def main(argv: list[str] | None = None) -> int:
             if not arguments.client:
                 if arguments.target:
                     parser.error("--target needs --client")
-                return install.install_all(load(), arguments.dry_run)
+                return install.install_all(load(), arguments.dry_run, arguments.hooks)
             done = install.install(load(), arguments.client, arguments.target, arguments.dry_run)
-            if arguments.hooks and not done:
-                root = (arguments.target or Path(install.CLIENTS[arguments.client])).expanduser()
-                entry = {"matcher": "Bash|PowerShell|Grep|Glob", "hooks": [{"type": "command", "command": install.hook_command("claude-code", "vyd find"), "timeout": 5}]}
-                path = root / "settings.json"
-                print(f"{'would write' if arguments.dry_run else 'wrote'} {path}")
-                if not arguments.dry_run:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(json.dumps(install.merged_settings(path, "PreToolUse", entry), indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+            if arguments.hooks:
+                done = done or install.user_hook(arguments.client, arguments.target, arguments.dry_run)
             return done
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)

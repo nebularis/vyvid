@@ -16,7 +16,7 @@ A move with ``copy_removed = true`` says the project has removed its copy, so th
 no ref that move is reported as ``copy-removed``. With a ref, the move is reported so where the source at the
 ref is byte-identical to the working tree's, since the ref then carries the removal, and no ancestry is
 read, which holds after a squash merge. Where the source at the ref differs, it is compared as usual, except
-that an entry the ref still has and the tree no longer has is dropped, since that removal loses nothing.
+that an entry the move's commit has and the ref no longer has, the state ``removed``, is dropped, since that removal loses nothing.
 """
 
 from __future__ import annotations
