@@ -1,13 +1,4 @@
-I’ll check the current implementation, domain repositories, and migration-branch extensions, then write `GUIDE.md` here without changing any repository.
-
-
-Two important corrections have emerged: `vyvid` is not currently on PyPI, so the guide needs source-based installation; and `vyd board` now supports cross-branch views, despite what the older migration sketch says. I’ll distinguish current capabilities from lifecycle conventions and project-supplied extensions.
-
-
-The guide’s worked configuration, register, slice board, and skill overrides check out against the implementation. I’ll give the lifecycle section concrete record templates, state transitions, and handoff procedures, then explain how to extend the board and tools without duplicating their source of truth.
-
-
-# GUIDE.md
+# User Guide
 
 ## Vyvid: from first setup to an agentic development lifecycle
 
