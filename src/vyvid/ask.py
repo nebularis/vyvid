@@ -62,6 +62,7 @@ import glob
 import os
 import re
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -69,11 +70,15 @@ from typing import Callable
 import pyoxigraph as ox
 
 from . import anchors, audit, embed, registers
-from .build import build, store_dir
+from .build import NO_VECTORS, build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .credentials import private_dir, private_file
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
 from .resolve import Unresolved, bind_in, layers, private_entry, resolve
+
+# ponytail: a store without vectors is retried at most once in ten minutes, so a failing model download costs one
+# rebuild per window and not one per question. Lower it only if downloads are known to recover faster.
+RETRY_EMBEDDING = 600.0
 
 PREFIXES = f"""
 PREFIX ki: <{KI}>
@@ -530,7 +535,7 @@ def pointer_files(a: Asker) -> list[Path]:
     return out
 
 
-def stale(a: Asker) -> bool:
+def stale(a: Asker, ranking: bool = False) -> bool:
     """Whether the store is missing, was built for other scopes than the stack's, or any file the stack
     reads is newer than the build it was made from.
 
@@ -544,6 +549,8 @@ def stale(a: Asker) -> bool:
     if {s.name for s in a.built_scopes} - set(built_for.read_text(encoding="utf-8").split()):
         return True
     built = float(stamp.read_text(encoding="utf-8").strip())
+    if ranking and not (a.directory / embed.VECTORS).exists() and not (a.directory / NO_VECTORS).exists() and time.time() - stamp.stat().st_mtime > RETRY_EMBEDDING:
+        return True
     for path in [*declared_files(a.config, a.built_scopes), *pointer_files(a)]:
         try:
             if os.stat(path).st_mtime > built:
@@ -553,11 +560,12 @@ def stale(a: Asker) -> bool:
     return False
 
 
-def open_stack(config: Config, folder: Path, model=None, need_store: bool = True, scope: str = "") -> Asker:
+def open_stack(config: Config, folder: Path, model=None, need_store: bool = True, scope: str = "", ranking: bool = False) -> Asker:
     """The index for the stack the folder is bound to, rebuilt first if it is stale.
 
     So an agent that edits a document and asks again gets the document as it now is, and never the
-    lines it held before. ``need_store`` false is for the questions that only touch the logs. ``scope``
+    lines it held before. ``need_store`` false is for the questions that only touch the logs. ``ranking``
+    is true for a question that ranks by meaning, which rebuilds a store left without vectors. ``scope``
     is ``--scope``, and raises ValueError for a scope that is not configured."""
     config, project = bind_in(config, folder)
     stack = layers(config, project)
@@ -568,7 +576,7 @@ def open_stack(config: Config, folder: Path, model=None, need_store: bool = True
     path = directory / "store"
     if path.exists():
         a.db = ox.Store.read_only(str(path))
-        if not need_store or not stale(a):
+        if not need_store or not stale(a, ranking):
             return a
     elif not need_store:
         return a
@@ -576,7 +584,10 @@ def open_stack(config: Config, folder: Path, model=None, need_store: bool = True
     # Build into a temporary directory and rename it into place if that race is ever seen.
     print("knowledge index is missing or older than the files it reads, so building it", file=sys.stderr)
     a.db = None
-    build(config, project, embed=True, model=model, scopes=a.built_scopes)
+    built = build(config, project, embed=True, model=model, scopes=a.built_scopes)
+    for problem in built.problems:
+        if problem.startswith("no embeddings"):
+            print(f"vyd: {problem}", file=sys.stderr)
     a.db = ox.Store.read_only(str(path))
     return a
 

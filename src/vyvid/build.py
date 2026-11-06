@@ -155,6 +155,9 @@ def run_extractors(config: Config, stack: list[Scope], store: ox.Store, taggable
     return prefixes, texts
 
 
+NO_VECTORS = "built-without-vectors"  # written by a build told not to embed, so a later question does not retry it
+
+
 def build(config: Config, project: Scope | None = None, store_path: Path | None = None, embed: bool = True,
           model=None, scopes: list[Scope] | None = None) -> Extract:
     """Build the index of ``project``'s stack of layers, or of every configured scope when there is
@@ -210,9 +213,11 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
     target = directory / vectors.VECTORS
     if not embed:
         target.unlink(missing_ok=True)
+        (directory / NO_VECTORS).write_text("", encoding="utf-8")
         out.problems.append("no embeddings, because the build was told not to make them")
         out.bump("embeddings-unavailable")
     else:
+        (directory / NO_VECTORS).unlink(missing_ok=True)
         entries = {str(r["n"].value): vectors.join_text([r["label"] and r["label"].value, r["claim"].value,
                                                          r["shape"] and r["shape"].value, r["uncovered"] and r["uncovered"].value])
                    for r in store.query(TEXTS)}

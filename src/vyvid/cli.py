@@ -417,7 +417,7 @@ def recipe_command(arguments, parser) -> int:
             recipe = replace(recipe, budget=state["budget"])
             question, start = state["question"], state["next"]
             entries = recipes.glue_output(Path(arguments.glue_output), step)
-        a = ask.open_stack(config, folder, scope=recipes.extra_scopes(recipe))
+        a = ask.open_stack(config, folder, scope=recipes.extra_scopes(recipe), ranking=True)
         entries = recipes.run(a, recipe, question, entries, start, stop=resuming or arguments.stop_at_glue)
     except ValueError as error:
         parser.error(str(error))
@@ -463,7 +463,7 @@ def _question(arguments, parser) -> int:
         a = ask.open_stack(config, folder, need_store=False)
         return ask.gap(a, arguments.text, arguments.extras) if command == "gap" else ask.close(a, arguments.ids)
     try:
-        a = ask.open_stack(config, folder, scope=getattr(arguments, "scope", ""))
+        a = ask.open_stack(config, folder, scope=getattr(arguments, "scope", ""), ranking=command in ("find", "misses"))
     except ValueError as error:
         parser.error(str(error))
     a.logging = not getattr(arguments, "no_log", False)
@@ -829,6 +829,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"NOTE: {line}")
         for line in install.out_of_date(config):
             print(line)
+        if config.trusted_repositories:
+            own = config.source is not None and config.source.resolve() == configuration.own_config().resolve()
+            print(f"trusted repositories: {', '.join(config.trusted_repositories)}")
+            if not own:
+                print("NOTE: trusted_repositories is ignored here, since only the user's own configuration "
+                      f"at {configuration.own_config()} may grant it")
         print(f"domains: {', '.join(config.domains) or 'none'}")
         print(f"projects: {', '.join(config.projects) or 'none'}")
         for name, why in config.set_aside.items():
@@ -847,7 +853,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"work: records in {w.status}, plans in {w.plans}, levels {' > '.join(w.levels)}, ladder {' > '.join(w.ladder)}, aside {', '.join(w.aside)}, trunk {w.main}"
                   + "".join(f", {k} {getattr(w, k)}" for k in ("index", "roadmap") if getattr(w, k) is not None))
         if project is not None and project.file is not None:
-            print(f"project {project.name} is declared in {project.file}, which is " + ("trusted" if project.trusted else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository"))
+            print(f"project {project.name} is declared in {project.file}, which is " + (("trusted" if configuration.file_recorded(project.file) else "trusted through trusted_repositories, as it is committed at HEAD") if project.trusted
+                                                                                     else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file"))
         return 1 if config.set_aside or config.files_aside else 0
     except ConfigError as error:
         print(f"the configuration at {config_path()} cannot be used:", file=sys.stderr)

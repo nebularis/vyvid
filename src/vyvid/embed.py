@@ -175,7 +175,7 @@ def load(directory: Path, spec: ModelSpec, name: str = VECTORS) -> tuple[list[st
     """The nodes and their vectors, or Unavailable if none were written or another model made them."""
     target = directory / name
     if not target.exists():
-        raise Unavailable(f"no {name} in {directory}. The build says why")
+        raise Unavailable(f"no {name} in {directory}. Run vyd build, which says why")
     with np.load(target) as saved:
         if str(saved["revision"]) != spec.revision:
             raise Unavailable("the vectors were made by another model revision. Rebuild the index")

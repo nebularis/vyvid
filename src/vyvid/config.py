@@ -318,6 +318,7 @@ class Config:
     set_aside: dict[str, list[str]] = field(default_factory=dict)  # domain -> why its manifest or a parent's was refused
     entries: dict[str, dict] = field(default_factory=dict)  # the user's [[projects]] entries as written, by name
     files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
+    trusted_repositories: tuple[str, ...] = ()  # normalised origins whose committed vyvid.toml is trusted, in the user's own configuration only
     doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
 
     def scope(self, name: str) -> Scope | None:
@@ -450,12 +451,45 @@ def file_key(path: Path) -> str:
     return str(path)
 
 
-def file_trusted(path: Path) -> bool:
+def file_recorded(path: Path) -> bool:
     """Whether the vyvid.toml at ``path`` is recorded as trusted with the hash of its bytes now."""
     try:
         return _recorded().get(file_key(path)) == _digest(path)
     except OSError:
         return False
+
+
+def granted_repositories() -> list[str]:
+    """``[framework] trusted_repositories`` as the user's own configuration gives it, and from no other file, so
+    ``$VYVID_CONFIG`` never grants it. The platform's folder still follows ``XDG_CONFIG_HOME`` (SEC-36). Unreadable or malformed means none."""
+    try:
+        listed = tomllib.loads(own_config().read_text(encoding="utf-8")).get("framework", {}).get("trusted_repositories", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return listed if isinstance(listed, list) and all(isinstance(r, str) for r in listed) else []
+
+
+def file_granted(path: Path) -> bool:
+    """Whether the vyvid.toml at ``path`` is in a checkout whose ``origin`` the user's own configuration lists and
+    holds the bytes committed at HEAD, so an uncommitted edit lapses it. Only ``origin`` counts, never ``upstream``."""
+    if not (listed := granted_repositories()):
+        return False
+    from .resolve import normalise_remote  # resolve imports this module
+    try:
+        folder = path.resolve().parent
+        origin, top = _git_out(folder, "remote", "get-url", "origin"), _git_out(folder, "rev-parse", "--show-toplevel")
+        if not origin or not top or normalise_remote(origin) not in listed:
+            return False
+        blob = subprocess.run(["git", "-C", str(folder), "cat-file", "blob", f"HEAD:{path.resolve().relative_to(Path(top).resolve()).as_posix()}"],
+                              capture_output=True)
+        return blob.returncode == 0 and blob.stdout == path.read_bytes()
+    except (OSError, ValueError):
+        return False
+
+
+def file_trusted(path: Path) -> bool:
+    """Whether the vyvid.toml at ``path`` is trusted, by a person's ``vyd trust`` or by the user's own grant."""
+    return file_recorded(path) or file_granted(path)
 
 
 def may_run(config: Config, project: Scope, key: str) -> bool:
@@ -1208,6 +1242,14 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
     if not isinstance(trailers, list) or not all(isinstance(t, str) for t in trailers):
         problems.append("[framework]: commit_trailers must be a list of strings")
         trailers = []
+    from .resolve import normalise_remote  # resolve imports this module
+    granted = framework.get("trusted_repositories", [])
+    if not isinstance(granted, list) or not all(isinstance(r, str) for r in granted):
+        problems.append("[framework]: trusted_repositories must be a list of strings")
+        granted = []
+    for r in granted:
+        if r != normalise_remote(r):
+            problems.append(f"[framework]: trusted_repositories entry '{r}' must be written as {normalise_remote(r)}")
     glue = framework.get("glue", "run")
     if glue not in GLUE_CHOICES:
         problems.append(f"[framework]: glue must be one of {', '.join(GLUE_CHOICES)}")
@@ -1218,7 +1260,7 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
                     Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
-                    doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems))
+                    trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():

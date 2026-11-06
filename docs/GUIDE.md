@@ -467,6 +467,60 @@ vyd context
 
 `vyd config` reports the two standings separately. The `configuration trust:` line concerns your user configuration, and a line beginning `project`, followed by the project’s name and the path of its `vyvid.toml`, says whether that file is trusted or gives knowledge alone.
 
+### Work in a cloud session
+
+A cloud agent session has no terminal, so `vyd trust` cannot run there, and a hash recorded ahead of time would go stale whenever a branch changed `vyvid.toml`. What a cloud environment does offer is a setup script that a person writes. It runs as root before the agent starts, and the filesystem it leaves is snapshotted and reused. A later session skips the script and gets a fresh checkout of the repository, newer than the snapshot, so anything the script put outside the checkout (the installed tool, your configuration, cloned domains and the model) is there already, and anything that depends on the current branch is not. A script that finishes within about five minutes stays cacheable. In sessions measured on Linux the whole setup took about 23 seconds, the first `find` took 68 seconds with the model download and embedding, `vyd build` with the vectors present took under five seconds and a `find` on a current index under two.
+
+Your own configuration is trusted whatever it holds, and the script can write it. To trust a repository's `vyvid.toml` without a hash, list the repository in `[framework] trusted_repositories`, written as a remote is matched to a project, with no scheme, user or `.git` and in lower case:
+
+```toml
+[framework]
+trusted_repositories = ["github.com/example/project"]
+```
+
+The project file is then trusted when all three of these hold. The list is read from your own configuration alone, never from a file `VYVID_CONFIG` names, a configuration given by path or a `vyvid.toml`, and no setting of its own in the environment grants it. Your own configuration is found through the platform's folders, though, so `XDG_CONFIG_HOME` or `HOME` decides which file that is, and whatever can set those can choose it. The checkout's `origin` is a listed repository, so a fork whose `upstream` is listed is not trusted. And the file holds the bytes committed at `HEAD`, so an uncommitted edit lapses the trust until it is committed. A hash recorded by `vyd trust` still counts first, and `vyd trust` still needs a terminal. `vyd config` lists the repositories, says on the project's line when the trust came from the list, and notes where the key is set in a file that is not your own, since it is ignored there. A list that is not strings, or an entry not already written in the normalised form, is a problem that `vyd config` reports.
+
+The grant has limits. A hostile branch of a listed repository is trusted, since the committed bytes are all it checks. It adds little there, because that branch's hooks, instructions and skills already reach the agent. It is meant for a machine or a virtual machine set up for this purpose, and a repository you do not control should not be listed. Nothing in a repository can add itself to the list, and an agent that can edit your configuration can, as it can set `trust = "own"` (the permission settings of your client are the guard there). The grant covers public domains alone. A private domain needs credentials that a setup script should not hold, and its case waits for the private-rules slice.
+
+A script like this one installs the tool at a tag, writes the configuration, clones the domains and builds in the checkout if the environment has one. It logs to a file and always exits 0, so a failing step never stops the session from starting. Replace the repository, the tag and the domains with yours:
+
+```bash
+#!/bin/bash
+exec >/tmp/vyd-setup.log 2>&1
+set -x
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.12"
+export PATH="$HOME/.local/bin:$PATH"
+mkdir -p ~/.config/vyvid
+cat > ~/.config/vyvid/config.toml <<'EOF2'
+[framework]
+kb = "~/vyvid-kb"
+glue = "stop"
+trusted_repositories = ["github.com/example/project"]
+
+[[domains]]
+name = "lifecycle"
+remote = "https://github.com/nebularis/vyvid-lifecycle.git"
+trust = "own"
+git = { pull = "manual", commit = "manual", push = "manual" }
+
+[[domains]]
+name = "tools"
+remote = "https://github.com/nebularis/vyvid-tools.git"
+trust = "own"
+git = { pull = "manual", commit = "manual", push = "manual" }
+EOF2
+vyd kb clone
+vyd install --client claude-code
+for d in /home/user/*/; do
+  [ -f "$d/vyvid.toml" ] && (cd "$d" && vyd build)
+done
+exit 0
+```
+
+`vyd install` writes Вивід's general rules into `~/.claude`, which the snapshot keeps. A domain is `trust = "own"` here because nobody is at a terminal to review a pull or accept a held change, so you take responsibility for the domains when you write the script, and `pull = "manual"` keeps them where the script left them. The `vyd build` in the loop only helps if the environment's snapshot already holds a checkout, and a fresh checkout is newer than the snapshot, so the first question in a session rebuilds a stale index itself. A step that needs the current branch, such as a build, belongs in a SessionStart hook in the repository instead, which runs in the fresh checkout.
+
+The model comes from `huggingface.co` and its download host, so the environment's network settings must allow both. When the build cannot embed, the automatic build prints the reason on standard error beginning `no embeddings`, and `vyd build` shows it as a note. A `find` that cannot rank retries the build once the store is ten minutes old, so a failed download is tried again later in the session and not on every question. A build made with `--no-embed` is left as it is.
+
 ### Use a user-level project binding instead
 
 For a project you do not want to configure publicly:
