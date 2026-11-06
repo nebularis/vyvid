@@ -303,7 +303,7 @@ def _append(lines: list[str], block: list[str]) -> list[str]:
 
 def _read(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8-sig")
+        return cf.read_toml_text(path)
     except FileNotFoundError:
         return ""
 
@@ -856,7 +856,7 @@ def tables(root: Path) -> list[Table]:
 
 def signs(stack: list[Scope]) -> dict[str, set[str]]:
     """The columns each register type declares as its own, from the packaged declarations and the stack's."""
-    texts = [default_declarations(), *(p.read_text(encoding="utf-8") for s in stack for p in s.readable(s.register_types) if p.exists())]
+    texts = [default_declarations(), *(cf.read_toml_text(p) for s in stack for p in s.readable(s.register_types) if p.exists())]
     out: dict[str, set[str]] = {}
     for text in texts:
         for name, spec in tomllib.loads(text).get("types", {}).items():

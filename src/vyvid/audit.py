@@ -19,7 +19,7 @@ from pathlib import Path
 
 import platformdirs
 
-from .config import MANIFEST_REFUSED, NAME_RE, leaving
+from .config import MANIFEST_REFUSED, NAME_RE, leaving, read_toml_text
 from .patterns import Pattern
 
 TEXT_SUFFIXES = {".md", ".toml", ".ttl", ".txt"}
@@ -106,10 +106,10 @@ def _manifest(folder: Path) -> list[Finding]:
     path = folder / "domain.toml"
     if path.is_symlink() or not path.is_file():
         return []
-    text = path.read_text(encoding="utf-8", errors="replace")
     try:
+        text = read_toml_text(path)
         manifest = tomllib.loads(text)
-    except tomllib.TOMLDecodeError as error:
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
         return [Finding("domain.toml", 0, "manifest", f"does not parse ({error})")]
     out = [Finding("domain.toml", _line_of(text, key), "manifest-key", f"sets '{key}', which only the user's configuration may")
            for key in MANIFEST_REFUSED if key in manifest]
@@ -175,7 +175,7 @@ def _content(folder: Path, path: Path, scopes: set[str]) -> list[Finding]:
 def own_name(folder: Path) -> str:
     """The domain's name: ``name`` in its ``domain.toml`` if it sets one, else its folder's."""
     try:
-        name = tomllib.loads((folder / "domain.toml").read_text(encoding="utf-8")).get("name")
+        name = tomllib.loads(read_toml_text(folder / "domain.toml")).get("name")
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
         name = None
     return name if isinstance(name, str) else folder.name

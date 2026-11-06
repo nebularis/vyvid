@@ -103,6 +103,13 @@ GLUE_ENV = frozenset((
     "PROGRAMDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"))
 
 
+def read_toml_text(path: Path) -> str:
+    """A TOML file's text. It may open on a byte order mark or be UTF-16, as many Windows editors and shells save it, and TOML
+    itself allows neither, so reading it here spares a person a failure over bytes they cannot see. UnicodeError where it is neither."""
+    data = path.read_bytes()
+    return data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig")
+
+
 class ConfigError(Exception):
     """The configuration cannot be used, with every reason found."""
 
@@ -463,7 +470,7 @@ def granted_repositories() -> list[str]:
     """``[framework] trusted_repositories`` as the user's own configuration gives it, and from no other file, so
     ``$VYVID_CONFIG`` never grants it. The platform's folder still follows ``XDG_CONFIG_HOME`` (SEC-36). Unreadable or malformed means none."""
     try:
-        listed = tomllib.loads(own_config().read_text(encoding="utf-8")).get("framework", {}).get("trusted_repositories", [])
+        listed = tomllib.loads(read_toml_text(own_config())).get("framework", {}).get("trusted_repositories", [])
     except (OSError, ValueError, AttributeError):
         return []
     return listed if isinstance(listed, list) and all(isinstance(r, str) for r in listed) else []
@@ -967,8 +974,8 @@ def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> 
     if root is None or not (root / "domain.toml").is_file():
         return {}
     try:
-        manifest = tomllib.loads((root / "domain.toml").read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as error:
+        manifest = tomllib.loads(read_toml_text(root / "domain.toml"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
         problems.append(f"{where}: domain.toml does not parse ({error})")
         return {}
     if manifest.get("name", name) != name:
@@ -1126,8 +1133,8 @@ def read_project_file(path: Path, text: str | None = None) -> tuple[dict, list[s
     if not Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(root))):
         return {}, [f"{path}: is a link that leaves the repository, so it is not read"]
     try:
-        raw = tomllib.loads(path.read_text(encoding="utf-8") if text is None else text)
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raw = tomllib.loads(read_toml_text(path) if text is None else text)
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
         return {}, [f"{path}: does not parse ({error})"]
     table = raw.get("project")
     if not isinstance(table, dict):
@@ -1179,7 +1186,10 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
     configuration with only the general scope, so an unconfigured machine still answers. ``text`` is what the
     file would hold, to check an edit before it is written."""
     path = path or config_path()
-    raw = tomllib.loads(text) if text is not None else tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    try:
+        raw = tomllib.loads(text if text is not None else read_toml_text(path)) if text is not None or path.exists() else {}
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise ConfigError([f"{path}: does not parse ({error}). Save it as UTF-8"]) from error
     problems: list[str] = []
     framework = raw.get("framework", {})
     kb = Path(framework["kb"]).expanduser() if "kb" in framework else None

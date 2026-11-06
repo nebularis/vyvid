@@ -51,7 +51,7 @@ Dependencies between sections:
 
 - Seen on macOS at the tag, v0.2.14: the output of `vyd config`, `kb`, `domain`, `build`, `find`, `read`, `node`, `exists`, `reaches`, `sparql`, `misses`, `gap`, `close`, `install` with and without `--project`, `--target`, `--dry-run` and `--hooks`, `check skills`, `check identifiers`, `check citations`, `move check`, `docs record`, `board`, `work build`, `work roadmap`, `work check`, `work parse`, `work normalise`, `work rename`, `here`, `store prune`, `handoff` and `vyd-hook`.
 - Reproduced on macOS by forcing a narrow output encoding: the failure of `vyd --version` in W2.3.
-- Reproduced on macOS: the byte order mark and UTF-16 failures of W3.5 to W3.7, the refusal of a byte order mark in a settings file in W12.6, and the CRLF clone checks of W7.7 and W10.5.
+- Reproduced on macOS: the configuration read with a byte order mark and as UTF-16 in W3.5 to W3.7, the refusal of a byte order mark in a settings file in W12.6, and the CRLF clone checks of W7.7 and W10.5.
 - Seen on macOS at v0.2.14 in a scratch home with the user's own configuration under it, with standard input from `/dev/null` where a pipe is meant and from a pseudo-terminal where a terminal is meant: `vyd domain add`, `remove` and `trust` (W3.10, W4.11, W4.12), `vyd project add`, `set`, `remove` and `scan` and `vyd family add` and `remove` (W3.11, W3.12), the refusals of a gated change from a pipe, the raise at a pseudo-terminal, `trusted_repositories` with its lapse on an uncommitted edit, its refusal for a fork whose `upstream` alone is listed and for a list in a `VYVID_CONFIG` file, and the clone made with `core.autocrlf=true` (W6.16 to W6.20), the reason an automatic build gives and its retry (W5.14, with a refusing proxy and the waits as written), the code fence reader (W5.13), the changed lines of W6.1, W5.3, W7.1 and W12.1, the prompts and refusals of `vyd trust` (W6.2 to W6.4), the reads of W13.6 against LATTICE's `main` with the five public domains cloned, and the figure of W13.11.
 - Read from the code and not run anywhere: the terminal check of `vyd trust` on a Windows console, the trust sharing and lapse by hash (W6.5 to W6.7), the effect of `WIN_PD_OVERRIDE_LOCAL_APPDATA` (W6.16), the whole of `mise run check:low-memory` and its exit 3 (W13.12), what Windows reports for the memory figure (W13.11), the hook commands under PowerShell (W8.7), file locks (W5.12), the time limit of a command extractor (W6.15), symbolic links (W6.8), long paths (W6.13), the case of a path (W6.12), non-ASCII paths under the default encoding (W6.10), the Windows mode bits (W4.9) and the mise tasks of W13, apart from the reads named above. Nothing in the steps added for v0.2.14 has run in PowerShell. Their PowerShell forms were written from the commands that did run, so each is as likely to need a correction as the older ones.
 
@@ -60,7 +60,7 @@ Dependencies between sections:
 | Risk found in the code | Where in `src/vyvid` | Step |
 |---|---|---|
 | The name Вивід is printed through the default stream encoding, which raises `UnicodeEncodeError` when output is redirected | `cli.py` printing of `--version`, `--help` and the `context` header | W2.3, W2.4, W4.5 |
-| A configuration read with `tomllib` fails with a traceback on a byte order mark or UTF-16 | `config.py` `load` | W3.5 to W3.7 |
+| A configuration saved with a byte order mark or as UTF-16 is read, and one in another encoding is a problem naming the file | `config.py` `read_toml_text` | W3.5 to W3.7 |
 | A settings file with a byte order mark is refused with a message | `install.py` `merged_settings` | W12.6 |
 | `subprocess` with `text=True` and no encoding decodes git output with the ANSI code page, so non-ASCII folder and file names can be misread | `resolve.py`, `config.py`, `identifiers.py`, `citations.py`, `kb.py`, `symbols/store.py`, `extractors/owl.py`, `work/core.py` | W6.9 to W6.11 |
 | The Claude Code hook command is a POSIX shell line, the Copilot and Codex entries have PowerShell forms | `install.py` `hook_command`, `powershell_command`, `hook_files` | W8.5 to W8.8 |
@@ -514,7 +514,7 @@ Step W3.5 {
 }
 ```
 
-**Expected on macOS.** `first bytes: 239 187 191`, and `vyd config` fails with a traceback ending `tomllib.TOMLDecodeError: Invalid statement (at line 1, column 1)`, exit code 1. A message that names the file and says to save it without a byte order mark would be a pass. If you see the traceback, mark FAIL with the comment 'byte order mark gives a traceback'.
+**Pass.** `first bytes: 239 187 191`, and `vyd config` reads the file and exits 0. This needs a build at or after the fix on `main`, so the tag `v0.2.14` fails here with a traceback ending `tomllib.TOMLDecodeError: Invalid statement (at line 1, column 1)`, which is the known failure at that tag.
 
 #### W3.6 What `Set-Content -Encoding UTF8` writes in this PowerShell
 
@@ -527,7 +527,7 @@ Step W3.6 {
 }
 ```
 
-**Pass.** In PowerShell 7 the first bytes are not `239 187 191` and `vyd config` reads the file. In Windows PowerShell 5.1 they are, and the result is the same as W3.5. Mark which you saw.
+**Pass.** In PowerShell 7 the first bytes are not `239 187 191` and `vyd config` reads the file. In Windows PowerShell 5.1 they are, and `vyd config` still reads the file, as in W3.5. Mark which you saw.
 
 #### W3.7 UTF-16
 
@@ -541,7 +541,7 @@ Step W3.7 {
 }
 ```
 
-**Expected on macOS.** `first bytes: 255 254`, then a traceback ending `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte`. Mark FAIL with 'UTF-16 gives a traceback' if you see it.
+**Pass.** `first bytes: 255 254`, and `vyd config` reads the file and exits 0, with the same condition on the build as W3.5.
 
 #### W3.8 CRLF line endings
 

@@ -232,7 +232,9 @@ def types_for(stack) -> RegisterTypes:
     """The register types a stack of scopes declares: the packaged ones, then each scope's that exist."""
     sources = [("vyvid:data/register-types.toml", default_declarations())]
     for scope in stack:
-        sources += [(str(p), p.read_text(encoding="utf-8")) for p in scope.readable(scope.register_types) if p.exists()]
+        from .config import read_toml_text  # config imports this module
+
+        sources += [(str(p), read_toml_text(p)) for p in scope.readable(scope.register_types) if p.exists()]
     return declarations(sources)
 
 

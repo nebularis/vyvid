@@ -187,6 +187,8 @@ Vyvid reads:
 1. The file named by `VYVID_CONFIG`, if set.
 2. Otherwise, `config.toml` in its platform-specific user configuration directory.
 
+The file may be saved with a byte order mark or as UTF-16, as Windows editors and PowerShell often do, and `vyd` reads it all the same. A command that changes it writes UTF-8.
+
 Use the path reported by the command rather than assuming a particular operating-system layout.
 
 The file at that default path is your own configuration, and Vyvid trusts it as it stands. A configuration read from any other path, such as one named by `VYVID_CONFIG`, runs no glue and no command extractor until a person runs `vyd trust` in a terminal, and again after the file changes. The `configuration trust:` line of `vyd config` says which case applies.
