@@ -30,6 +30,7 @@ from typing import Callable
 import tomlkit
 
 from . import config as cf
+from .anchors import Fences
 from .config import Config, ConfigError, Scope
 from .credentials import private_dir
 from .registers import SEPARATOR_RE, DeclarationError, _cells, default_declarations, types_for
@@ -835,12 +836,10 @@ def tables(root: Path) -> list[Table]:
         relative = path.relative_to(root)
         if any(part.startswith(".") for part in relative.parts) or not path.is_file() or not Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(root))):
             continue
-        lines, fenced, header, first = path.read_text(encoding="utf-8", errors="replace").splitlines(), False, None, []
+        lines, fences, header, first = path.read_text(encoding="utf-8", errors="replace").splitlines(), Fences(indent=None), None, []
         for number, line in enumerate(lines + [""], 1):
             text = line.strip()
-            if text.startswith(("```", "~~~")):
-                fenced = not fenced
-            if fenced or not text.startswith("|"):
+            if fences(line) or not text.startswith("|"):
                 if header is not None:
                     found.append(Table(relative.as_posix(), header[0], header[1], first))
                 header, first = None, []

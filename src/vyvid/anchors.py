@@ -30,12 +30,37 @@ import re
 from pathlib import Path
 
 HEADING_RE = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*$")
-FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$", re.S)
 LINE_NUMBER_RE = re.compile(r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
 
 
 class Unresolved(ValueError):
     """An anchor that names nothing in the current text."""
+
+
+class Fences:
+    """Whether each line in turn belongs to a code fence, as CommonMark has it, called once per line in order.
+
+    A backtick fence's opening line holds no other backtick, so an inline code span that starts a line opens
+    nothing. A fence closes on the same mark, at least as long, with only spaces after it. ``indent`` is the
+    most a marker may be indented, and None is any, for a fence inside a list item."""
+
+    def __init__(self, indent: int | None = 3):
+        self.indent = indent
+        self.opening = ""
+
+    def __call__(self, line: str) -> bool:
+        match = FENCE_RE.match(line)
+        if match and self.indent is not None and len(match.group(1)) > self.indent:
+            match = None
+        if self.opening:
+            if match and match.group(2)[0] == self.opening[0] and len(match.group(2)) >= len(self.opening) and not match.group(3).strip():
+                self.opening = ""
+            return True
+        if match and not (match.group(2)[0] == "`" and "`" in match.group(3)):
+            self.opening = match.group(2)
+            return True
+        return False
 
 
 def _plain(heading: str) -> str:
@@ -56,17 +81,9 @@ def headings(lines: list[str]) -> list[tuple[int, int, str]]:
     ``-1``, ``-2`` exactly as GitHub's slugger does."""
     found: list[tuple[int, int, str]] = []
     seen: dict[str, int] = {}
-    fence = ""
+    fenced = Fences()
     for number, line in enumerate(lines, 1):
-        marker = FENCE_RE.match(line)
-        if marker:
-            token = marker.group(1)
-            if not fence:
-                fence = token[0]
-            elif token[0] == fence:
-                fence = ""
-            continue
-        if fence:
+        if fenced(line):
             continue
         match = HEADING_RE.match(line)
         if not match:

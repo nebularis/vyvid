@@ -177,15 +177,12 @@ def decision_claim(lines: list[str]) -> str | None:
     if start is None:
         return None
     items: list[str] = []
-    fenced = False
+    fences = anchors.Fences(indent=None)
     for line in lines[start + 1 :]:
         stripped = line.strip()
         if line.startswith("## "):
             break
-        if stripped.startswith("```"):
-            fenced = not fenced
-            continue
-        if fenced or not stripped or stripped.startswith(("<!--", ">")):
+        if fences(line) or not stripped or stripped.startswith(("<!--", ">")):
             continue
         if SEPARATOR_RE.match(stripped):
             if items:
@@ -218,11 +215,9 @@ def decision_sections(lines: list[str]) -> list[tuple[str, int, int]]:
     if decision is not None:
         last = anchors.section_end(top, decision, len(lines))
         opens: list[int] = []
-        fenced = False
+        fences = anchors.Fences(indent=None)
         for number in range(top[decision][0] + 1, last + 1):
-            if lines[number - 1].lstrip().startswith(("```", "~~~")):
-                fenced = not fenced
-            elif not fenced and NUMBERED_RE.match(lines[number - 1]):
+            if not fences(lines[number - 1]) and NUMBERED_RE.match(lines[number - 1]):
                 opens.append(number)
         for start, stop in zip(opens, opens[1:] + [last + 1]):
             end = stop - 1
@@ -234,12 +229,10 @@ def decision_sections(lines: list[str]) -> list[tuple[str, int, int]]:
             found.append((*anchors.section_at(lines, number), re.sub(r"^## Addendum[^:]*:\s*", "", lines[number - 1])))
     out = []
     for start, end, title in found:
-        body, fenced = [title], False
+        body, fences = [title], anchors.Fences(indent=None)
         for line in lines[start - 1 : end]:
             stripped = line.strip()
-            if stripped.startswith(("```", "~~~")):
-                fenced = not fenced
-            elif not fenced and stripped and not stripped.startswith(("#", "<!--")) \
+            if not fences(line) and stripped and not stripped.startswith(("#", "<!--")) \
                     and not SEPARATOR_RE.match(stripped) and not STATUS_RE.match(stripped):
                 body.append(stripped.replace("|", " "))
         text = re.sub(r"\*\*|`", "", " ".join(body))
@@ -249,11 +242,9 @@ def decision_sections(lines: list[str]) -> list[tuple[str, int, int]]:
 
 def section_numbers(lines: list[str], start: int, end: int) -> list[int]:
     """The decision numbers the lines from ``start`` to ``end`` open, outside code blocks."""
-    numbers, fenced = [], False
+    numbers, fences = [], anchors.Fences(indent=None)
     for line in lines[start - 1 : end]:
-        if line.lstrip().startswith(("```", "~~~")):
-            fenced = not fenced
-        elif not fenced and (match := NUMBER_RE.match(line)):
+        if not fences(line) and (match := NUMBER_RE.match(line)):
             numbers.append(int(match.group("n")))
     return numbers
 
