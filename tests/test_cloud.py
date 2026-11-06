@@ -178,7 +178,7 @@ def test_the_automatic_build_says_why_it_made_no_embeddings(built, capsys, monke
     assert "no embeddings" not in said.out
 
 
-def test_a_store_without_vectors_is_rebuilt_for_a_ranking_question_only_after_ten_minutes(built):  # noqa: F811
+def test_a_store_without_vectors_is_rebuilt_for_a_ranking_question_only_after_the_retry_wait(built):  # noqa: F811
     a = ask.open_stack(built.config, built.tmp / "code", model=Words())
     stamp = a.directory / "built-from"
     (a.directory / embed.VECTORS).unlink()

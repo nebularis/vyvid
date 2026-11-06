@@ -16,6 +16,7 @@ A person sets an agent up in a cloud environment by writing a setup script. We m
 - Timings: the whole setup about 23 seconds, the first `find` with the model download and embedding 68 seconds, `vyd build` with the vectors present 4.7 seconds, and a `find` on a current index 1.8 seconds.
 - `origin` reads as a plain `https://` URL for the hosting service there.
 - During setup the automatic build's embedding failed and `find` said it found no vectors and that the build says why, with no reason shown. A later `find` at the same commit did not rebuild, so it stayed in that state.
+- With the model's download hosts allowed, `vyd build` in the setup script took 59 seconds and embedded 6,325 entries, the snapshot's script finished in 73 seconds, and a later session's first `find` took 13.6 seconds and its second 2.6, with no rebuild. That session was on the commit the snapshot held, so a rebuild on a newer checkout was not measured with the vectors in place.
 
 Without a grant, a project's own standards, skills and contract are marked as data there, and nothing it declares runs.
 
@@ -36,11 +37,11 @@ A is chosen. The first three conditions below decide what it is. The rest keep i
 - No command writes the key. Anything that could write it would give an agent a way to grant trust.
 - A malformed or unreadable configuration grants nothing.
 
-Two smaller changes came from the same sessions. The automatic build now prints on standard error the reason it made no embeddings, and a `find`, `misses` or recipe that ranks rebuilds a store that has no vectors once its last build is ten minutes old. A build told not to embed leaves a marker, so that retry does not undo it. The time limit keeps a failing download from costing a rebuild on every question.
+Two smaller changes came from the same sessions. The automatic build now prints on standard error the reason it made no embeddings, and a `find`, `misses` or recipe that ranks rebuilds a store that has no vectors once its last build is a minute old. A build told not to embed leaves a marker, so that retry does not undo it. The time limit keeps a failing download from costing a rebuild on every question.
 
 ## 3. Questions
 
-- **VYD-Q42. Why does embedding fail during setup?** Open. Not yet known. One hypothesis is that the environment's network allows the setup script less than the session, or the model host is not reachable from where the script runs. Another is memory or time pressure while the script runs. Neither is confirmed, and the reason is now printed so the next session shows it.
+- **VYD-Q42. Why does embedding fail during setup?** Answered 2026-11-06: the model's download host was not allowed. A setup script has no proxy variables in its environment and `huggingface.co` redirected it to `us.gcp.cdn.hf.co`, while a session goes through the proxy and was redirected to `us.aws.cdn.hf.co`. The setup script could not resolve the first until `*.cdn.hf.co` was allowed, after which the download and the embedding worked there. That name lookups follow the allowed list is inferred from those results.
 - **VYD-Q43. How does a cloud session get a private domain?** Open, waiting for VYD-10. A private domain needs a credential to clone, which a setup script should not hold, and a trust decision that nobody is at a terminal to make.
 
 ## 4. What it costs

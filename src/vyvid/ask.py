@@ -76,9 +76,9 @@ from .credentials import private_dir, private_file
 from .model import FACETS_GRAPH, KI, TBOX_GRAPH, index_graph, node, normalise, terms_graph
 from .resolve import Unresolved, bind_in, layers, private_entry, resolve
 
-# ponytail: a store without vectors is retried at most once in ten minutes, so a failing model download costs one
-# rebuild per window and not one per question. Lower it only if downloads are known to recover faster.
-RETRY_EMBEDDING = 600.0
+# ponytail: a store without vectors is retried at most once a minute, so a failing model download costs one rebuild
+# per window and not one per question. A session can start seconds after a setup script's failed build, so keep it short.
+RETRY_EMBEDDING = 60.0
 
 PREFIXES = f"""
 PREFIX ki: <{KI}>

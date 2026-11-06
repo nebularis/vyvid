@@ -39,7 +39,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-12 | vyvid-framework | optional agent coordination | planned |
 | VYD-13 | vyvid-framework | work tracked in a tracker | planned |
 | VYD-22 | vyvid-framework | one install for every client, and missing domains | built 2026-11-05, building 2026-11-05 |
-| VYD-21 | vyvid-framework | cloud agents with chosen domains | building 2026-11-06 |
+| VYD-21 | vyvid-framework | cloud agents with chosen domains | built 2026-11-06, building 2026-11-06 |
 | VYD-23 | vyvid-framework | configuration from the command line | built 2026-11-05, building 2026-11-05 |
 | VYD-14 | vyvid-framework | Linux and Windows in Docker | planned |
 | VYD-15 | vyvid-framework | experiments recorded and an adoption baseline | built 2026-11-05, building 2026-11-05 |
