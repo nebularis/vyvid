@@ -2,9 +2,9 @@
 
 # Windows manual test of `vyd`
 
-A person runs this by hand on a Windows machine with PowerShell and Git for Windows, against the install at tag `v0.2.10`. Every step has an identifier such as `W3.2`, one block to paste, what a pass looks like and what a failure would mean or what to capture. The results go into one file under one test folder, and a final section removes everything.
+A person runs this by hand on a Windows machine with PowerShell and Git for Windows, against the install at tag `v0.2.14`. Every step has an identifier such as `W3.2`, one block to paste, what a pass looks like and what a failure would mean or what to capture. The results go into one file under one test folder, and a final section removes everything.
 
-The PowerShell forms in this file have not been run on Windows, and none has been run in PowerShell at all. The `vyd` commands, their options and their expected output were run on macOS with a POSIX shell against the code at the tag, in a scratch folder with a scratch configuration. Expect to correct a PowerShell form that does not behave as written, and record that as a NOTE with the fix, since a wrong script is a result too. The sections below say which expected outputs were seen on macOS and which come from reading the code.
+The PowerShell forms in this file have not been run on Windows, and none has been run in PowerShell at all. That includes every step added for v0.2.14, which are W3.10 to W3.12, W4.11, W4.12, W5.13, W5.14, W6.16 to W6.20 and W13.11 to W13.13. The `vyd` commands, their options and their expected output were run on macOS with a POSIX shell against the code at the tag, in a scratch folder with a scratch configuration. Expect to correct a PowerShell form that does not behave as written, and record that as a NOTE with the fix, since a wrong script is a result too. The sections below say which expected outputs were seen on macOS and which come from reading the code.
 
 ## How the test is meant to run
 
@@ -17,42 +17,43 @@ The PowerShell forms in this file have not been run on Windows, and none has bee
 
 ## Sections at a glance
 
-The times are estimates, not measurements. The first run of W5 includes the model download, and W13 includes a clone of a large repository.
+The times are estimates, not measurements. The first run of W5 includes the model download, W5.14 adds two waits of about a minute, and W13 includes a clone of a large repository.
 
 | Section | Covers | Needs | Estimated time |
 |---|---|---|---|
 | W0 | Helper functions, test folder, environment | PowerShell | 3 minutes |
 | W1 | Windows, PowerShell, git, long paths, uv, mise, Python, code page | nothing | 5 minutes |
 | W2 | Install at the tag with and without the symbols extra, the encoding of the name | W1, uv or Python 3.11 or later, package downloads | 10 minutes |
-| W3 | Configuration, folders, path forms, byte order mark, line endings, bad configuration | W2 | 10 minutes |
-| W4 | Cloning public domains, audit, a new local domain | W3, git, GitHub over https for the clones | 10 minutes |
-| W5 | The index, queries, logs, rebuild, store lock | W4, the model download for ranking | 15 minutes |
-| W6 | Trust, symbolic links, worktrees, paths with spaces and non-ASCII characters | W5, a real console for the trust prompt | 20 minutes |
+| W3 | Configuration, folders, path forms, byte order mark, line endings, bad configuration, editing it with commands | W2 | 15 minutes |
+| W4 | Cloning public domains, audit, a new local domain, changing a domain's trust | W3, git, GitHub over https for the clones, a real console for W4.12 | 15 minutes |
+| W5 | The index, queries, logs, rebuild, store lock, a code fence, the reason for a build without vectors | W4, the model download for ranking | 20 minutes |
+| W6 | Trust, a repository trusted by the user's own configuration, symbolic links, worktrees, paths with spaces and non-ASCII characters | W5, a real console for the trust prompt | 30 minutes |
 | W7 | Composed skills, `vyd check skills`, line endings | W5 | 10 minutes |
 | W8 | The reminder hook and what install registers | W7 | 15 minutes |
 | W9 | Work board, roadmap, presence, git hook | W5, git | 15 minutes |
 | W10 | Identifier, citation, move and private documents checks | W5, W7 | 10 minutes |
 | W11 | Source symbols | W2 with the extra, W5 | 5 minutes |
 | W12 | `vyd install` into scratch folders | W5 | 10 minutes |
-| W13 | LATTICE on the switch | W4, GitHub over https, optionally mise | 30 minutes or more |
+| W13 | LATTICE on the switch, the memory figure | W4, GitHub over https, optionally mise | 30 minutes or more |
 | W14 | Optional, writes to the real client folders | W12 | 10 minutes |
 | W15 | Return the results, clean up | W0 | 5 minutes |
 
 Dependencies between sections:
 
 - W0 and W2 are needed by every other section that runs `vyd`.
-- W3.3 creates the scratch configuration that W4 to W14 append to.
+- W3.3 creates the scratch configuration that W4 to W14 append to. W3.10 to W3.12, W4.11 and W4.12 use scratch files of their own and leave it alone.
 - W4.7 and W4.8 create the local domain `demo`, which W5 to W12 use. Those sections still work with no network.
-- W5.2 creates the project `example-service`, which W5, W7, W8, W10, W11 and W12 use.
-- W9 and the private documents step of W10 create their own projects.
-- W13 reads the domains cloned in W4 and stops at W13.2 when the chosen branch holds no `vyvid.toml`.
+- W5.2 creates the project `example-service`, which W5, W7, W8, W10, W11 and W12 use. W5.13 and W5.14 add to it.
+- W9 and the private documents step of W10 create their own projects. W6.16 creates the repository that W6.17 to W6.20 use, and defines `WithOwn`, which needs the `demo` domain of W4.8.
+- W13 reads the domains cloned in W4 and stops at W13.2 when the chosen branch holds no `vyvid.toml`. W13.11 and W13.12 need the bootstrap of W13.7.
 
 ## Where each expected output came from
 
-- Seen on macOS at the tag: the output of `vyd config`, `kb`, `domain`, `build`, `find`, `read`, `node`, `exists`, `reaches`, `sparql`, `misses`, `gap`, `close`, `install` with and without `--project`, `--target`, `--dry-run` and `--hooks`, `check skills`, `check identifiers`, `check citations`, `move check`, `docs record`, `board`, `work build`, `work roadmap`, `work check`, `work parse`, `work normalise`, `work rename`, `here`, `store prune`, `handoff` and `vyd-hook`.
+- Seen on macOS at the tag, v0.2.14: the output of `vyd config`, `kb`, `domain`, `build`, `find`, `read`, `node`, `exists`, `reaches`, `sparql`, `misses`, `gap`, `close`, `install` with and without `--project`, `--target`, `--dry-run` and `--hooks`, `check skills`, `check identifiers`, `check citations`, `move check`, `docs record`, `board`, `work build`, `work roadmap`, `work check`, `work parse`, `work normalise`, `work rename`, `here`, `store prune`, `handoff` and `vyd-hook`.
 - Reproduced on macOS by forcing a narrow output encoding: the failure of `vyd --version` in W2.3.
 - Reproduced on macOS: the byte order mark and UTF-16 failures of W3.5 to W3.7, the refusal of a byte order mark in a settings file in W12.6, and the CRLF clone checks of W7.7 and W10.5.
-- Read from the code and not run anywhere: `vyd trust` (W6.2 to W6.7), the hook commands under PowerShell (W8.7), file locks (W5.12), the time limit of a command extractor (W6.15), symbolic links (W6.8), long paths (W6.13), the case of a path (W6.12), non-ASCII paths under the default encoding (W6.10), the whole of W13 and the Windows mode bits (W4.9).
+- Seen on macOS at v0.2.14 in a scratch home with the user's own configuration under it, with standard input from `/dev/null` where a pipe is meant and from a pseudo-terminal where a terminal is meant: `vyd domain add`, `remove` and `trust` (W3.10, W4.11, W4.12), `vyd project add`, `set`, `remove` and `scan` and `vyd family add` and `remove` (W3.11, W3.12), the refusals of a gated change from a pipe, the raise at a pseudo-terminal, `trusted_repositories` with its lapse on an uncommitted edit, its refusal for a fork whose `upstream` alone is listed and for a list in a `VYVID_CONFIG` file, and the clone made with `core.autocrlf=true` (W6.16 to W6.20), the reason an automatic build gives and its retry (W5.14, with a refusing proxy and the waits as written), the code fence reader (W5.13), the changed lines of W6.1, W5.3, W7.1 and W12.1, the prompts and refusals of `vyd trust` (W6.2 to W6.4), the reads of W13.6 against LATTICE's `main` with the five public domains cloned, and the figure of W13.11.
+- Read from the code and not run anywhere: the terminal check of `vyd trust` on a Windows console, the trust sharing and lapse by hash (W6.5 to W6.7), the effect of `WIN_PD_OVERRIDE_LOCAL_APPDATA` (W6.16), the whole of `mise run check:low-memory` and its exit 3 (W13.12), what Windows reports for the memory figure (W13.11), the hook commands under PowerShell (W8.7), file locks (W5.12), the time limit of a command extractor (W6.15), symbolic links (W6.8), long paths (W6.13), the case of a path (W6.12), non-ASCII paths under the default encoding (W6.10), the Windows mode bits (W4.9) and the mise tasks of W13, apart from the reads named above. Nothing in the steps added for v0.2.14 has run in PowerShell. Their PowerShell forms were written from the commands that did run, so each is as likely to need a correction as the older ones.
 
 ## Windows risks and where they are exercised
 
@@ -73,6 +74,12 @@ Dependencies between sections:
 | A trust record and a checkout store are keyed by the text of a path, which differs by case | `config.py` `file_key`, `build.py` `store_dir` | W6.12 |
 | A path longer than 260 characters in a linked worktree | `resolve.py`, `build.py` | W6.13 |
 | A move compared byte for byte with the working tree differs under CRLF | `moves.py` | W10.5 |
+| A repository listed in `trusted_repositories` is granted only while its `vyvid.toml` equals the blob committed at `HEAD`, so CRLF conversion by `core.autocrlf` lapses the grant | `config.py` `file_granted` | W6.20 |
+| The user's own configuration is found through the platform's folders, so a test can move it only with `WIN_PD_OVERRIDE_LOCAL_APPDATA`, which `platformdirs` reads before it asks Windows | `config.py` `own_config`, `granted_repositories` | W6.16 |
+| A configuration command writes a path with forward slashes and `~` for the home folder, and a snippet printed by `vyd domain new` holds the path in a double-quoted string | `configure.py` `place`, `newdomain.py` | W3.10, W3.11, W4.7 |
+| A raise of a domain's trust, or a change of a key that reaches what a client runs, needs standard input to be a terminal, which a console host and a pipe answer differently | `cli.py` `_person`, `configure.py` `run` | W4.11, W4.12, W3.11 |
+| The automatic build and the retry of a store without vectors depend on the download failing the same way under Windows' proxy settings | `ask.py` `open_stack`, `stale` | W5.14 |
+| The memory figure of Windows is 100 minus the system's memory load, which is not the figure macOS gives for the same load | `tools/testing/mem_check` in LATTICE | W13.11, W13.12 |
 | Composed skills must equal their sources whatever the checkout's line endings | `skills.py` | W7.7 |
 | Files `vyd` writes must use LF | `install.py`, `skills.py` | W7.4, W12.2 |
 | A stored pointer or identifier path must use forward slashes | `registers.py`, `extract.py`, `identifiers.py` | W5.4, W10.1 |
@@ -307,7 +314,7 @@ Needs W1, and either `uv` or Python 3.11 or later, and a package index that answ
 
 ```powershell
 Step W2.1 {
-    uv tool install --force "git+https://github.com/nebularis/vyvid.git@v0.2.10"
+    uv tool install --force "git+https://github.com/nebularis/vyvid.git@v0.2.14"
     uv tool dir --bin
     Get-Command vyd, vyd-hook | Format-Table Name, Source -AutoSize | Out-String
 }
@@ -324,14 +331,14 @@ Run this only if `uv` is absent. It needs Python 3.11 or later.
 ```powershell
 Step W2.1b {
     python -m venv "$T\venv"
-    & "$T\venv\Scripts\python.exe" -m pip install "git+https://github.com/nebularis/vyvid.git@v0.2.10"
+    & "$T\venv\Scripts\python.exe" -m pip install "git+https://github.com/nebularis/vyvid.git@v0.2.14"
     $env:PATH = "$T\venv\Scripts;" + $env:PATH
     $global:Py = "$T\venv\Scripts\python.exe"
     Get-Command vyd, vyd-hook | Format-Table Name, Source -AutoSize | Out-String
 }
 ```
 
-**Pass.** Both commands resolve under the test folder. Everything later works the same, but the extra of W2.7 is installed with `& $Py -m pip install "vyvid[symbols] @ git+https://github.com/nebularis/vyvid.git@v0.2.10"`. The `PATH` change lasts for this window only, so repeat the `$env:PATH` and `$global:Py` lines in a new window.
+**Pass.** Both commands resolve under the test folder. Everything later works the same, but the extra of W2.7 is installed with `& $Py -m pip install "vyvid[symbols] @ git+https://github.com/nebularis/vyvid.git@v0.2.14"`. The `PATH` change lasts for this window only, so repeat the `$env:PATH` and `$global:Py` lines in a new window.
 
 #### W2.2 Version
 
@@ -339,7 +346,7 @@ Step W2.1b {
 Step W2.2 { vyd --version; vyd-hook --help }
 ```
 
-**Pass.** `Вивід (vyvid) 0.2.10` and the usage text of `vyd-hook`, exit code 0.
+**Pass.** `Вивід (vyvid) 0.2.14` and the usage text of `vyd-hook`, exit code 0.
 
 **Failure.** Another version means the tag was not installed. Capture `uv tool list`.
 
@@ -381,7 +388,7 @@ Step W2.5 { $env:PYTHONUTF8; vyd --version; vyd --help }
 
 ```powershell
 Step W2.6 {
-    foreach ($c in 'context', 'kb', 'docs', 'board', 'work', 'here', 'resolve', 'build', 'check', 'move', 'recipe', 'store', 'domain', 'handoff', 'install', 'config', 'trust', 'find', 'exists', 'node', 'read', 'reaches', 'sparql', 'misses', 'gap', 'close') {
+    foreach ($c in 'context', 'kb', 'docs', 'board', 'work', 'here', 'resolve', 'build', 'check', 'move', 'recipe', 'store', 'domain', 'project', 'family', 'handoff', 'install', 'config', 'trust', 'find', 'exists', 'node', 'read', 'reaches', 'sparql', 'misses', 'gap', 'close') {
         vyd $c --help *> $null
         '{0,-10} exit {1}' -f $c, $LASTEXITCODE
     }
@@ -390,13 +397,13 @@ Step W2.6 {
 }
 ```
 
-**Pass.** Twenty-seven lines, each `exit 0`.
+**Pass.** Twenty-nine lines, each `exit 0`.
 
 #### W2.7 Install with the symbols extra
 
 ```powershell
 Step W2.7 {
-    uv tool install --force "vyvid[symbols] @ git+https://github.com/nebularis/vyvid.git@v0.2.10"
+    uv tool install --force "vyvid[symbols] @ git+https://github.com/nebularis/vyvid.git@v0.2.14"
     $global:Py = Join-Path (uv tool dir) 'vyvid\Scripts\python.exe'
     & $Py -c "import tree_sitter, tree_sitter_python; print('grammars ok')"
     vyd --version
@@ -564,6 +571,120 @@ parents = ["nope"]
 
 **Pass.** Exit code 2, the line `the configuration at <path> cannot be used:` and a list of problems that includes `domain 'x': trust is 'bogus', not one of own, reviewed, knowledge` and `domain 'x': parent 'nope' is no domain`.
 
+#### W3.10 Add and remove a domain by command
+
+`vyd domain add` and `vyd domain remove` edit a configuration through the real loader, which checks the result before anything is written, and they leave the rest of the file as it was. These steps use a second scratch file, `cfg-edit.toml`, so the configuration that W4 to W14 append to is untouched. The file has two comments, one on a line of its own and one at the end of a line, and both must survive every change.
+
+```powershell
+Step W3.10 {
+    Write-Utf8 "$T\cfg-edit.toml" @"
+# a comment of mine, which every change below must keep
+[framework]
+kb = '$T\kb'
+store = '$T\store'
+glue = "stop" # and one at the end of a line
+"@
+    WithConfig "$T\cfg-edit.toml" {
+        function Tally { '[[domains]] tables: ' + @(Select-String -Path $env:VYVID_CONFIG -Pattern '^\[\[domains\]\]').Count + ', lines with a comment: ' + @(Select-String -Path $env:VYVID_CONFIG -Pattern '#').Count }
+        vyd domain add extra --path "$T\dom extra" --dry-run
+        Tally
+        vyd domain add extra --path "$T\dom extra"
+        Tally
+        Select-String -Path $env:VYVID_CONFIG -Pattern '^path' | ForEach-Object { $_.Line }
+        'backslashes in a path line: ' + @(Select-String -Path $env:VYVID_CONFIG -Pattern '^path.*\\').Count
+        vyd config
+        vyd domain add extra --path "$T\dom extra"
+        'exit ' + $LASTEXITCODE
+        vyd domain remove extra --dry-run
+        vyd domain remove extra
+        Tally
+        vyd domain remove extra
+        'exit ' + $LASTEXITCODE
+    }
+}
+```
+
+**Pass.** The dry run prints `would write <path>\cfg-edit.toml`, a diff that adds a `[[domains]]` table with `name = "extra"`, a `path` line and `trust = "knowledge"`, then `dry run, nothing written`, and the first `Tally` reads `[[domains]] tables: 0, lines with a comment: 2`. The real add prints `writing <path>`, the same diff, `wrote <path>` and `<folder> does not exist yet. Write it with: vyd domain new extra --path '<folder>'`, and the second `Tally` reads `[[domains]] tables: 1, lines with a comment: 2`. Seen on macOS, the path line reads `path = "~/vyd-wintest/dom extra"`.
+
+The path line is the Windows finding. `vyd` writes a path with forward slashes, as `~/` followed by the part below the home folder where there is one and as an absolute path such as `C:/...` where there is not, so the line should read `path = "~/AppData/Local/Temp/vyd-wintest/dom extra"` or a `C:/` form, and `backslashes in a path line: 0`. A backslash there, or a `path` that TOML refuses, goes into the comment. The `kb` and `store` lines keep the backslashes they were written with, in single quotes.
+
+`vyd config` then prints `NOTE: domain extra has no folder here, at <path>\dom extra, so it gives nothing on this machine` and `domains: extra`. The repeated add exits 1 with `vyd: nothing written, since <path> would not load cleanly:` and `vyd: domain 'extra': a domain needs a unique lower-case name`. The removal dry run prints a diff that deletes the table and `dry run, nothing written`. The removal prints `wrote <path>` and `left <folder> as it is. A remove never deletes a clone or a folder`, and its `Tally` reads `[[domains]] tables: 0, lines with a comment: 2`. The last remove exits 1 with `vyd: domain 'extra' is not configured`.
+
+**Failure.** A lost comment, a backslash in a path line, or a traceback.
+
+#### W3.11 Add and change a project by command
+
+`vyd project add` reads the code folder and the remotes from a git checkout, so this step makes a small one with an `origin`. The address uses the reserved `example.invalid` name, so nothing is fetched. `project set` changes one plain key of a project, and the keys that reach what a client loads or runs, such as `hook_clients`, are refused unless a person is at a terminal. Standard input is a pipe in the refused call, so the refusal is what a script or an agent meets.
+
+```powershell
+Step W3.11 {
+    $E = Join-Path $T 'work\edit-demo'
+    New-Item -ItemType Directory -Force -Path "$E\docs" | Out-Null
+    Write-Utf8 "$E\AGENTS.md" "# Agent contract`n`nAsk the index first.`n"
+    Write-Utf8 "$E\docs\debt.md" @'
+# Debt
+
+**Unit type:** Register
+
+| # | Debt | Spotted | Cost while it stays | Likely home | Bears on |
+|---|---|---|---|---|---|
+| DEBT-1 | **A bare read uses the console code page.** | today | a wrong name | a later slice | |
+'@
+    git -C $E init -q -b main
+    git -C $E config user.email 'wintest@example.invalid'
+    git -C $E config user.name 'wintest'
+    git -C $E remote add origin https://example.invalid/team/edit-demo.git
+    git -C $E add -A
+    git -C $E commit -q -m 'initial'
+    WithConfig "$T\cfg-edit.toml" {
+        vyd domain add extra --path "$T\dom extra" | Out-Null
+        vyd project add edit-demo --code $E --docs "$E\docs" --contract 'code:AGENTS.md' --domain extra --visibility public --dry-run
+        '[[projects]] tables: ' + @(Select-String -Path $env:VYVID_CONFIG -Pattern '^\[\[projects\]\]').Count
+        vyd project add edit-demo --code $E --docs "$E\docs" --contract 'code:AGENTS.md' --domain extra --visibility public | Out-Null
+        Select-String -Path $env:VYVID_CONFIG -Pattern '^(code|docs|match) =' | ForEach-Object { $_.Line }
+        vyd project set edit-demo skill_prefix ed- --dry-run
+        vyd project set edit-demo skill_prefix ed-
+        '' | vyd project set edit-demo hook_clients claude-code
+        'exit ' + $LASTEXITCODE
+        vyd project set edit-demo hook_clients claude-code --dry-run
+        vyd config $E
+    }
+}
+```
+
+**Pass.** The dry run prints a `[[projects]]` table with `name = "edit-demo"`, `visibility = "public"`, a `code` line, `match = { remote = ["example.invalid/team/edit-demo"] }` (the checkout's `origin`, normalised), a `docs` line, `contract = "code:AGENTS.md"` and `domains = ["extra"]`, then `dry run, nothing written` and `[[projects]] tables: 0`. The `code` and `docs` lines of the real add follow the path rule of W3.10, so on macOS they read `code = "~/vyd-wintest/work/edit-demo"` and `docs = "~/vyd-wintest/work/edit-demo/docs"`, here with the Windows home-relative or `C:/` form and forward slashes. The `skill_prefix` dry run prints a diff adding `skill_prefix = "ed-"` and the real run prints `wrote <path>`.
+
+The piped `hook_clients` call exits 1 with `vyd: hook_clients reaches what a client loads or runs. A person must run this command, in a terminal` and writes nothing. Its dry run prints a diff adding `hook_clients = ["claude-code"]` and `dry run, nothing written. hook_clients reaches what a client loads or runs, so a person must run it for real, in a terminal`. `vyd config $E` ends with `projects: edit-demo`.
+
+**Failure.** A project that is written with the checkout's backslash path, or a `hook_clients` change written from the piped call.
+
+#### W3.12 Scan a project's registers and change its families
+
+`vyd project scan` reads the register tables in a project's documents and proposes a family for each, writing them only with `--apply`. `vyd family add` and `vyd family remove` change one family.
+
+```powershell
+Step W3.12 {
+    WithConfig "$T\cfg-edit.toml" {
+        vyd project scan edit-demo
+        vyd project scan edit-demo --apply --dry-run
+        vyd project scan edit-demo --apply
+        vyd family remove edit-demo DEBT --dry-run
+        vyd family remove edit-demo DEBT
+        vyd family add edit-demo DEBT --defined 'docs:debt.md' --type debt --dry-run
+        vyd family add edit-demo DEBT --defined 'docs:debt.md' --type debt
+        vyd family add edit-demo DEBT --defined 'docs:debt.md' --type debt
+        'exit ' + $LASTEXITCODE
+        vyd project remove edit-demo --dry-run
+        vyd project remove edit-demo
+        'lines with a comment: ' + @(Select-String -Path $env:VYVID_CONFIG -Pattern '#').Count
+    }
+}
+```
+
+**Pass.** The scan prints `project edit-demo: scanned <path>\work\edit-demo\docs`, `Proposed, to read before it is written to <path>\cfg-edit.toml:`, the table `[projects.families]` with `DEBT = { defined = "docs:debt.md", type = "debt" }   # 1 row in debt.md`, and `Write them with: vyd project scan edit-demo --apply`. The `--apply --dry-run` form prints the same proposal, then a diff adding the `[projects.families]` table and `dry run, nothing written`. `--apply` prints `wrote <path>`. The family removal prints a diff deleting the table, and the real one adds `family 'DEBT' is removed. The register it was defined in is left as it is`. The family add writes the same table back, and its dry run prints the diff first. The repeated add exits 1 with `vyd: project 'edit-demo': family 'DEBT' exists. Remove it first with vyd family remove`. The project removal prints a diff deleting the project's tables and, when real, `project 'edit-demo' is removed from the configuration. Its index store and logs, its folders and its documents are left as they are`. The last line reads `lines with a comment: 2`, so both comments survived every change of W3.10 to W3.12.
+
+**Failure.** A lost comment, a table left behind after a removal, or a `--dry-run` that wrote.
+
 ## W4 Domains
 
 Needs W3.3 and git. The clones need GitHub over https. If they are refused, mark NOTE, skip W4.2 to W4.6, and go on, since W4.7 onwards need no network.
@@ -623,7 +744,7 @@ Step W4.4 { vyd config }
 Step W4.5 { vyd context "$T\kb" --no-pull }
 ```
 
-**Pass.** A header `Вивід 0.2.10: the contract for <folder>`, then `1. general (public)`. No project is named, since none is configured yet. Try it again with `-Plain` to see the header fail when redirected.
+**Pass.** A header `Вивід 0.2.14: the contract for <folder>`, then `1. general (public)`. No project is named, since none is configured yet. Try it again with `-Plain` to see the header fail when redirected.
 
 ```powershell
 Step W4.5b -Plain { vyd context "$T\kb" --no-pull }
@@ -650,7 +771,7 @@ Step W4.7 {
 }
 ```
 
-**Pass.** `wrote <folder>: domain.toml, facets.md, notes.md, skills/demo/SKILL.md`, a snippet to add to the configuration, and the listing of `domain.toml`, `facets.md`, `notes.md` and `skills\demo\SKILL.md`. The folder name has a space on purpose. The command also ran `git init` in the folder.
+**Pass.** `wrote <folder>: domain.toml, facets.md, notes.md, skills/demo/SKILL.md`, a snippet to add to the configuration, and the listing of `domain.toml`, `facets.md`, `notes.md` and `skills\demo\SKILL.md`. The folder name has a space on purpose. The command also ran `git init` in the folder. The snippet writes the path in a double-quoted string, so on Windows it holds single backslashes, which TOML reads as escapes and refuses. Do not paste it. W4.8 writes the entry by hand and `vyd domain add` in W3.10 writes it with forward slashes. Mark NOTE with 'snippet path has backslashes' if it does, since it is read from the code and has not been run.
 
 #### W4.8 Add it to the configuration
 
@@ -704,6 +825,64 @@ Step W4.10 {
 ```
 
 **Pass.** `tools: staged notes.md. Commit is manual, so nothing is committed`, then `M  notes.md` from git. The edit is undone at the end. Nothing is committed or pushed.
+
+#### W4.11 Lower the trust of a domain, and be refused a raise
+
+`vyd domain trust` changes the trust of a configured domain. Lowering it needs no one at a terminal. Raising it to `own`, or to `reviewed` at a commit, gives the domain's rules, skills and recipes to every project that uses it, so it needs a person at a terminal. This step uses a third scratch file with a domain that starts at `own`, and the raising calls have a pipe for input, which is what a script or an agent meets.
+
+```powershell
+Step W4.11 {
+    vyd domain new extra --path "$T\dom extra" | Out-Null
+    Write-Utf8 "$T\cfg-trust.toml" @"
+[framework]
+kb = '$T\kb'
+store = '$T\store'
+
+[[domains]]
+name = "extra"
+path = '$T\dom extra'
+trust = "own"
+"@
+    WithConfig "$T\cfg-trust.toml" {
+        vyd domain trust extra knowledge --dry-run
+        vyd domain trust extra knowledge
+        Select-String -Path $env:VYVID_CONFIG -Pattern '^trust' | ForEach-Object { $_.Line }
+        vyd domain trust extra knowledge
+        '' | vyd domain trust extra own
+        'exit ' + $LASTEXITCODE
+        '' | vyd domain trust extra own --dry-run
+        '' | vyd domain trust extra reviewed
+        'exit ' + $LASTEXITCODE
+        '' | vyd domain trust extra reviewed --commit abc
+        'exit ' + $LASTEXITCODE
+        '' | vyd domain trust extra reviewed --commit 0123456789abcdef
+        'exit ' + $LASTEXITCODE
+    }
+}
+```
+
+**Pass.** The dry run prints a diff that changes `trust = "own"` to `trust = "knowledge"` and `dry run, nothing written`. The real call prints `wrote <path>\cfg-trust.toml` and `domain extra now gives knowledge alone. A project already installed keeps the skills written for it until the next vyd install --project, which removes them`, and the next line reads `trust = "knowledge"`. The repeat prints `domain extra already has trust knowledge, so nothing is written` and exits 0. The raise to `own` from a pipe exits 1 with `vyd: trust own gives the domain's rules, skills and recipes to every project that uses it. A person must run this command, in a terminal`, and the dry run of the same raise prints a diff back to `trust = "own"` and ends `dry run, nothing written. trust own gives the domain's rules, skills and recipes to every project that uses it, so a person must run it for real, in a terminal`. `reviewed` with no `--commit` exits 1 with `vyd: trust reviewed needs --commit, the commit you read. Name it yourself, since it is the record of what you reviewed`. A short commit exits 1 with `vyd: --commit 'abc' is not a commit of 7 to 64 hexadecimal characters`. A well-formed commit from a pipe exits 1 with `vyd: trust reviewed at 0123456789abcdef gives the domain's rules, skills and recipes to every project that uses it. A person must run this command, in a terminal`. Nothing is written by a refusal.
+
+**Failure.** A raise written from a pipe, or a traceback.
+
+#### W4.12 Raise the trust at a real console
+
+Run this directly in the console, not through `Step`, so that standard input is the terminal. It commits the new domain's files, so it has a commit to name, and it raises the trust first to `reviewed` at that commit and then to `own`.
+
+```powershell
+git -C "$T\dom extra" add -A
+git -C "$T\dom extra" -c user.email='wintest@example.invalid' -c user.name='wintest' commit -q -m 'initial'
+$h = git -C "$T\dom extra" rev-parse --short HEAD
+WithConfig "$T\cfg-trust.toml" {
+    vyd domain trust extra reviewed --commit $h
+    vyd domain trust extra own
+    Select-String -Path $env:VYVID_CONFIG -Pattern '^(trust|commit)' | ForEach-Object { $_.Line }
+}
+```
+
+**Pass.** There is no prompt. Each call prints `writing <path>\cfg-trust.toml`, a diff, `wrote <path>\cfg-trust.toml` and a line about what the domain now gives. The first changes `trust = "knowledge"` to `trust = "reviewed"` and adds `commit = "<hash>"`, and ends `domain extra now gives what own does while its folder is at commit <hash>, and knowledge alone at any other.` followed by a hint to run `vyd install --project` and `vyd install --client`, and what to do after a pull. The second removes the `commit` line, sets `trust = "own"` and ends `domain extra now gives its rules, skills and recipes to every project that uses it, so its skills will compose.` followed by the same hint. The last line reads `trust = "own"`. Mark it yourself with `Mark W4.12 PASS` after reading the output.
+
+**Failure.** `A person must run this command, in a terminal` from a real console goes into the comment with the host you used (Windows Terminal, the console host, an editor's terminal), as for W6.4.
 
 ## W5 The index
 
@@ -800,7 +979,7 @@ Step W5.3 { vyd build $Code }
 
 **Pass.** A table of counts ending with `knowledge index built at <test folder>\store\store`, and counts such as `embedded` greater than zero. `NOTE:` lines about register columns are fine. One line reads `NOTE: 2 entries of 'example-service' moved to 'demo', which answers for them, so the copies in 'example-service' are not indexed`.
 
-**If the download is refused.** The build still finishes, with `NOTE: no embeddings, so nothing can be ranked by meaning: could not fetch <address>: <reason>` and the same for symbols. Mark NOTE with the reason. Then `vyd find` prints `find cannot rank here: no vectors.npz in <store>. The build says why`, and the steps below say which of them still work. Do not retry the build more than once.
+**If the download is refused.** The build still finishes, with `NOTE: no embeddings, so nothing can be ranked by meaning: could not fetch <address>: <reason>` and the same for symbols. Mark NOTE with the reason. Then `vyd find` prints `find cannot rank here: no vectors.npz in <store>. Run vyd build, which says why`, and the steps below say which of them still work. Do not retry the build more than once.
 
 #### W5.4 Ask a question
 
@@ -895,7 +1074,7 @@ Step W5.10 {
 }
 ```
 
-**Pass.** The line `knowledge index is missing or older than the files it reads, so building it`, then a table with `demo:RULE-3` first (with the model). Without the model, the build line and the `cannot rank here` message.
+**Pass.** The line `knowledge index is missing or older than the files it reads, so building it`, then a table with `demo:RULE-3` first (with the model). Without the model, the build line, a line `vyd: no embeddings, so nothing can be ranked by meaning: could not fetch <address>: <reason>` on standard error, and the `cannot rank here` message.
 
 #### W5.11 Embeddings still work after a rebuild, symbols included
 
@@ -920,6 +1099,69 @@ Step W5.12 {
 ```
 
 **Not run anywhere.** If `vyd build` fails with `PermissionError` or `[WinError 32]`, mark FAIL with 'store cannot be rebuilt while a reader holds it', and capture the last lines. If the build passes, mark PASS. Then run `vyd build $Code` once more to leave a good store.
+
+#### W5.13 A heading after an inline code span
+
+A line that starts with an inline code span of four backticks enclosing three used to read as the opening of a code fence, which hid every heading below it, so an anchor to one of them failed. From v0.2.14 a backtick fence's opening line holds no other backtick, and a fence closes only on the same mark, at least as long, with nothing after it. The fence line is built from character codes, so that this file holds no backtick run of its own. The register entry points at the heading `After`, and `vyd family add` declares the register as a family of `example-service`.
+
+```powershell
+Step W5.13 {
+    $b3 = ([string][char]96) * 3
+    $b4 = ([string][char]96) * 4
+    Write-Utf8 "$Code\docs\fence.md" ("$b4 ${b3}turtle-example $b4 is illustrative text that opens no fence.`n`n## After`n`nThe section the pointer names.`n")
+    Write-Utf8 "$Code\docs\fenced.md" @'
+# Fenced
+
+**Unit type:** Register
+
+| ID | Name | Claim | Problem shape | Pointer |
+|---|---|---|---|---|
+| FENCE-1 | a section after an inline span | **Read a heading after an inline code span.** | an anchor to a heading after a line that starts with a code span | docs/fence.md#after |
+'@
+    Get-Content "$Code\docs\fence.md" -TotalCount 1
+    vyd family add example-service FENCE --defined 'docs:fenced.md' --type standard
+    vyd build $Code
+    vyd read FENCE-1 --in $Code --no-log
+}
+```
+
+**Pass.** The first line shows four backticks, then `` ```turtle-example ``, four backticks and the sentence. `vyd family add` prints a diff adding `FENCE = { defined = "docs:fenced.md", type = "standard" }` to `[projects.families]` and `wrote <path>\config.toml`, and the build ends with `knowledge index built at`. It prints no `NOTE` about `FENCE-1` or its pointer. `read` prints `FENCE-1  Standard  Open`, the claim, and below `== pointed-at docs/fence.md:3-5` the lines `## After`, an empty line and `The section the pointer names.`, with a forward slash in the pointer. A `NOTE` about the pointer or `nothing to read for: FENCE-1` is a failure. Seen on macOS, the build counts `Standard` as 5 where W5.3 counted 4.
+
+#### W5.14 The automatic build says why it has no vectors, and retries (optional)
+
+A question that finds the store missing or stale builds it first. From v0.2.14 that build prints, on standard error, the reason it made no embeddings, in a line that begins `vyd: no embeddings`. A store left without vectors is rebuilt by the next question only after a minute, so a failing download costs one build a minute and not one per question. A store built with `vyd build --no-embed` is left as it is. This step makes the model unreachable with a copy of the scratch configuration that has its own empty store and model folders and an address for `HTTPS_PROXY` that refuses connections. It takes about three minutes because of the two waits. Skip it with a NOTE if W5.3 could not download the model, since that already shows the refusal, and mark NOTE with 'model still reachable' if the first question below ranks.
+
+```powershell
+Step W5.14 {
+    $off = [IO.File]::ReadAllText($env:VYVID_CONFIG).Replace("'$T\store'", "'$T\store-offline'").Replace("'$T\model'", "'$T\model-offline'")
+    Write-Utf8 "$T\cfg-offline.toml" $off
+    function Ask {
+        $all = @(vyd find read text with an explicit encoding --no-log --in $Code 2>&1)
+        'standard output: ' + @($all | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] })[0]
+        'standard error:'
+        $all | Where-Object { $_ -is [Management.Automation.ErrorRecord] } | ForEach-Object { '  ' + $_ }
+    }
+    $keep = $env:HTTPS_PROXY
+    $env:HTTPS_PROXY = 'http://127.0.0.1:9'
+    try {
+        WithConfig "$T\cfg-offline.toml" {
+            '--- the first question'
+            Ask
+            '--- again at once'
+            Ask
+            Start-Sleep -Seconds 65
+            '--- after 65 seconds'
+            Ask
+            vyd build $Code --no-embed | Select-Object -Last 2
+            Start-Sleep -Seconds 65
+            '--- after --no-embed and 65 seconds'
+            Ask
+        }
+    } finally { $env:HTTPS_PROXY = $keep }
+}
+```
+
+**Pass.** The first question prints `standard output: find cannot rank here: no vectors.npz in <test folder>\store-offline. Run vyd build, which says why`, and under `standard error:` two lines, `knowledge index is missing or older than the files it reads, so building it` and `vyd: no embeddings, so nothing can be ranked by meaning: could not fetch https://huggingface.co/...: <reason>`. The reason is the system's own text, so it differs from the `Connection refused` seen on macOS. The question at once after it prints the same standard output and nothing under `standard error:`. The question after 65 seconds prints the two lines again. The build prints `NOTE: no embeddings, because the build was told not to make them` and `knowledge index built at <test folder>\store-offline\store`, and the question after it and 65 more seconds prints nothing under `standard error:`. A reason that is not on standard error, or a rebuild at once, goes into the comment.
 
 ## W6 Project files, trust, links, worktrees and odd paths
 
@@ -950,7 +1192,7 @@ domains = ["demo"]
 }
 ```
 
-**Pass.** `project file: <path>\vyvid.toml` and a line `project trust-demo is declared in <path>\vyvid.toml, which is not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository`. `vyd context` lists `4. project trust-demo (public)` with `withheld: 1 rule file(s)` and the same reason.
+**Pass.** `project file: <path>\vyvid.toml` and a line `project trust-demo is declared in <path>\vyvid.toml, which is not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file`. `vyd context` lists `4. project trust-demo (public)` with `withheld: 1 rule file(s)` and the same reason.
 
 #### W6.2 `vyd trust` refuses input that is not a terminal
 
@@ -1193,6 +1435,140 @@ Step W6.15 {
 
 **Expected from the code.** The build reports the extractor failing at the time limit and goes on. A `ping` process that is still running after the build means the grandchild was not stopped. Mark NOTE with 'grandchild survives the time limit' if so, then `Stop-Process -Name ping`. A second project bound to the same folder may be reported as a duplicate, in which case remove its entry from the configuration and note what the message said.
 
+#### W6.16 A repository named in the user's own configuration is trusted
+
+A checkout whose `origin` is listed in `[framework] trusted_repositories` in the user's own configuration has its `vyvid.toml` trusted without `vyd trust`, for a machine where no one is at a terminal. The list is read from the user's own configuration alone, which is found through the platform's folders. These steps move that folder into the test folder with `WIN_PD_OVERRIDE_LOCAL_APPDATA`, which `platformdirs` reads before it asks Windows, so the real configuration is not written. The variable is set only inside `WithOwn`. Define `WithOwn` once, and again in any new window.
+
+```powershell
+function WithOwn {
+    param([Parameter(Mandatory)][scriptblock]$Do)
+    $keep = $env:WIN_PD_OVERRIDE_LOCAL_APPDATA
+    $env:WIN_PD_OVERRIDE_LOCAL_APPDATA = Join-Path $T 'localappdata'
+    try { & $Do }
+    finally {
+        if ($null -eq $keep) { Remove-Item Env:WIN_PD_OVERRIDE_LOCAL_APPDATA -ErrorAction SilentlyContinue }
+        else { $env:WIN_PD_OVERRIDE_LOCAL_APPDATA = $keep }
+    }
+}
+```
+
+The repository is a new one with `core.autocrlf` set to false, so its file is stored and checked out with the same bytes whatever the machine's setting. W6.20 covers the setting.
+
+```powershell
+Step W6.16 {
+    $G = Join-Path $T 'work\repo-grant'
+    New-Item -ItemType Directory -Force -Path $G | Out-Null
+    Write-Utf8 "$G\vyvid.toml" @"
+[project]
+name = "grant-demo"
+visibility = "public"
+docs = "code:docs"
+contract = "code:AGENTS.md"
+domains = ["demo"]
+"@
+    Write-Utf8 "$G\AGENTS.md" "# Agent contract`n`nAsk the index first.`n"
+    git -C $G init -q -b main
+    git -C $G config user.email 'wintest@example.invalid'
+    git -C $G config user.name 'wintest'
+    git -C $G config core.autocrlf false
+    git -C $G remote add origin https://example.invalid/team/grant-demo.git
+    git -C $G add -A
+    git -C $G commit -q -m 'initial'
+    WithOwn {
+        $first = @(WithConfig $null { vyd config })[0]
+        $first
+        $global:Own = ($first -replace '^configuration: ', '') -replace ' \(absent.*$', ''
+        if (-not $global:Own.StartsWith($T)) { 'WIN_PD_OVERRIDE_LOCAL_APPDATA did not move the configuration, so nothing is written. Mark NOTE with the line above'; return }
+        'before the list:'
+        vyd config $G | Where-Object { $_ -like 'project grant-demo is declared*' }
+        Write-Utf8 $global:Own "[framework]`ntrusted_repositories = [`"example.invalid/team/grant-demo`"]`n"
+        'after the list:'
+        vyd config $G | Where-Object { $_ -like 'project grant-demo is declared*' }
+    }
+}
+```
+
+**Pass.** The first line reads `configuration: <test folder>\localappdata\vyvid\vyvid\config.toml (absent, so the general scope alone)`, which shows the override worked. Before the list, the project line reads `project grant-demo is declared in <path>\vyvid.toml, which is not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file`. After it, the line ends `which is trusted through trusted_repositories, as it is committed at HEAD`. Nothing is written to `%LOCALAPPDATA%`. On Windows the override is read from the `platformdirs` code and has not been run, so a line outside the test folder means the installed `platformdirs` does not read it, and the step then wrote nothing.
+
+#### W6.17 An uncommitted edit lapses the grant, and committing restores it
+
+```powershell
+Step W6.17 {
+    $G = Join-Path $T 'work\repo-grant'
+    WithOwn {
+        Add-Utf8 "$G\vyvid.toml" "# edited`n"
+        'uncommitted edit:'
+        vyd config $G | Where-Object { $_ -like 'project grant-demo is declared*' }
+        git -C $G commit -q -a -m 'edit'
+        'committed:'
+        vyd config $G | Where-Object { $_ -like 'project grant-demo is declared*' }
+    }
+}
+```
+
+**Pass.** After the uncommitted edit the line reads `which is not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file`, and after the commit it reads `which is trusted through trusted_repositories, as it is committed at HEAD`.
+
+#### W6.18 A fork whose `upstream` alone is listed is not trusted
+
+Only `origin` counts. A fork's `origin` is the fork and its `upstream` is the repository it came from, so a listed `upstream` grants nothing. The clone is made with `core.autocrlf` false, so only the remote names differ from W6.17.
+
+```powershell
+Step W6.18 {
+    $G = Join-Path $T 'work\repo-grant'
+    $F = Join-Path $T 'work\repo-fork'
+    git clone -q -c core.autocrlf=false $G $F
+    git -C $F remote rename origin upstream
+    git -C $F remote set-url upstream https://example.invalid/team/grant-demo.git
+    git -C $F remote add origin https://example.invalid/me/grant-demo.git
+    git -C $F remote -v
+    WithOwn { vyd config $F | Where-Object { $_ -like 'project grant-demo is declared*' } }
+}
+```
+
+**Pass.** `git remote -v` shows `origin` at `https://example.invalid/me/grant-demo.git` and `upstream` at the listed address, and the project line reads `which is not trusted` with the same ending as in W6.17.
+
+#### W6.19 A file named by `VYVID_CONFIG` does not grant
+
+The list in a configuration that `VYVID_CONFIG` names is ignored, and `vyd config` says so. This step moves the user's own configuration away for its length and puts it back.
+
+```powershell
+Step W6.19 {
+    $G = Join-Path $T 'work\repo-grant'
+    $list = [IO.File]::ReadAllText($env:VYVID_CONFIG).Replace('glue = "stop"', 'glue = "stop"' + "`n" + 'trusted_repositories = ["example.invalid/team/grant-demo"]')
+    Write-Utf8 "$T\cfg-list.toml" $list
+    WithOwn {
+        if (-not $global:Own -or -not (Test-Path $global:Own)) { 'W6.16 did not write the user''s own configuration, so this step has nothing to move'; return }
+        Move-Item $global:Own "$T\own-config.keep"
+        WithConfig "$T\cfg-list.toml" { vyd config $G | Where-Object { $_ -notlike 'configuration*' -and $_ -notlike 'domains:*' -and $_ -notlike 'projects:*' } }
+        Move-Item "$T\own-config.keep" $global:Own
+    }
+}
+```
+
+**Pass.** Four lines. `trusted repositories: example.invalid/team/grant-demo`, then `NOTE: trusted_repositories is ignored here, since only the user's own configuration at <test folder>\localappdata\vyvid\vyvid\config.toml may grant it`, then `project file: <path>\vyvid.toml`, then the project line reading `which is not trusted` with the same ending as in W6.17.
+
+#### W6.20 The grant under `core.autocrlf`
+
+The grant holds only where the file's bytes equal the blob committed at `HEAD`. Git for Windows is often set to `core.autocrlf=true`, which checks a text file out with CRLF line endings, so a checkout made that way may never be granted. This step clones the repository with the setting on and records what `vyd` says. It is a result to report whichever way it goes, since it may be a real defect on Windows.
+
+```powershell
+Step W6.20 {
+    $G = Join-Path $T 'work\repo-grant'
+    $C = Join-Path $T 'work\repo-crlf'
+    git clone -q -c core.autocrlf=true $G $C
+    git -C $C remote set-url origin https://example.invalid/team/grant-demo.git
+    'core.autocrlf in the clone: ' + (git -C $C config core.autocrlf)
+    'bytes committed: ' + (git -C $C cat-file -s HEAD:vyvid.toml)
+    'bytes checked out: ' + (Get-Item "$C\vyvid.toml").Length
+    'carriage returns checked out: ' + ([IO.File]::ReadAllBytes("$C\vyvid.toml") | Where-Object { $_ -eq 13 }).Count
+    git -C $C ls-files --eol vyvid.toml
+    'git status: [' + ((git -C $C status --short) -join ' ') + ']'
+    WithOwn { vyd config $C | Where-Object { $_ -like 'project grant-demo is declared*' } }
+}
+```
+
+**Pass or note.** Seen on macOS with `core.autocrlf=true`, the committed size is 127 bytes and the checked-out size 134, with 7 carriage returns, `ls-files --eol` shows `i/lf    w/crlf`, `git status` is empty so git sees no change, and the project line reads `which is not trusted`. If it reads the same here, mark NOTE with 'trusted_repositories lapses under autocrlf' and the values above, since a Windows checkout with the default git setting is then never granted. If it reads `trusted through trusted_repositories`, mark PASS and say what `core.autocrlf` was in W1.2. We have not changed `vyd` for this.
+
 ## W7 Skills
 
 Needs W5. The project is `example-service`, bound in the scratch configuration, so no trust prompt is involved. The same commands for a project declared by `vyvid.toml` refuse until it is trusted, as W6 showed.
@@ -1203,7 +1579,7 @@ Needs W5. The project is `example-service`, bound in the scratch configuration, 
 Step W7.1 { vyd install --project --dry-run --in $Code }
 ```
 
-**Pass.** Five lines `would write <path>` for `.claude\skills\ex-demo\SKILL.md`, `.github\skills\ex-demo\SKILL.md`, `.claude\settings.json`, `.codex\hooks.json` and `.github\hooks\vyvid.json`, exit code 0, and no file created. Knowledge domains give no skill, and a note says so for each. The composed skills are named with the `ex-` prefix.
+**Pass.** Five lines `would write <path>` for `.claude\skills\ex-demo\SKILL.md`, `.github\skills\ex-demo\SKILL.md`, `.claude\settings.json`, `.codex\hooks.json` and `.github\hooks\vyvid.json`, exit code 0, and no file created. Knowledge domains give no skill, and a note says so for each, ending with the command a person runs to raise the domain's trust. The composed skills are named with the `ex-` prefix.
 
 #### W7.2 Write them
 
@@ -1812,7 +2188,7 @@ Needs W5. Every step names `--target`, so nothing is written to the real client 
 Step W12.1 { vyd install --client claude-code --target "$T\tgt-claude" --dry-run }
 ```
 
-**Pass.** One `no skill for domain <name>, whose trust is knowledge, which gives knowledge alone` line per cloned public domain, then three `would write` lines for `skills\vyvid-core-domain-review\SKILL.md`, `rules\vyvid.md` and `agents\vyvid-domain-reviewer.md`. Exit 0, and the target folder is not created.
+**Pass.** One `no skill for domain <name>, whose trust is knowledge, which gives knowledge alone. If you wrote it, a person runs: vyd domain trust <name> own. If someone else did, read it and run: vyd domain trust <name> reviewed --commit <hash>` line per cloned public domain, then three `would write` lines for `skills\vyvid-core-domain-review\SKILL.md`, `rules\vyvid.md` and `agents\vyvid-domain-reviewer.md`. Exit 0, and the target folder is not created.
 
 #### W12.2 Write them, check the bytes, run again
 
@@ -1854,7 +2230,7 @@ Step W12.4 {
 }
 ```
 
-**Pass.** The core skill is written, and the line `vyd: copilot documents no user-level hook file, so no hook was written. Run vyd install --project to register the hook in a project's checkout` is printed. The exit code is 1 and `settings.json written: False`. The listing holds only `skills\vyvid-core-domain-review\SKILL.md`. At v0.2.10 this is the specified behaviour.
+**Pass.** The core skill is written, and the line `vyd: copilot documents no user-level hook file, so no hook was written. Run vyd install --project to register the hook in a project's checkout` is printed. The exit code is 1 and `settings.json written: False`. The listing holds only `skills\vyvid-core-domain-review\SKILL.md`. At v0.2.14 this is the specified behaviour.
 
 #### W12.5 Claude Code with `--hooks` writes the settings file
 
@@ -1913,19 +2289,19 @@ Step W12.8 {
 
 Needs W4 and GitHub over https, and `mise` for the `mise run` steps. The repository is large, so the clone takes a while. Nothing is pushed, and the full `mise run check` is optional.
 
-LATTICE's move to `vyd` is on the branch `vyvid-migration` until it is merged. Set `$Branch` to that branch until the merge, and to `main` after it. If `vyvid.toml` is absent on the chosen branch, the repository does not declare a project yet, and this section stops at W13.2. The private domains named in that repository's documents are not expected to resolve here.
+LATTICE's move to `vyd` has merged, so its `main` declares a project in a `vyvid.toml`. `$Branch` is `main`, and another branch can be tried by changing it. If `vyvid.toml` is absent on the chosen branch, the repository does not declare a project there, and this section stops at W13.2. The five domains that file names are public and are among the six W4 cloned. The private domains named in that repository's documents are not expected to resolve here.
 
 #### W13.1 Clone
 
 ```powershell
-$Branch = 'vyvid-migration'
+$Branch = 'main'
 Step W13.1 {
     git clone --branch $Branch https://github.com/nebularis/lattice.git "$T\lattice"
     git -C "$T\lattice" log --oneline -3
 }
 ```
 
-Change `$Branch` to `main` if the migration has been merged. **Pass.** The clone finishes, with possible `LF will be replaced by CRLF` messages and, on a path-length problem, errors naming a file. Record a failure to check out a long path with the `core.longpaths` value from W1.2.
+**Pass.** The clone finishes, with possible `LF will be replaced by CRLF` messages and, on a path-length problem, errors naming a file. Record a failure to check out a long path with the `core.longpaths` value from W1.2.
 
 #### W13.2 Does the branch declare a project
 
@@ -1952,7 +2328,7 @@ match = { remote = "github.com/nebularis/lattice" }
 Step W13.3 { vyd config "$T\lattice" }
 ```
 
-**Pass.** `projects:` includes `lattice`, and `project file: <path>\vyvid.toml` appears. The file declares the rest. Domains the file names and the scratch configuration lacks are left out, each with a `NOTE: domain ... is named by vyvid.toml and is not configured here` line. The project is not trusted yet.
+**Pass.** `projects:` includes `lattice`, and `project file: <path>\vyvid.toml` appears. The file declares the rest. Domains the file names and the scratch configuration lacks are left out, each with a `NOTE: domain ... is named by vyvid.toml and is not configured here` line. The notes appear only for a domain whose entry W4 did not make, since the file names five domains and W4 configured them all. The project line ends `which is not trusted` until W13.4. Without the `triple-stores` domain configured, `vyd config` instead prints `set aside: the project declared in <path>\vyvid.toml` with `project 'lattice': delegates 'TSD' to 'triple-stores', which is no scope` and exits 1, because LATTICE's decisions on triple stores moved there. Seen on macOS with no domain configured. The project is not trusted yet.
 
 If the entry's name differs from the project the file declares, the config output says why. Capture it, and change `name` to match.
 
@@ -1964,7 +2340,7 @@ Run directly in the console and read what it lists before typing `yes`.
 vyd trust "$T\lattice"
 ```
 
-**Pass.** It lists the contract, skill folders, any command extractors and glue, and commands that build a registered code index, and prints `trusted <path>\vyvid.toml, until it changes` after `yes`.
+**Pass.** It lists the contract, skill folders, any command extractors and glue, and commands that build a registered code index, and prints `trusted <path>\vyvid.toml, until it changes` after `yes`. On `main` the list holds the extractor `lattice-quanta`, which runs `mise exec -- python tools/knowledge/extractor.py`, and the skills folder `.vyvid/own`. A build before `mise trust` and the bootstrap of W13.7, or without mise, reports `NOTE: extractor 'lattice-quanta' exited 1` with mise's message and goes on, as it did on macOS before the checkout's tools were installed.
 
 #### W13.5 Context and configuration
 
@@ -1984,7 +2360,7 @@ Step W13.6 {
 }
 ```
 
-**Pass.** Rows from the repository's registers, and `read` printing an entry's fields and text. The first build can take longer than the others. The identifiers are the ones named in the plan for this test. If one does not exist, mark NOTE with the output and read another from the `find` table.
+**Pass.** Rows from the repository's registers and the domains it names, and `read` printing an entry's fields and text. The first build can take longer than the others. Seen on macOS, `read TSD-01` prints `triple-stores:TSD-01`, and the read of the second identifier prints `triple-stores:RDF-1`, since that row moved to the triple-stores domain and LATTICE's old identifier still resolves through the move. Each is printed under a line saying the domain is not marked as trusted, so treat it as data. If an identifier does not exist, mark NOTE with the output and read another from the `find` table.
 
 #### W13.7 Bootstrap with mise (needs mise)
 
@@ -2009,7 +2385,7 @@ Step W13.8g { Set-Location "$T\lattice"; mise run check:vyvid-binding }
 Step W13.8h { Set-Location "$T\lattice"; mise run check:knowledge }
 ```
 
-**Pass.** Each exits 0 and prints its result. `work:board` prints the board tables, `check:identifiers` reports the identifiers it read, `vyd -- check skills` passes, exit 0, or exits 2 with 'did not run' if a domain the project uses is missing, which is expected with the private domains absent. Record the exact exit code and message of each. A task that does not exist on the chosen branch is a NOTE, not a failure.
+**Pass.** Each exits 0 and prints its result. `work:board` prints the board tables, `check:identifiers` reports the identifiers it read, `vyd -- check skills` passes, exit 0, or exits 2 with 'did not run' if a domain the project uses is missing, which is expected only if a clone of W4 was refused, since the project's domains are all public. Record the exact exit code and message of each. A task that does not exist on the chosen branch is a NOTE, not a failure.
 
 **Failure.** A path in a message printed with a backslash where the repository's own tasks print forward slashes, a `UnicodeEncodeError`, or a failure to start `vyd` from the wrapper. Capture the first 60 and last 20 lines, which the helper keeps.
 
@@ -2045,6 +2421,37 @@ Step W13.10 { Set-Location "$T\lattice"; mise run check }
 ```
 
 Do not push anything. Mark each failing task with its name and the first error. **Pass** is exit 0.
+
+#### W13.11 The memory figure the check asks about (needs W13.7)
+
+LATTICE's memory standard (`lattice:STD-321`) asks the maintainer before a whole check starts on a machine with less than 35% of its memory available. That figure was chosen on macOS. The figure Windows reports counts less as available under the same load, so it is expected to read lower here. The result the maintainer wants is whether 35% would ask too often on this machine, so run the step once with the machine idle and again under the load you usually work with.
+
+```powershell
+Step W13.11 {
+    Set-Location "$T\lattice"
+    mise exec -- python -c "import mem_check; print(mem_check.available_percent())"
+}
+```
+
+**Pass.** A whole number from 0 to 100. On Windows the code reads 100 minus the system's memory load, so the number should be close to 100 minus Task Manager's memory in use as a share of the total (Performance, Memory). That is read from the code and has not been run. Compare it by eye and record it as this machine's reading with `Mark W13.11 NOTE 'reading N, Task Manager in use M%, idle or under load'`. `None` means the system's figure could not be read, which is a result to record. Seen on macOS, the step printed `40` with the machine in ordinary use.
+
+#### W13.12 The slower check for a busy machine (optional, needs W13.7)
+
+`mise run check:low-memory` runs `mise run check` one task at a time with two test workers, prints the memory available once a minute, and stops the run if less than 1 GiB stays available. It is slower than W13.10, which runs the same tasks together, and it was not timed, so start it only when the machine can be left for a long while. The step prints at most the last 20 lines.
+
+```powershell
+Step W13.12 { Set-Location "$T\lattice"; mise run check:low-memory; 'exit ' + $LASTEXITCODE }
+```
+
+**Pass.** Exit 0 and a last line reading `mem_check.guard: the lowest available was N GiB`. Record that line with `Mark W13.12 NOTE '...'`, since the lowest figure is what the maintainer wants to compare with the 1 GiB floor. Exit 3 with `mem_check.guard: N GiB available, under 1.0 GiB, so the run was stopped` means the guard stopped the run, which is neither a pass nor a failure, so mark NOTE with the line and the figure. Any other exit code is a task that failed, and is recorded like W13.10. The wrapper's last line was seen on macOS with a four-second command, and the whole task was not run.
+
+#### W13.13 A question ranks
+
+```powershell
+Step W13.13 { Set-Location "$T\lattice"; mise run graph:ask -- find why does a SPARQL constraint run slowly --no-log }
+```
+
+**Pass.** Exit 0 and a table whose first column is `score`, with rows in descending score order and a line of claim text under each. No identifier is expected. Without the model, `find cannot rank here: no vectors.npz in <store>. Run vyd build, which says why`, which is the expected result and not a failure.
 
 ## W14 Optional, writes to the real client folders
 
@@ -2160,7 +2567,7 @@ uv tool uninstall vyvid
 
 If you used the fallback, the venv was in the test folder and is already gone. To restore a `vyd` that was installed before, install it again.
 
-Clear the environment variables of this window by closing it, or run `Remove-Item Env:VYVID_CONFIG, Env:VYVID_HOOK_STATE, Env:PYTHONUTF8, Env:GIT_TERMINAL_PROMPT`.
+Clear the environment variables of this window by closing it, or run `Remove-Item Env:VYVID_CONFIG, Env:VYVID_HOOK_STATE, Env:PYTHONUTF8, Env:GIT_TERMINAL_PROMPT`. `WithOwn` and W5.14 restore `WIN_PD_OVERRIDE_LOCAL_APPDATA` and `HTTPS_PROXY` themselves, so if a step was interrupted, check `Get-ChildItem Env:WIN_PD_OVERRIDE_LOCAL_APPDATA, Env:HTTPS_PROXY` and remove what the test set.
 
 #### What is left outside the test folder
 
