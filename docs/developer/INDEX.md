@@ -50,7 +50,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | VYD-19 | vyvid-framework | the lifecycle domain | built 2026-11-05, building 2026-11-05 |
 | VYD-20 | vyvid-framework | generated regions and a release | built 2026-11-05, building 2026-11-05 |
 | WT-0 | windows-tests | plan, status record and index | built 2026-11-07, building 2026-11-07 |
-| WT-1 | windows-tests | the tests' own home, paths in TOML, the machine's capabilities | planned |
-| WT-2 | windows-tests | `vyd` fixes found on Windows | planned |
-| WT-3 | windows-tests | Windows forms of the tests that cannot run there as written | planned |
-| WT-4 | windows-tests | the whole suite on Windows, and the records | planned |
+| WT-1 | windows-tests | the tests' own home, paths in TOML, the machine's capabilities | built 2026-11-07, building 2026-11-07 |
+| WT-2 | windows-tests | `vyd` fixes found on Windows | built 2026-11-07, building 2026-11-07 |
+| WT-3 | windows-tests | Windows forms of the tests that cannot run there as written | built 2026-11-07, building 2026-11-07 |
+| WT-4 | windows-tests | the whole suite on Windows, and the records | built 2026-11-07, building 2026-11-07 |
