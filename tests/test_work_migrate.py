@@ -14,6 +14,8 @@ from vyvid.work import migrate as wm
 from vyvid.work.core import Repo
 from vyvid.work.settings import RenameRule, Work
 
+from subprocess_support import SYMLINKS, link_to_folder
+
 DEV = Path("docs/developer")
 CCS = "computable-contract-substrate"
 OLD_RECORD = """# Computable contract substrate: status
@@ -285,10 +287,21 @@ def test_normalise_holds_the_status_word_to_the_board(ccs: Repo) -> None:
     assert wm.hold_status(ccs, text.replace("**Status:** built 2026-11-02.", "**Status:** planned."), "x").count("building 2026-11-01. Two built") == 1
 
 
+@SYMLINKS
 def test_a_link_leaving_the_repository_is_not_swept(ccs: Repo, tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "x.md").write_text("C12 here\n", encoding="utf-8")
     (ccs.work.status.parent / "sketches" / "leak.md").symlink_to(outside / "x.md")
+    wm.rename(ccs, apply=True)
+    assert (outside / "x.md").read_text(encoding="utf-8") == "C12 here\n"
+
+
+def test_a_folder_link_leaving_the_repository_is_not_swept(ccs: Repo, tmp_path: Path) -> None:
+    """The same through a link to a folder, which Windows makes as a junction where it refuses a symbolic link."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.md").write_text("C12 here\n", encoding="utf-8")
+    link_to_folder(ccs.work.status.parent / "sketches" / "leaked", outside)
     wm.rename(ccs, apply=True)
     assert (outside / "x.md").read_text(encoding="utf-8") == "C12 here\n"

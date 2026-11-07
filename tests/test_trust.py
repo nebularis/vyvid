@@ -14,6 +14,7 @@ import platformdirs
 import pytest
 
 from test_ask import World as AskWorld
+from subprocess_support import own_folders
 from test_command_extractors import GOOD, block, built, claims, script
 from test_domains import config_for, refused, write
 from test_kb import cloned, sh, world  # noqa: F401  world is a fixture
@@ -313,7 +314,7 @@ def test_vyd_trust_refuses_without_a_terminal_and_records_nothing(tmp_path):
     path = write(tmp_path, "config.toml", "")
     home = tmp_path / "home"
     home.mkdir()
-    env = {**os.environ, "HOME": str(home), "XDG_STATE_HOME": str(home / "state"), "XDG_CONFIG_HOME": str(home / "config"), "VYVID_CONFIG": str(path)}
+    env = {**os.environ, **own_folders(home), "VYVID_CONFIG": str(path)}
     done = subprocess.run([sys.executable, "-c", "import sys; from vyvid.cli import main; sys.exit(main(sys.argv[1:]))", "trust"],
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env)
     assert done.returncode == 1 and "a person must run vyd trust" in done.stderr

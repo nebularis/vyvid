@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from test_project_file import commit as commit_all, put, repo as project_repo
+from subprocess_support import SYMLINKS, symlinks
 from vyvid import cli
 from vyvid.config import ConfigError, load
 from vyvid.resolve import bind_in
@@ -57,9 +58,10 @@ def identify(root: Path) -> None:
 
 
 def commit(root: Path, rel: str, text: str) -> str:
+    """Commit ``text`` at ``rel``, written with ``\\n`` so the blob holds the same bytes on Windows."""
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     sh(root, "git", "add", ".")
     sh(root, "git", "commit", "-q", "--no-verify", "-m", f"edit {rel}")
     return sh(root, "git", "rev-parse", "HEAD")
@@ -756,9 +758,10 @@ def test_a_branch_whose_text_attempts_shell_or_path_tricks_runs_and_reads_nothin
     for name in ("alpha", "$(touch pwned)", "a b", "..", "x'y"):
         commit(root, (DEV / f"status/{name}.md").as_posix(), hostile)
     commit(root, (DEV / "status/nested/deep.md").as_posix(), hostile)
-    os.symlink("/etc/hostname", root / DEV / "status/link.md")
-    sh(root, "git", "add", ".")
-    sh(root, "git", "commit", "-q", "--no-verify", "-m", "link")
+    if symlinks():
+        os.symlink("/etc/hostname", root / DEV / "status/link.md")
+        sh(root, "git", "add", ".")
+        sh(root, "git", "commit", "-q", "--no-verify", "-m", "link")
     sh(root, "git", "checkout", "-q", "main")
     text = repo.board_text(True, True, True)
     assert not marker.exists() and not (root / "pwned").exists() and not Path("pwned").exists()
@@ -768,6 +771,7 @@ def test_a_branch_whose_text_attempts_shell_or_path_tricks_runs_and_reads_nothin
     assert not (root / "etc").exists() and not list(tmp_path.glob("*passwd*"))
 
 
+@SYMLINKS
 def test_a_status_record_that_is_a_link_leaving_the_repository_is_not_read_here(repo: Repo, tmp_path: Path) -> None:
     outside = tmp_path / "outside.md"
     outside.write_text(ALPHA, encoding="utf-8")

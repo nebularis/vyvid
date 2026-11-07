@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from subprocess_support import NAME, POSIX, VYD, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
+from subprocess_support import NAME, POSIX, VYD, environment, file_name_encoding, holds, long_paths, on_disk, project, quote, run, sees, unseen, vyd
 from vyvid import __version__
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "vyvid"
@@ -94,7 +94,9 @@ CASES = [(label, locale) for label in NAMES for locale in LOCALES if locale not 
 @pytest.mark.parametrize("label, locale", CASES)
 def test_a_project_under_any_name_is_found_read_and_checked_in_any_locale(label, locale, tmp_path):
     if locale != "utf8" and not sees(locale):
-        pytest.skip(f"the {locale} locale is not installed")
+        pytest.skip(unseen(locale))
+    if label == "long" and not long_paths():
+        pytest.skip("this machine refuses a path longer than 260 characters, as Windows does with long paths off")
     name = NAMES[label]
     if os.name == "nt" and any(c in name for c in '"|'):
         pytest.skip("Windows file names cannot hold these characters")
@@ -223,7 +225,7 @@ def built_project(tmp_path_factory):
 @pytest.mark.parametrize("argument", [b"\xff\xfe\x80", b"\xe9\xa1\xb9\xff", b"STD-1\xc3"], ids=["bytes", "cut-utf8", "id-and-cut"])
 def test_an_argument_that_cannot_be_decoded_is_no_traceback(locale, args, argument, built_project):
     if locale != "utf8" and not sees(locale):
-        pytest.skip(f"the {locale} locale is not installed")
+        pytest.skip(unseen(locale))
     home, root = built_project
     ran = run([*VYD, *(a.encode() for a in args), argument], environment(home, **LOCALES[locale]), cwd=root)
     assert ran.clean() and ran.code in (0, 1, 2), ran

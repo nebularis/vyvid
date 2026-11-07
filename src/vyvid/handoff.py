@@ -56,7 +56,8 @@ def inside(path: Path, root: Path) -> bool:
 
 
 def uri(database: Path) -> str:
-    return f"file:{quote(str(database))}?immutable=1"
+    """The database as a SQLite URI, its path written with forward slashes, which SQLite reads on every platform."""
+    return f"file:{quote(Path(database).as_posix(), safe='/:')}?immutable=1"
 
 
 def opened(database: Path) -> sqlite3.Connection:

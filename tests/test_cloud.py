@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from test_ask import built  # noqa: F401  a fixture
+from subprocess_support import own_folders
 from test_index_core import Words
 from test_project_file import BASE, commit, no_configuration, put, quiet_git, repo, sh  # noqa: F401  the last two are autouse fixtures
 from vyvid import ask, cli, embed
@@ -149,9 +150,7 @@ def test_a_real_command_with_no_terminal_trusts_the_listed_repository_and_trust_
     home = tmp_path / "home"
     home.mkdir()
     env = {k: v for k, v in os.environ.items() if not k.startswith(("VYVID", "XDG_"))}
-    env |= {"HOME": str(home), "XDG_CONFIG_HOME": str(home / "xdg" / "config"), "XDG_STATE_HOME": str(home / "xdg" / "state"),
-            "XDG_DATA_HOME": str(home / "xdg" / "data"), "XDG_CACHE_HOME": str(home / "xdg" / "cache"), "USERPROFILE": str(home),
-            "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    env |= {**own_folders(home), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
     def run(*args, cwd):
         return subprocess.run([sys.executable, "-c", "import sys; from vyvid.cli import main; sys.exit(main(sys.argv[1:]))", *args],

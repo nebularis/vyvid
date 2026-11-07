@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from test_checkouts import quiet_git  # noqa: F401  an autouse fixture
+from subprocess_support import SYMLINKS, link_to_folder, own_folders, symlinks
 from test_command_extractors import PRELUDE
 from test_index_core import Words
 from test_trust import at_terminal
@@ -57,9 +58,10 @@ def sh(folder: Path, *args: str) -> None:
 
 
 def put(root: Path, name: str, text: str) -> Path:
+    """``text`` written with ``\\n``, so a file committed on Windows holds the same bytes as anywhere else."""
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     return path
 
 
@@ -199,15 +201,19 @@ def test_a_path_leaving_the_repository_is_refused_by_name_or_through_a_symlink_a
              (BASE.replace('"docs:contract.md"', '"docs:link.md"'), "contract names 'docs:link.md'"),
              (BASE + '[[project.extractors]]\nkind = "owl-terms"\npaths = ["code:docs/linked"]\n', "extractors.paths"))
     for n, (toml, said) in enumerate(cases):
+        if "docs:link.md" in toml and not symlinks():
+            continue  # a link to a file needs a symbolic link, which this machine refuses; the folder link below is tested
         root = repo(tmp_path, f"c{n}", toml)
-        os.symlink(outside, root / "docs" / "link.md")
-        os.symlink(tmp_path, root / "docs" / "linked")
+        if symlinks():
+            os.symlink(outside, root / "docs" / "link.md")
+        link_to_folder(root / "docs" / "linked", tmp_path)
         why = bound(root)[0].files_aside[str(root.resolve() / "vyvid.toml")]
         assert any(said in p for p in why), (said, why)
     good = repo(tmp_path, "good", BASE.replace('"docs:contract.md"', '"code:docs/contract.md"'))
     assert bound(good)[1].rules == [good.resolve() / "docs" / "contract.md"], "code: and docs: stay inside"
 
 
+@SYMLINKS
 def test_a_vyvid_toml_that_is_a_link_leaving_the_repository_is_not_read(tmp_path):
     outside = put(tmp_path, "outside.toml", BASE)
     root = tmp_path / "clone"
@@ -408,8 +414,7 @@ def test_vyd_trust_without_a_terminal_records_nothing(tmp_path):
     root = repo(tmp_path)
     home = tmp_path / "home"
     home.mkdir()
-    env = {**os.environ, "HOME": str(home), "XDG_STATE_HOME": str(home / "state"), "XDG_CONFIG_HOME": str(home / "config"),
-           "VYVID_CONFIG": str(tmp_path / "absent.toml")}
+    env = {**os.environ, **own_folders(home), "VYVID_CONFIG": str(tmp_path / "absent.toml")}
     done = subprocess.run([sys.executable, "-c", "import sys; from vyvid.cli import main; sys.exit(main(sys.argv[1:]))", "trust"],
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, cwd=root)
     assert done.returncode == 1 and "a person must run vyd trust" in done.stderr

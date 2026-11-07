@@ -12,6 +12,8 @@ import pytest
 from vyvid import cli, install, remind, skills
 from vyvid.config import ConfigError, load
 
+from subprocess_support import link_to_folder
+
 DOMAIN_SKILL = """---
 name: lifecycle
 description: Use when picking up a slice or finishing work
@@ -192,6 +194,13 @@ def test_a_target_leaving_the_checkout_is_refused(tmp_path):
         world(tmp_path, 'skill_targets = ["../elsewhere"]')
 
 
+@pytest.mark.parametrize("target", ["/abs", "\\\\abs", "~/skills"])
+def test_a_rooted_target_is_refused_on_every_platform(tmp_path, target):
+    """A path starting at a root leaves the checkout, though Windows calls ``/abs`` relative, since it has no drive."""
+    with pytest.raises(ConfigError, match="leaves the checkout"):
+        world(tmp_path, f"skill_targets = [{json.dumps(target)}]")
+
+
 def test_a_personal_skill_is_not_written_for_a_domain_a_project_uses(tmp_path):
     config, _ = world(tmp_path)
     target = tmp_path / "client"
@@ -247,7 +256,7 @@ def test_a_hand_made_link_is_left_and_named_and_a_stale_generated_skill_goes(tmp
     config, domain = private(tmp_path)
     target = tmp_path / "client"
     (target / "skills").mkdir(parents=True)
-    (target / "skills" / "lattice-boundaries").symlink_to(domain / "skills" / "lattice-boundaries")
+    link_to_folder(target / "skills" / "lattice-boundaries", domain / "skills" / "lattice-boundaries")
     assert install.install(config, "claude-code", target, dry_run=False) == 1
     assert "was not generated" in capsys.readouterr().out
     (target / "skills" / "lattice-boundaries").unlink()
@@ -396,6 +405,7 @@ def test_a_skills_check_that_did_not_run_exits_two_and_never_one(tmp_path, monke
 
 def test_user_hooks_are_written_for_claude_code_and_for_no_other_client(monkeypatch, capsys, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "absent.toml"))
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".copilot").mkdir()

@@ -53,11 +53,11 @@ class World:
         text = f"""
 [[domains]]
 name = "triple-stores"
-path = "{self.tmp / 'ts'}"
+path = "{(self.tmp / 'ts').as_posix()}"
 
 [[projects]]
 name = "lattice"
-code = "{self.code}"
+code = "{self.code.as_posix()}"
 domains = ["triple-stores"]
 families = {{ STD = {{ defined = "docs:standards.md", type = "standard" }}{', TSD = { rule = "heading", pattern = \'TSD-\\d+\', defined = "docs:record.md" }' if keep else ''} }}
 
@@ -216,18 +216,18 @@ def test_a_domain_may_cite_its_ancestors_and_no_other_domain(tmp_path):
     write(tmp_path / "config.toml", f'''
 [[domains]]
 name = "a"
-path = "{tmp_path / 'a'}"
+path = "{(tmp_path / 'a').as_posix()}"
 families = {{ A = {{}} }}
 rules = "rules.md"
 [[domains]]
 name = "b"
-path = "{tmp_path / 'b'}"
+path = "{(tmp_path / 'b').as_posix()}"
 parents = ["a"]
 families = {{ B = {{}} }}
 rules = "rules.md"
 [[projects]]
 name = "p"
-code = "{tmp_path}"
+code = "{tmp_path.as_posix()}"
 domains = ["b"]
 ''')
     config = load(tmp_path / "config.toml")

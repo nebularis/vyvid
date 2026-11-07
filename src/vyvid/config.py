@@ -367,6 +367,17 @@ class Run:
 STOP_SECONDS = 2
 
 
+PLAIN = re.compile(r"[\w@%+=:,./\\-]+")
+
+
+def command_line(args: list[str]) -> str:
+    """A command as a person pastes it into the shell of this platform: PowerShell on Windows, whose single quotes are
+    literal and doubled to hold one, and a POSIX shell elsewhere."""
+    if os.name != "nt":
+        return shlex.join(args)
+    return " ".join(a if PLAIN.fullmatch(a) else "'" + a.replace("'", "''") + "'" for a in args)
+
+
 def _signal_group(process: subprocess.Popen, sig) -> None:
     if sig is not None and hasattr(os, "killpg"):
         try:
@@ -375,17 +386,25 @@ def _signal_group(process: subprocess.Popen, sig) -> None:
             pass
 
 
+def _stop_tree(process: subprocess.Popen) -> None:
+    """End a process and every process it started, on Windows, which has no process group to signal. ``taskkill`` is named
+    from the system folder, so no program of that name on ``PATH`` runs instead."""
+    taskkill = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32" / "taskkill.exe"
+    subprocess.run([str(taskkill), "/T", "/F", "/PID", str(process.pid)], capture_output=True)
+
+
 def run_limited(command: list[str], request: str, folder: Path, env: dict[str, str], seconds: float) -> subprocess.CompletedProcess:
     """Run a command in a session of its own, so a time limit also stops what it started, such as the
     program a wrapper like ``mise run`` runs: SIGTERM to the group, a moment to finish, then SIGKILL.
-    As the session's leader, ``mise run`` keeps its task in the group. Raises
-    ``subprocess.TimeoutExpired`` at the limit."""
+    As the session's leader, ``mise run`` keeps its task in the group. On Windows the tree of processes is
+    ended at once. Raises ``subprocess.TimeoutExpired`` at the limit."""
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                                cwd=folder, env=env, start_new_session=True)
     try:
         out, err = process.communicate(request, timeout=seconds)
     except subprocess.TimeoutExpired:
-        # ponytail: on Windows only the direct child is stopped, to be settled when the suite runs there.
+        if os.name == "nt":
+            _stop_tree(process)
         _signal_group(process, signal.SIGTERM if hasattr(signal, "SIGKILL") else None)
         try:
             process.wait(timeout=STOP_SECONDS)
@@ -446,7 +465,11 @@ def git_names(raw: bytes) -> list[str]:
     system holds. A name the file system's encoding cannot decode is left out, with a note, since text an index or a log
     stores cannot hold it."""
     names = []
-    for name in (os.fsdecode(n) for n in raw.split(b"\0") if n):
+    for raw_name in (n for n in raw.split(b"\0") if n):
+        try:
+            name = os.fsdecode(raw_name)
+        except UnicodeDecodeError:  # Windows decodes a name strictly, so there its bytes come back as surrogates here
+            name = raw_name.decode("utf-8", "surrogateescape")
         if any("\udc80" <= c <= "\udcff" for c in name):
             print(f"vyd: {name.encode('utf-8', 'backslashreplace').decode()} is a tracked name the file system's encoding cannot decode, so it is not read", file=sys.stderr)
             continue
@@ -814,7 +837,8 @@ def _inside_checkout(value, key: str, where: str, problems: list[str]) -> tuple[
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
         problems.append(f"{where}: {key} must be a list of folders")
         return ()
-    bad = [v for v in value if Path(v).is_absolute() or ".." in Path(v).parts or v.startswith("~")]
+    bad = [v for v in value if Path(v).is_absolute() or Path(v).drive or v.replace("\\", "/").startswith("/") or ".." in Path(v).parts
+           or v.startswith("~")]
     if bad:
         problems.append(f"{where}: {key} names {', '.join(bad)}, which leaves the checkout")
     return tuple(v for v in value if v not in bad)

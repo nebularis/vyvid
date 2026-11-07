@@ -12,6 +12,7 @@ import base64
 import json
 import os
 import re
+import stat
 import tomllib
 import unicodedata
 from dataclasses import asdict, dataclass
@@ -72,20 +73,32 @@ def hidden(text: str) -> list[str]:
     return [kind for kind, hit in (("invisible", any(unicodedata.category(c) == "Cf" for c in text)), ("html-comment", HTML_COMMENT in text)) if hit]
 
 
+def _linked(path: Path) -> bool:
+    """Whether ``path`` is a link: a symbolic link, or a directory junction, which Windows lets any user make. A junction
+    is a mount point reparse tag, asked of ``lstat`` since ``Path.is_junction`` came only with Python 3.12."""
+    if path.is_symlink():
+        return True
+    try:
+        return getattr(os.lstat(path), "st_reparse_tag", 0) == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", -1)
+    except OSError:
+        return False
+
+
 def _files(folder: Path) -> list[Path]:
     """Every file and every link in the folder, without following a link and without the ``.git`` folder."""
     found: list[Path] = []
     for here, dirs, names in os.walk(folder, followlinks=False):
-        dirs[:] = sorted(d for d in dirs if d != ".git")
+        links = [d for d in dirs if _linked(Path(here) / d)]
+        dirs[:] = sorted(d for d in dirs if d != ".git" and d not in links)
         found += [Path(here) / n for n in sorted(names)]
-        found += [Path(here) / d for d in dirs if (Path(here) / d).is_symlink()]
+        found += [Path(here) / d for d in sorted(links)]
     return found
 
 
 def _layout(folder: Path, path: Path) -> list[Finding]:
     """Links, files that are not text, and executable files."""
     rel = path.relative_to(folder).as_posix()
-    if path.is_symlink():
+    if _linked(path):
         target = os.readlink(path)
         outside = not Path(os.path.realpath(path)).is_relative_to(Path(os.path.realpath(folder)))
         return [Finding(rel, 0, "symlink", ("leaves the folder " if outside else "") + f"-> {target}")]
@@ -189,7 +202,7 @@ def audit(folder: Path, allow: tuple[str, ...] = ()) -> list[Finding]:
     out = _manifest(folder)
     for path in _files(folder):
         out += _layout(folder, path)
-        if not path.is_symlink():
+        if not _linked(path):
             out += _content(folder, path, scopes)
     return [Finding(f.path, f.line, f.kind, _cut(f.text)) for f in out]
 

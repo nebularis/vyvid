@@ -101,6 +101,12 @@ def test_a_remote_is_normalised_as_host_owner_repository(url):
     assert normalise_remote(url) == "github.com/nebularis/lattice"
 
 
+def test_a_local_remote_is_the_same_written_with_either_separator():
+    """Git keeps a remote as it was given, so a clone made with a Windows path holds backslashes and one configured with
+    forward slashes names the same folder."""
+    assert normalise_remote(r"C:\Users\me\remote.git") == normalise_remote("C:/Users/me/remote.git")
+
+
 def test_a_bare_identifier_means_the_scope_it_is_written_in(world):
     config = load()
     assert resolve(config, "STD-12", config.projects["lattice"]) == "lattice:STD-12"

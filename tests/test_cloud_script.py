@@ -50,10 +50,10 @@ def world(tmp_path, monkeypatch):
     git(withkey, "remote", "add", "origin", "https://example.org/ignored.git")
     cf.config_path().parent.mkdir(parents=True, exist_ok=True)
     cf.config_path().write_text(
-        f'[framework]\nkb = "~/kb"\n\n[[domains]]\nname = "mine"\npath = "{named}"\ntrust = "own"\n\n'
-        f'[[domains]]\nname = "other"\npath = "{home / "work" / "other"}"\ntrust = "own"\n\n'
-        f'[[domains]]\nname = "pub-key"\npath = "{withkey}"\nvisibility = "public"\nremote = "https://github.com/example/pub-key.git"\ntrust = "own"\n\n'
-        f'[[domains]]\nname = "pub-origin"\npath = "{viaorigin}"\nvisibility = "public"\ntrust = "knowledge"\n', encoding="utf-8")
+        f'[framework]\nkb = "~/kb"\n\n[[domains]]\nname = "mine"\npath = "{named.as_posix()}"\ntrust = "own"\n\n'
+        f'[[domains]]\nname = "other"\npath = "{(home / "work" / "other").as_posix()}"\ntrust = "own"\n\n'
+        f'[[domains]]\nname = "pub-key"\npath = "{withkey.as_posix()}"\nvisibility = "public"\nremote = "https://github.com/example/pub-key.git"\ntrust = "own"\n\n'
+        f'[[domains]]\nname = "pub-origin"\npath = "{viaorigin.as_posix()}"\nvisibility = "public"\ntrust = "knowledge"\n', encoding="utf-8")
     return tmp_path
 
 
@@ -130,6 +130,7 @@ def test_the_script_writes_every_file_byte_for_byte_and_a_loadable_configuration
     assert f"uv tool install --force git+https://github.com/nebularis/vyvid.git@v{__version__}" in calls
     assert "vyd kb clone" in calls and "vyd install --client claude-code" in calls
     monkeypatch.setenv("HOME", str(cloud_home))
+    monkeypatch.setenv("USERPROFILE", str(cloud_home))
     config = cf.load(cloud_home / ".config" / "vyvid" / "config.toml")
     assert set(config.domains) == {"mine", "pub-key", "pub-origin"}
     assert config.domains["mine"].path == cloud_home / "work" / "mine" and config.domains["mine"].trust == "own"
@@ -199,6 +200,7 @@ def test_a_domain_not_configured_is_refused(world, capsys):
 
 def test_a_folder_outside_home_needs_a_path(world, capsys, monkeypatch):
     monkeypatch.setenv("HOME", str(world / "elsewhere"))
+    monkeypatch.setenv("USERPROFILE", str(world / "elsewhere"))
     assert "outside the home folder" in refused(world, capsys, "--domain", "mine")
 
 
@@ -252,7 +254,7 @@ def test_a_named_domain_with_skills_is_always_on_in_the_cloud_only(world, capsys
     ruled = repo(local / "work" / "ruled", {"domain.toml": b'name = "ruled"\nalways_rules = "self:rules/on.md"\n', "rules/on.md": b"On.\n",
                                            "skills/other/SKILL.md": b"---\nname: other\ndescription: y\n---\n"})
     with cf.config_path().open("a", encoding="utf-8") as f:
-        f.write(f'\n[[domains]]\nname = "skilled"\npath = "{skilled}"\ntrust = "own"\n\n[[domains]]\nname = "ruled"\npath = "{ruled}"\ntrust = "own"\n')
+        f.write(f'\n[[domains]]\nname = "skilled"\npath = "{skilled.as_posix()}"\ntrust = "own"\n\n[[domains]]\nname = "ruled"\npath = "{ruled.as_posix()}"\ntrust = "own"\n')
     code, out, err, script = make(world, capsys, "--domain", "skilled", "--domain", "ruled")
     assert code == 0, err
     assert "domain skilled: its 1 skill always on in the cloud" in out and "domain ruled: its" not in out

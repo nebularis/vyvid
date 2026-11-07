@@ -8,13 +8,18 @@ import pytest
 
 from vyvid import config
 
+from subprocess_support import GIT_ALONE, own_folders
+
 
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path_factory, monkeypatch, request):
-    """The user's folders are temporary ones. Configurations count as trusted, so the suite's glue and
+    """The user's folders are temporary ones, for this process and for every process it starts, and git reads none of
+    the user's configuration. Configurations count as trusted, so the suite's glue and
     command extractors run, and so does a repository's vyvid.toml, unless a test is marked ``real_trust``, which
     exercises the real decision."""
     home = tmp_path_factory.mktemp("home")
+    for name, value in {**own_folders(home), **GIT_ALONE}.items():
+        monkeypatch.setenv(name, value)
     for kind in ("state", "data", "config", "cache"):
         monkeypatch.setattr(platformdirs, f"user_{kind}_path", lambda *a, k=kind, **_: home / k)
     if "real_trust" not in request.keywords:
