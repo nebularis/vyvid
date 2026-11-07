@@ -254,7 +254,8 @@ def parse(raw, expand: Callable[[str], Path | None], where: str, problems: list[
             problems.append(f"{where}: work.main must be a branch name")
     if "presence" in raw:
         value = raw["presence"]
-        if isinstance(value, str) and value and not os.path.isabs(value) and ".." not in Path(value.replace("\\", "/")).parts \
+        if isinstance(value, str) and value and not os.path.isabs(value) and not value.startswith(("/", "\\")) \
+                and ".." not in Path(value.replace("\\", "/")).parts \
                 and ".git" not in Path(value.replace("\\", "/")).parts and not re.match(r"[A-Za-z][\w-]*:|~", value):
             found["presence"] = value
         else:

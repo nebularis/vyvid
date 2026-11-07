@@ -42,7 +42,7 @@ import pyoxigraph as ox
 
 from . import ask, embed
 from . import config as cfg
-from .config import GLUE_ENV, Recipe, Scope, glue_env, run_limited  # noqa: F401  GLUE_ENV stays importable from here
+from .config import GLUE_ENV, Recipe, Scope, command_line, glue_env, run_limited  # noqa: F401  GLUE_ENV stays importable from here
 from .build import store_dir
 from .credentials import private_dir, redact
 from .model import node_of
@@ -235,13 +235,13 @@ def stop_at(a: ask.Asker, recipe: Recipe, question: str, folder: Path, stopped: 
     given.write_text(json.dumps(stopped.result, ensure_ascii=False), encoding="utf-8", newline="\n")
     state.write_text(json.dumps({"recipe": recipe.name, "question": question, "next": stopped.index + 1, "budget": recipe.budget,
                                  "folder": str(folder.resolve())}, indent=2) + "\n", encoding="utf-8", newline="\n")
-    resume = shlex.join(["vyd", "recipe", "run", "--resume", str(state), "--glue-output", str(output)])
+    resume = command_line(["vyd", "recipe", "run", "--resume", str(state), "--glue-output", str(output)])
     declaring = a.config.scope(recipe.scope)
     why = cfg.not_trusted(a.config, declaring, "recipes")
     untrusted = [] if cfg.may_run(a.config, declaring, "recipes") else [f"{why[0].upper()}{why[1:]}, so vyd would not run this glue itself. Your client approves the command."]
     return "\n".join([
         f"Recipe {recipe.name} stopped at step {stopped.index + 1} of {len(recipe.steps)}, a glue step. vyd runs no glue in this form.",
-        f"command: {shlex.join(step['command'])}",
+        f"command: {command_line(step['command'])}",
         f"folder: {a.config.scope(recipe.scope).code}",
         f"input: {given}   (pass it on the command's standard input)",
         f"output: {output}   (write the command's standard output here, a JSON list of entries each with an id)",

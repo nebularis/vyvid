@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from test_index_core import Words
+from subprocess_support import FOLDER_LINKS, SYMLINKS, link_to_folder
 from vyvid import ask, cli, configure
 from vyvid import build as builder
 from vyvid.config import load
@@ -150,14 +151,20 @@ def test_the_file_is_written_whole_in_utf8_with_lf_and_keeps_its_mode(tmp_path, 
     assert ok(capsys, "domain", "add", "tools", "--path", str(tmp_path / "tools"))
     raw = conf.read_bytes()
     assert not raw.startswith(b"\xef\xbb\xbf") and b"\r" not in raw and "# Вивід".encode() in raw
-    assert stat.S_IMODE(conf.stat().st_mode) == 0o640 and not list(tmp_path.glob(".vyd-*"))
+    assert not list(tmp_path.glob(".vyd-*"))
+    if os.name == "nt":  # Windows keeps a read-only flag, not a mode, and the rewrite leaves the file writable as it was
+        assert conf.stat().st_mode & stat.S_IWRITE
+    else:
+        assert stat.S_IMODE(conf.stat().st_mode) == 0o640
 
 
 def test_a_missing_configuration_is_created_owner_only_in_a_folder_made_for_it(tmp_path, monkeypatch, capsys):
     path = tmp_path / "new" / "vyvid" / "config.toml"
     monkeypatch.setenv("VYVID_CONFIG", str(path))
     assert ok(capsys, "domain", "add", "tools", "--path", str(tmp_path / "tools"))
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600 and stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert path.is_file() and path.parent.is_dir()
+    if os.name != "nt":  # an owner-only mode means nothing to Windows, which keeps access in a list the folder's owner sets
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600 and stat.S_IMODE(path.parent.stat().st_mode) == 0o700
     assert load().domains["tools"].trust == "knowledge"
 
 
@@ -543,18 +550,40 @@ def test_a_family_definition_cannot_leave_the_project(tmp_path, conf, capsys):
     docs = docs_repo(tmp_path)
     secret = tmp_path / "secret.md"
     secret.write_text("| ID | Debt | Why it matters |\n|---|---|---|\n| TD-1 | **x** | y |\n", encoding="utf-8")
-    (docs / "link.md").symlink_to(secret)
     conf.write_text(f'[[projects]]\nname = "p"\ncode = "{code_root.as_posix()}"\ndocs = "{docs.as_posix()}"\n', encoding="utf-8")
     for defined in ("docs:../secret.md", "code:../secret.md", str(secret), "kb:x", "~/x.md", "self:x"):
         code, out, err = vyd(capsys, "family", "add", "p", "TD", "--defined", defined, "--type", "debt")
         assert code == 1 and ("leaves" in err or "outside" in err or "token" in err), (defined, err)
     assert "TD" not in load().projects["p"].families
-    assert vyd(capsys, "family", "add", "p", "TD", "--defined", "docs:link.md", "--type", "debt")[0] == 1, "a link out of the documents is refused too"
-    found = configure.tables(docs)
-    assert all(t.file != "link.md" for t in found), "a link out of the documents is not read by a scan"
     code, out, err = vyd(capsys, "project", "add", "q", "--code", str(code_root), "--docs", str(docs / ".." / ".." / "x"))
     assert code == 0, "a path with .. in the user's own configuration is made absolute, not kept"
     assert ".." not in tomllib.loads(conf.read_text(encoding="utf-8"))["projects"][1]["docs"]
+
+
+@SYMLINKS
+def test_a_family_definition_that_is_a_link_leaving_the_documents_is_refused(tmp_path, conf, capsys):
+    code_root = checkout(tmp_path, "code")
+    docs = docs_repo(tmp_path)
+    secret = tmp_path / "secret.md"
+    secret.write_text("| ID | Debt | Why it matters |\n|---|---|---|\n| TD-1 | **x** | y |\n", encoding="utf-8")
+    (docs / "link.md").symlink_to(secret)
+    conf.write_text(f'[[projects]]\nname = "p"\ncode = "{code_root.as_posix()}"\ndocs = "{docs.as_posix()}"\n', encoding="utf-8")
+    assert vyd(capsys, "family", "add", "p", "TD", "--defined", "docs:link.md", "--type", "debt")[0] == 1, "a link out of the documents is refused too"
+    found = configure.tables(docs)
+    assert all(t.file != "link.md" for t in found), "a link out of the documents is not read by a scan"
+
+
+@FOLDER_LINKS
+def test_a_family_definition_through_a_folder_link_leaving_the_documents_is_refused(tmp_path, conf, capsys):
+    """The same through a link to a folder, which Windows makes as a junction where it refuses a symbolic link."""
+    code_root = checkout(tmp_path, "code")
+    docs = docs_repo(tmp_path)
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "secret.md").write_text("| ID | Debt | Why it matters |\n|---|---|---|\n| TD-1 | **x** | y |\n", encoding="utf-8")
+    link_to_folder(docs / "linked", tmp_path / "outside")
+    conf.write_text(f'[[projects]]\nname = "p"\ncode = "{code_root.as_posix()}"\ndocs = "{docs.as_posix()}"\n', encoding="utf-8")
+    assert vyd(capsys, "family", "add", "p", "TD", "--defined", "docs:linked/secret.md", "--type", "debt")[0] == 1
+    assert all(not t.file.startswith("linked") for t in configure.tables(docs)), "a folder link out of the documents is not read by a scan"
 
 
 def test_a_domain_manifest_that_is_refused_stops_the_add(tmp_path, conf, capsys):

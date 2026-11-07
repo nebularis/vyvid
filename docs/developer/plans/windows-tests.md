@@ -33,7 +33,7 @@ Measured on 2026-11-07 at `v0.2.16`, unelevated, without Developer Mode:
 | # | Decision | Date |
 |---|---|---|
 | 1 | a test that needs a symbolic link to a directory has a Windows form that makes a directory junction, which needs no privilege. A test that needs a symbolic link to a file skips where the machine refuses one, naming the privilege, since no link to a file can be made without it | 2026-11-07 |
-| 2 | owner-only modes stay a POSIX test, and the Windows form checks what the file holds. Restricting a file with an access control list on Windows is a pending decision, not this unit's | 2026-11-07 |
+| 2 | owner-only modes stay a POSIX test, and the Windows form checks what the file holds. Restricting a file with an access control list on Windows is PDD-1, not this unit's | 2026-11-07 |
 | 3 | the resume command `vyd` prints is quoted for PowerShell on Windows and for a POSIX shell elsewhere | 2026-11-07 |
 | 4 | a test that sets a locale with `LC_ALL` skips on Windows, which has no per-process locale. `PYTHONIOENCODING` already tests the streams there | 2026-11-07 |
 | 5 | a skip names what the machine lacks, and a test that skips on Windows has a Windows form wherever one can be written | 2026-11-07 |

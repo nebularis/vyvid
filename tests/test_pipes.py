@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from subprocess_support import HOOK, POSIX, VYD, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
+from subprocess_support import HOOK, POSIX, VYD, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, unseen, vyd
 from test_encodings import ENCODINGS, LOCALES
 from vyvid import streams
 
@@ -186,7 +186,7 @@ def test_a_hook_payload_with_unicode_survives_every_output_encoding(encoding, tm
 @pytest.mark.parametrize("locale", [name for name in LOCALES if name != "utf8"])
 def test_a_hook_payload_with_unicode_under_a_code_page_locale(locale, tmp_path):
     if not sees(locale):
-        pytest.skip(f"the {locale} locale is not installed")
+        pytest.skip(unseen(locale))
     ran = hook(environment(tmp_path, **LOCALES[locale]), json.dumps(SEARCH, ensure_ascii=False).encode("utf-8"))
     assert ran.code == 0 and "hookSpecificOutput" in decoded(ran), ran
 
@@ -333,7 +333,7 @@ def extractor_world(tmp_path: Path, mode: str, pad: int = 0, name: str = "code",
 @pytest.mark.parametrize("locale", ["utf8", "zh_CN.GBK"])
 def test_a_command_extractor_that_writes_invalid_bytes_floods_or_leaves_early_is_no_crash(mode, pad, locale, tmp_path):
     if locale != "utf8" and not sees(locale):
-        pytest.skip(f"the {locale} locale is not installed")
+        pytest.skip(unseen(locale))
     # A name this locale can hold, written in its encoding: on Linux a GBK machine cannot name a folder in Ukrainian
     encoding = file_name_encoding(tuple(LOCALES[locale].items()))
     env, code, seen = extractor_world(tmp_path, mode, pad, name="代码 проєкт" if holds("代码 проєкт", encoding) else "代码 项目", encoding=encoding)
@@ -366,7 +366,7 @@ else:
 @pytest.mark.parametrize("locale", ["utf8", "zh_CN.GBK"])
 def test_glue_that_writes_invalid_bytes_or_unicode_is_no_crash(mode, code, locale, tmp_path):
     if locale != "utf8" and not sees(locale):
-        pytest.skip(f"the {locale} locale is not installed")
+        pytest.skip(unseen(locale))
     env = environment(tmp_path, **LOCALES[locale])
     encoding = file_name_encoding(tuple(LOCALES[locale].items()))
     root = tmp_path / "代码"

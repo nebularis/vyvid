@@ -74,7 +74,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shlex
 import sys
 import time
 from dataclasses import replace
@@ -82,7 +81,7 @@ from pathlib import Path
 
 from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
 from . import config as configuration
-from .config import ConfigError, config_path, extractor_runs, load, timeouts
+from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
 from .registers import DeclarationError
 from .resolve import Unresolved, bind_in, file_scope, layers, project_file, resolve
@@ -103,11 +102,26 @@ QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "g
 
 
 def _person() -> bool:
-    """Whether a person is at a terminal. A speed bump for an agent, and no proof, since one can be given a pseudo-terminal."""
+    """Whether a person is at a terminal. A speed bump for an agent, and no proof, since one can be given a pseudo-terminal.
+    On Windows the null device answers ``isatty()`` too, so there the console itself is asked."""
     try:
-        return sys.stdin is not None and sys.stdin.isatty()
+        if sys.stdin is None or not sys.stdin.isatty():
+            return False
     except ValueError:  # closed
         return False
+    return os.name != "nt" or _windows_console(sys.stdin.fileno())
+
+
+def _windows_console(fd: int) -> bool:
+    """Whether ``fd`` is a Windows console, which answers GetConsoleMode where a file or the null device does not."""
+    import ctypes
+    import msvcrt
+
+    try:
+        handle = msvcrt.get_osfhandle(fd)
+    except OSError:
+        return False
+    return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(ctypes.c_uint32())))
 
 
 def _set_aside(config) -> None:
@@ -226,7 +240,7 @@ def kb_status(config) -> int:
                   f"{f'{s.changes} uncommitted' if s.changes else 'clean'}, last pulled {pulled}")
         print(f"   policy pull={s.policy.pull} commit={s.policy.commit} push={s.policy.push}, trust {scope.trust}")
         if s.held:
-            read = shlex.join(["git", "-C", str(s.folder), "diff", "HEAD...@{u}"])
+            read = command_line(["git", "-C", str(s.folder), "diff", "HEAD...@{u}"])
             print(f"   held: {', '.join(s.held)} changed upstream and nothing was merged. Read {read}, then a person runs vyd kb accept {s.name}")
     return 0
 
@@ -248,7 +262,7 @@ def kb_accept(config, name: str) -> int:
     held = set(kb.held(scope))
     for file in kb.changed(scope):
         print(f"  {file}" + ("   (instruction-bearing)" if file in held else ""))
-    print("Read it with " + shlex.join(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"]))
+    print("Read it with " + command_line(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"]))
     if _typed(f"Type {name} to accept these changes: ") != name:
         print("not accepted")
         return 1

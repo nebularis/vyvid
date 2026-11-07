@@ -68,7 +68,9 @@ def test_a_folder_argument_keeps_its_bytes_and_a_text_argument_does_not():
 
     arguments = Namespace(folder="caf\udce9", words=["caf\udce9"], identifier="STD-1\udcc3")
     clean_arguments(arguments)
-    assert arguments.folder == "caf\udce9" and os.fsencode(arguments.folder) == b"caf\xe9"
+    assert arguments.folder == "caf\udce9", "a path is left as it came"
+    if os.name != "nt":  # Windows passes a command line as UTF-16, so no byte of a name stands behind a lone surrogate there
+        assert os.fsencode(arguments.folder) == b"caf\xe9"
     assert arguments.words == ["caf�"] and arguments.identifier == "STD-1�"
 
 

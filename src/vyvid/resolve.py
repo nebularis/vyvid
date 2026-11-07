@@ -32,8 +32,9 @@ class Unresolved(Exception):
 
 
 def normalise_remote(url: str) -> str:
-    """A remote URL as host/owner/repository, lower case: no scheme, no user, no .git."""
-    url = re.sub(r"^[a-z+]+://", "", url.strip())
+    """A remote URL as host/owner/repository, lower case: no scheme, no user, no .git. A local remote's backslashes are
+    slashes, since git keeps a remote as it was given and a Windows path may be written either way."""
+    url = re.sub(r"^[a-z+]+://", "", url.strip().replace("\\", "/"))
     url = re.sub(r"^[^@/]+@", "", url)
     url = re.sub(r"^([^/:]+):(?!\d)", r"\1/", url)
     return re.sub(r"(\.git)?/*$", "", url).lower()

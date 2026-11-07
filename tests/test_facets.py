@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
 import pyoxigraph as ox
 import pytest
@@ -59,7 +60,7 @@ def test_a_projects_registers_follow_the_general_one(tmp_path, monkeypatch):
     monkeypatch.setenv("VYVID_CONFIG", str(config))
     c = load()
     names = [name for name, _ in facets.registers(layers(c, bind(c, project)))]
-    assert names[0] == "vyvid:data/facets.md" and names[1].endswith("docs/facets.md")
+    assert names[0] == "vyvid:data/facets.md" and Path(names[1]) == project / "docs" / "facets.md"
     assert "cabal" in facets.taggable(facets.merge(facets.registers(layers(c, bind(c, project))))[1])["Technology"]
 
 

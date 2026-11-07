@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import tempfile
@@ -22,7 +21,7 @@ from pathlib import Path
 from typing import Callable
 
 from .build import store_dir
-from .config import Config, GitPolicy, Scope, glue_env, run_limited
+from .config import Config, GitPolicy, Scope, command_line, glue_env, run_limited
 from .credentials import private_dir, redact, scan_file
 from .resolve import normalise_remote
 
@@ -197,7 +196,7 @@ def pull(config: Config, scopes: list[Scope], due: bool = False, clock: Callable
                 results.append(Result(scope.name, False, (fetched.stderr or fetched.stdout).strip()))
                 continue
             if files := held(scope):
-                read = shlex.join(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"])
+                read = command_line(["git", "-C", str(scope.path), "diff", "HEAD...@{u}"])
                 results.append(Result(scope.name, False, f"held, nothing merged, since these instruction-bearing files changed upstream: {', '.join(files)}. "
                                                            f"Read them with {read}, then a person runs vyd kb accept {scope.name}"))
                 continue

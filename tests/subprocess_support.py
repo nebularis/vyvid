@@ -21,16 +21,32 @@ HOOK = [sys.executable, "-P", "-m", "vyvid.remind"]
 NAME = "Вивід"
 POSIX = pytest.mark.skipif(os.name != "posix", reason="needs POSIX file descriptors, signals or shell scripts")
 KEEP = ("PATH", "SYSTEMROOT", "SYSTEMDRIVE", "TMPDIR", "TEMP", "TMP", "COMSPEC", "PATHEXT", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH")
+# Git without the caller's configuration, and with an author, so a commit in a test needs neither.
+GIT_ALONE = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0", "GIT_AUTHOR_NAME": "t",
+             "GIT_AUTHOR_EMAIL": "t@example.org", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.org"}
+
+
+def own_folders(home: Path) -> dict[str, str]:
+    """The variables that put every folder of the user's under ``home``. ``HOME`` is what ``~`` means on macOS and Linux,
+    ``USERPROFILE`` what it means on Windows, the ``XDG`` variables are the platform's folders on Linux, and the
+    ``WIN_PD_OVERRIDE`` variables are those folders on Windows, which ``platformdirs`` otherwise asks Windows for, whatever
+    ``HOME`` says."""
+    return {"HOME": str(home), "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home / "xc"), "XDG_STATE_HOME": str(home / "xs"),
+            "XDG_DATA_HOME": str(home / "xd"), "XDG_CACHE_HOME": str(home / "xk"),
+            "WIN_PD_OVERRIDE_LOCAL_APPDATA": str(home / "AppData" / "Local"), "WIN_PD_OVERRIDE_APPDATA": str(home / "AppData" / "Roaming")}
+
+
+def home_is(monkeypatch, home: Path) -> None:
+    """This process's home, and every folder of the user's, is ``home``."""
+    for name, value in own_folders(home).items():
+        monkeypatch.setenv(name, value)
 
 
 def environment(home: Path, **extra: str | None) -> dict[str, str]:
     """A child's environment: nothing of the caller's locale or Python settings, every folder of the user's under ``home``, and
     git without the caller's configuration. A value of None removes a variable."""
     env = {k: os.environ[k] for k in KEEP if k in os.environ}
-    env.update(HOME=str(home), USERPROFILE=str(home), XDG_CONFIG_HOME=str(home / "xc"), XDG_STATE_HOME=str(home / "xs"),
-               XDG_DATA_HOME=str(home / "xd"), XDG_CACHE_HOME=str(home / "xk"), VYVID_CONFIG=str(home / "absent.toml"),
-               VYVID_HOOK_STATE=str(home / "hook"), GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0",
-               GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.org", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.org")
+    env.update(own_folders(home), VYVID_CONFIG=str(home / "absent.toml"), VYVID_HOOK_STATE=str(home / "hook"), **GIT_ALONE)
     env.update({k: v for k, v in extra.items() if v is not None})
     for k, v in extra.items():
         if v is None:
@@ -105,10 +121,19 @@ def project(root: Path, docs: str = "docs", defined: str = "std.md", mention: st
 def sees(name: str) -> bool:
     """Whether a locale of this name is installed, asked of the C library as a process under it would ask, since glibc finds
     ``zh_CN.GBK`` installed as ``zh_CN.gbk`` and ``locale -a`` lists only the second. On Linux the locales are made with, for
-    example, ``localedef -i zh_CN -f GBK zh_CN.GBK``."""
+    example, ``localedef -i zh_CN -f GBK zh_CN.GBK``. Windows takes no locale from ``LC_ALL``, so a process there runs under the
+    machine's code page whatever the name, and none is seen."""
+    if os.name == "nt":
+        return False
     probe = "import locale; locale.setlocale(locale.LC_ALL, '')"
     return subprocess.run([sys.executable, "-c", probe], env={**environment(Path(tempfile.gettempdir())), "LC_ALL": name},
                           capture_output=True).returncode == 0
+
+
+def unseen(name: str) -> str:
+    """Why a test under the locale ``name`` is skipped."""
+    return ("Windows takes no locale from LC_ALL, so a process runs under the machine's code page" if os.name == "nt"
+            else f"the {name} locale is not installed")
 
 
 @functools.cache
@@ -126,3 +151,63 @@ def holds(text: str, encoding: str) -> bool:
     except UnicodeError:
         return False
     return True
+
+
+@functools.cache
+def symlinks() -> bool:
+    """Whether this process may make a symbolic link. Windows refuses one, error 1314, to a process without the privilege,
+    which an unelevated user has only with Developer Mode on."""
+    with tempfile.TemporaryDirectory() as scratch:
+        try:
+            (Path(scratch) / "link").symlink_to(Path(scratch) / "target")
+        except OSError:
+            return False
+    return True
+
+
+@functools.cache
+def junctions() -> bool:
+    """Whether this machine makes a directory junction, which Windows lets any user make where they may make a folder."""
+    if os.name != "nt":
+        return False
+    with tempfile.TemporaryDirectory() as scratch:
+        try:
+            junction(Path(scratch) / "link", Path(scratch))
+        except OSError:
+            return False
+    return True
+
+
+def junction(link: Path, target: Path) -> None:
+    """``link`` as a directory junction to ``target``, on Windows only. A junction stores an absolute target."""
+    import _winapi
+
+    _winapi.CreateJunction(str(Path(target).resolve()), str(link))
+
+
+def link_to_folder(link: Path, target: Path) -> None:
+    """``link`` as a link to the folder ``target``: a symbolic link where this process may make one, a junction where it
+    may not, which Windows reads as the same folder."""
+    if symlinks():
+        link.symlink_to(target, target_is_directory=True)
+    else:
+        junction(link, target)
+
+
+@functools.cache
+def long_paths() -> bool:
+    """Whether this machine opens a path longer than 260 characters. Windows does only with long paths enabled."""
+    with tempfile.TemporaryDirectory() as scratch:
+        try:
+            deep = Path(scratch, *["d" * 60] * 5)
+            deep.mkdir(parents=True)
+            (deep / "f").write_bytes(b"")
+        except OSError:
+            return False
+    return True
+
+
+SYMLINKS = pytest.mark.skipif(not symlinks(), reason="this machine refuses this process a symbolic link, as Windows does without the privilege")
+FOLDER_LINKS = pytest.mark.skipif(not (symlinks() or junctions()), reason="this machine makes neither a symbolic link nor a junction")
+JUNCTIONS = pytest.mark.skipif(not junctions(), reason="a directory junction is made on Windows only")
+LONG_PATHS = pytest.mark.skipif(not long_paths(), reason="this machine refuses a path longer than 260 characters, as Windows does with long paths off")

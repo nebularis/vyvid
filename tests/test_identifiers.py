@@ -48,7 +48,7 @@ class Repo:
         monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "config.toml"))
 
     def config(self, families=FAMILIES, extra="", domains=""):
-        write(self.tmp / "config.toml", f'{domains}\n[[projects]]\nname = "proj"\ncode = "{self.code}"\n{extra}\n[projects.families]\n{families}')
+        write(self.tmp / "config.toml", f'{domains}\n[[projects]]\nname = "proj"\ncode = "{self.code.as_posix()}"\n{extra}\n[projects.families]\n{families}')
 
     def check(self, capsys, *args):
         forget()
@@ -158,8 +158,8 @@ def _moved(tmp_path, monkeypatch, notes, standards=STANDARDS):
     write(tmp_path / "ts/domain.toml", 'families = { RDF = { defined = "rdf.md", type = "standard" } }\n')
     moves = (f'\n[[projects.moves]]\nfamily = "STD"\nto = "ts"\nsource = "code:docs/standards.md"\ncommit = "{repo.head[:8]}"\n'
              'rows = { "STD-1" = "RDF-5", "STD-2" = "RDF-6" }\n')
-    domains = f'[[domains]]\nname = "ts"\nvisibility = "public"\npath = "{tmp_path / "ts"}"\n'
-    write(tmp_path / "config.toml", f'{domains}\n[[projects]]\nname = "proj"\ncode = "{repo.code}"\ndomains = ["ts"]\n\n[projects.families]\n{FAMILIES}{moves}')
+    domains = f'[[domains]]\nname = "ts"\nvisibility = "public"\npath = "{(tmp_path / "ts").as_posix()}"\n'
+    write(tmp_path / "config.toml", f'{domains}\n[[projects]]\nname = "proj"\ncode = "{repo.code.as_posix()}"\ndomains = ["ts"]\n\n[projects.families]\n{FAMILIES}{moves}')
     return repo
 
 
@@ -187,7 +187,7 @@ def test_a_qualified_mention_resolves_in_the_scope_it_names(tmp_path, monkeypatc
 def test_the_exceptions_key_of_a_manifest_may_not_leave_its_folder(tmp_path, monkeypatch):
     repo = Repo(tmp_path, monkeypatch)
     write(tmp_path / "ts/domain.toml", 'families = { RDF = { defined = "rdf.md", exceptions = "../outside.txt" } }\n')
-    repo.config(domains=f'[[domains]]\nname = "ts"\npath = "{tmp_path / "ts"}"\n', extra='domains = ["ts"]\n')
+    repo.config(domains=f'[[domains]]\nname = "ts"\npath = "{(tmp_path / "ts").as_posix()}"\n', extra='domains = ["ts"]\n')
     config = load(tmp_path / "config.toml")
     assert "leaves the domain's folder" in "\n".join(config.set_aside["ts"]) and "families.RDF.exceptions" in "\n".join(config.set_aside["ts"])
 

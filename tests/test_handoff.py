@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from test_checkouts import git, quiet_git  # noqa: F401  quiet_git is an autouse fixture
+from subprocess_support import SYMLINKS
 from test_symbols import SYMBOLS, Words, put
 from vyvid import ask, cli, handoff
 from vyvid import build as builder
@@ -102,7 +103,7 @@ def test_every_line_comes_from_a_template_with_the_absolute_database_and_a_limit
         if parts[0] == "hiedb":
             assert parts[1:3] == ["-D", world.abs] and command.endswith("| head -n 50")
         else:
-            assert parts[0] == "sqlite3" and parts[2] == f"file:{world.abs}?immutable=1" and parts[3].rstrip(";").endswith("limit 50")
+            assert parts[0] == "sqlite3" and parts[2] == f"file:{Path(world.abs).as_posix()}?immutable=1" and parts[3].rstrip(";").endswith("limit 50")
     assert "An empty result does not prove" in out
 
 
@@ -204,7 +205,8 @@ def test_the_end_of_a_symbol_find_names_vyd_handoff_when_a_tool_is_registered(tm
 
 
 def test_a_hostile_database_path_is_one_quoted_argument_and_nothing_is_run(tmp_path, monkeypatch, capsys, both):
-    nasty = '.build/x; touch pwned $(touch pwned2) `touch pwned3` "q" \'s\'.db'
+    # Windows file names cannot hold a double quote, so there the name keeps every other character a shell would act on.
+    nasty = '.build/x; touch pwned $(touch pwned2) `touch pwned3` ' + ('' if os.name == "nt" else '"q" ') + '\'s\'.db'
     world = World(tmp_path, monkeypatch, index=INDEX.replace('"code:.build/hie.db"', json.dumps(f"code:{nasty}")), database=False)
     make_db(world.code / nasty)
     git(world.code, "add", "-A")
@@ -277,6 +279,7 @@ def test_a_vyvid_toml_cannot_register_a_database_outside_the_repository_or_a_kin
         load()
 
 
+@SYMLINKS
 def test_a_database_that_is_a_link_leaving_the_repository_is_not_read(tmp_path, monkeypatch, capsys, both):
     outside = make_db(tmp_path / "outside.db")
     world = World(tmp_path / "w", monkeypatch, database=False)

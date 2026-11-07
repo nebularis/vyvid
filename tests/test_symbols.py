@@ -13,6 +13,7 @@ import pyoxigraph as ox
 import pytest
 
 from test_checkouts import git, quiet_git  # noqa: F401  quiet_git is an autouse fixture
+from subprocess_support import JUNCTIONS, SYMLINKS, junction
 from vyvid import ask, cli, embed
 from vyvid import build as builder
 from vyvid.config import ConfigError, load
@@ -161,6 +162,7 @@ def test_haskell_has_the_module_exports_docs_and_a_field_in_two_constructors_sta
     assert by_id["demo:Demo.Types.Pid.Local"][0]["kind"] == "constructor" and by_id["demo:Demo.Types.Pid"][0]["doc"] == "A process identifier."
 
 
+@SYMLINKS
 def test_only_tracked_files_are_read_and_a_link_leaving_the_repository_is_refused(tmp_path, monkeypatch):
     outside = put(tmp_path, "outside/secret.py", "def leaked(): pass\n")
     monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "config.toml"))
@@ -174,6 +176,21 @@ def test_only_tracked_files_are_read_and_a_link_leaving_the_repository_is_refuse
     names = {r["name"] for r in rows(tmp_path, project, config)}
     assert "kept" in names and "untracked" not in names and "leaked" not in names
     assert any("link.py: is a link that leaves the repository" in p for p in out.problems)
+
+
+@JUNCTIONS
+def test_a_tracked_file_reached_through_a_junction_leaving_the_repository_is_refused(tmp_path, monkeypatch):
+    """Git on Windows walks into a junction as into a folder, so a file outside the repository can be added under it."""
+    put(tmp_path, "outside/secret.py", "def leaked(): pass\n")
+    monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "config.toml"))
+    config, project, code = repo(tmp_path, {"a.py": "def kept(): pass\n"})
+    junction(code / "vendored", tmp_path / "outside")
+    git(code, "add", "vendored/secret.py")
+    git(code, "commit", "-q", "-m", "through a junction")
+    out = builder.build(config, project, model=Words())
+    names = {r["name"] for r in rows(tmp_path, project, config)}
+    assert "kept" in names and "leaked" not in names
+    assert any("secret.py: is a link that leaves the repository" in p for p in out.problems)
 
 
 def test_a_project_outside_git_has_no_symbols_and_says_so(tmp_path, monkeypatch):
@@ -343,7 +360,11 @@ def test_read_prints_the_source_lines_inside_the_repository_only(tmp_path, monke
     assert "== ledger.py:4-6" in out and "    return write()" in out
     ask.read(a, "demo:ledger.nothing")
     assert "nothing to read" in capsys.readouterr().out
-    # a tracked file replaced by a link that leaves the repository is never read
+
+
+@SYMLINKS
+def test_read_never_reads_a_tracked_file_replaced_by_a_link_leaving_the_repository(tmp_path, monkeypatch, capsys):
+    a, code = asked(tmp_path, monkeypatch, {"pyproject.toml": '[project]\nname = "demo"\n', "ledger.py": PY})
     outside = put(tmp_path, "outside.py", "def retry(): pass\n")
     (code / "ledger.py").unlink()
     os.symlink(outside, code / "ledger.py")
@@ -432,6 +453,7 @@ def test_reciprocal_rank_fusion_prefers_what_both_lists_rank_high():
     assert {i for i, _ in store.fuse([1, 2, 3], [3, 2, 9])[:2]} == {2, 3}
 
 
+@SYMLINKS
 def test_a_link_in_a_manifest_that_leaves_the_repository_is_not_read(tmp_path):
     outside = put(tmp_path, "outside/pyproject.toml", '[project]\nname = "stolen"\n')
     top = put(tmp_path, "repo/x.py", "").parent
