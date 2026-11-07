@@ -58,7 +58,7 @@
 ``vyd install --client claude-code [--target folder] [--dry-run]``
     write the client's user-level rule file and one skill per configured domain
 
-``vyd cloud script --output <file> [--domain name[=~/path]] [--grant remote] [--dry-run]``
+``vyd cloud script --output <file> [--domain name[=~/path]] [--grant remote] [--run path] [--dry-run]``
     write the setup script for a cloud environment: the private domains named are embedded, the public ones cloned. The script holds private text and is never printed
 
 ``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message> | accept <domain>``
@@ -727,6 +727,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output", required=True, help="the file to write, owner-only. The script holds private text, so it is never printed")
     p.add_argument("--domain", action="append", default=[], metavar="NAME[=PATH]", help="a private domain to embed, and where to write it in the cloud, under ~/. Repeat for several")
     p.add_argument("--grant", action="append", default=[], metavar="REMOTE", help="a repository whose vyvid.toml the cloud trusts, written as host/owner/repository. Repeat for several")
+    p.add_argument("--run", metavar="PATH", help="a setup script of the project's own, as a path inside its repository, run from the session's checkout after the rest")
     p.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
     sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
@@ -779,7 +780,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "store":
             return store_command(arguments)
         if arguments.command == "cloud":
-            return cloud.command(arguments.output, arguments.domain, arguments.grant, arguments.dry_run)
+            return cloud.command(arguments.output, arguments.domain, arguments.grant, arguments.dry_run, arguments.run)
         if arguments.command == "domain":
             if arguments.domain_command == "add":
                 return configure.domain_add(arguments.name, arguments.path, arguments.remote, arguments.trust, arguments.commit, arguments.visibility,

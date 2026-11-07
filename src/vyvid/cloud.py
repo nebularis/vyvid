@@ -102,7 +102,21 @@ def _home(path: str) -> str:
     return '"$HOME"/' + shlex.quote(path[2:])
 
 
-def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, list[str], str]:
+RUNNABLE = re.compile(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*")
+
+
+def run_lines(path: str) -> list[str]:
+    """Lines that run a setup script of the project's own from the session's checkout, which a cloud session clones under
+    /home/user and starts setup in. Raises Refusal for anything but a plain path inside a repository, so it needs no quoting."""
+    if not RUNNABLE.fullmatch(path) or any(part in (".", "..") for part in path.split("/")):
+        raise Refusal(f"--run '{path}' must be a path inside the repository of letters, digits, '.', '_', '-' and '/', such as tools/setup.sh")
+    return ["# The project's own setup, run from the session's checkout.",
+            f's=$(ls -d /home/user/*/{path} "$PWD"/{path} 2>/dev/null | head -1)',
+            f'if [ -n "$s" ]; then bash "$s"; else echo "vyd cloud script: no {path} in a checkout, so the project\'s own setup did not run"; fi',
+            "true"]
+
+
+def build(config: cf.Config, named: list[str], grants: list[str], run: str | None = None) -> tuple[str, list[str], str]:
     """The script's text, the lines that say what went into it, and its fingerprint. Raises Refusal."""
     chosen: dict[str, str | None] = {}
     for item in named:
@@ -165,7 +179,7 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
              'vyd install --client claude-code || fail "installing the client files"',
              "vyd --version", "vyd config | grep -E '^(configuration|domains):'",
              "# Output goes back where it went, and the script ends with success without exit, so lines pasted after it run.",
-             'exec 1>&3 2>&4 3>&- 4>&-', "true"]
+             'exec 1>&3 2>&4 3>&- 4>&-', "true", *(run_lines(run) if run is not None else [])]
     text = "\n".join(body) + "\n"
     digest = hashlib.sha256(text.encode()).hexdigest()[:12]
     head = ["#!/bin/sh", f"# Written by vyd cloud script, version {__version__}.",
@@ -174,9 +188,11 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
     return "\n".join(head) + "\n" + text, notes, digest
 
 
-def command(output: str, domains: list[str], grants: list[str], dry_run: bool) -> int:
+def command(output: str, domains: list[str], grants: list[str], dry_run: bool, run: str | None = None) -> int:
     try:
-        text, notes, digest = build(cf.load(), domains, grants)
+        text, notes, digest = build(cf.load(), domains, grants, run)
+        if run is not None:
+            notes.append(f"then runs {run} from the session's checkout")
         data = text.encode()
         target = Path(output).expanduser()
         lines = [f"script {len(data)} bytes of {LIMIT} allowed", f"fingerprint {digest}", *notes]

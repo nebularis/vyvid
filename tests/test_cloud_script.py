@@ -279,3 +279,35 @@ def test_lines_pasted_after_the_script_run_with_their_own_output(world, capsys):
     assert "FAILED: installing vyd" in (world / "log").read_text(encoding="utf-8")
     plain = subprocess.run(["sh", str(script)], env=env, capture_output=True, text=True)
     assert plain.returncode == 0 and plain.stdout == ""
+
+
+@pytest.mark.skipif(not POSIX, reason="runs the script with sh")
+def test_run_adds_the_projects_own_setup_after_the_rest(world, capsys):
+    code, out, err, script = make(world, capsys, "--domain", "mine", "--run", "tools/setup.sh")
+    assert code == 0, err
+    assert "then runs tools/setup.sh from the session's checkout" in out
+    checkout = world / "checkout"
+    (checkout / "tools").mkdir(parents=True)
+    (checkout / "tools" / "setup.sh").write_text('echo "project setup ran in $PWD"\nexit 3\n')
+    stubs = world / "stubs"
+    stubs.mkdir()
+    for tool in ("uv", "git", "vyd"):
+        (stubs / tool).write_text("#!/bin/sh\nexit 0\n")
+        (stubs / tool).chmod(0o755)
+    env = environment(world / "cloud", PATH=f"{stubs}{os.pathsep}{os.environ['PATH']}", VYD_CLOUD_LOG=str(world / "log"))
+    done = subprocess.run(["sh", str(script)], env=env, cwd=checkout, capture_output=True, text=True)
+    assert done.returncode == 0 and done.stdout == f"project setup ran in {checkout}\n"
+    assert "project setup" not in (world / "log").read_text(encoding="utf-8")
+    elsewhere = subprocess.run(["sh", str(script)], env=env, cwd=world, capture_output=True, text=True)
+    assert elsewhere.returncode == 0 and "no tools/setup.sh in a checkout" in elsewhere.stdout
+
+
+def test_without_run_the_script_runs_nothing_of_the_projects(world, capsys):
+    _, _, _, script = make(world, capsys, "--domain", "mine")
+    assert "/home/user/" not in script.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", ["/etc/setup.sh", "~/setup.sh", "../setup.sh", "tools/../x.sh", "./setup.sh", "tools/set up.sh",
+                                  "tools/$(id).sh", "tools/`id`.sh", "tools/a;b.sh", "tools/*.sh", "tools\\setup.sh", ""])
+def test_run_refuses_anything_but_a_plain_path_in_the_repository(world, capsys, path):
+    assert "must be a path inside the repository" in refused(world, capsys, "--domain", "mine", "--run", path)
