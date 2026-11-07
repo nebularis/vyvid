@@ -25,6 +25,7 @@ from .credentials import private_file
 
 LIMIT = 64 * 1024  # what an environment's setup script may hold, about
 FILE_LIMIT = 256 * 1024
+ALWAYS = ".vyd-cloud"  # where a generated always-on rule is written in an embedded domain
 INSTALL = "git+https://github.com/nebularis/vyvid.git"
 SCP = re.compile(r"^[^@/:]+@([^/:]+):(?!\d)(.*)$")
 SSH = re.compile(r"^ssh://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.*)$")
@@ -81,6 +82,21 @@ def tracked(name: str, folder: Path) -> list[tuple[str, bytes]]:
     return files
 
 
+def skill_files(scope: cf.Scope, files: list[tuple[str, bytes]]) -> list[str]:
+    """The tracked ``SKILL.md`` of each skill in the domain's skill folders, as names in the domain."""
+    root = scope.path.resolve()
+    folders = [p.resolve().relative_to(root).as_posix() for p in scope.skills if p.resolve().is_relative_to(root)]
+    return [rel for rel, _ in files for f in folders if re.fullmatch(re.escape(f) + r"/[^/]+/SKILL\.md", rel)]
+
+
+def always_rule(name: str, place: str, skills: list[str]) -> bytes:
+    """A rule file that imports each skill, so a domain carried into the cloud applies in every session there, as the person
+    chose by naming it. On their own machine its skills still load only when relevant."""
+    lines = [f"# {name}, always on in this cloud session", "",
+             "The setup script carried this domain into the session, so each of its skills applies in every session here.", ""]
+    return "\n".join(lines + [f"@{place}/{rel}" for rel in skills]).encode() + b"\n"
+
+
 def _home(path: str) -> str:
     """A ``~/x`` path as shell words that expand ``$HOME``."""
     return '"$HOME"/' + shlex.quote(path[2:])
@@ -94,14 +110,18 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
         if name not in config.domains:
             raise Refusal(f"domain {name} is not in the configuration")
         chosen[name] = given if "=" in item else None
-    embedded, notes, public = {}, [], []
+    embedded, notes, public, always = {}, [], [], {}
     for name, scope in config.domains.items():
         if name in chosen:
             if scope.path is None:
                 raise Refusal(f"domain {name} has no folder")
             files = tracked(name, scope.path)
-            embedded[name] = (destination(name, scope, chosen[name]), files)
-            notes.append(f"domain {name}: embedded, {len(files)} file{'' if len(files) == 1 else 's'} at {embedded[name][0]}")
+            place = destination(name, scope, chosen[name])
+            embedded[name] = (place, files)
+            notes.append(f"domain {name}: embedded, {len(files)} file{'' if len(files) == 1 else 's'} at {place}")
+            if not scope.always_rules and (skills := skill_files(scope, files)):
+                always[name] = always_rule(name, place, skills)
+                notes.append(f"domain {name}: its {len(skills)} skill{'' if len(skills) == 1 else 's'} always on in the cloud")
         elif scope.visibility == "private":
             notes.append(f"domain {name}: left out, it was not named with --domain")
         else:
@@ -118,7 +138,8 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
             notes.append(f"domain {name}: cloned from {https(remote)}")
     framework = {"kb": "~/vyvid-kb", "glue": "stop", **({"trusted_repositories": grants} if grants else {})}
     blocks = [_block("framework", framework, array=False)]
-    blocks += [_block("domains", {"name": n, "path": place, "trust": "own", "visibility": "private"}) for n, (place, _) in embedded.items()]
+    blocks += [_block("domains", {"name": n, "path": place, "trust": "own", "visibility": "private",
+                                  **({"always_rules": f"self:{ALWAYS}/{n}.md"} if n in always else {})}) for n, (place, _) in embedded.items()]
     blocks += [_block("domains", e) for e in public]
     toml = "\n\n".join("\n".join(b) for b in blocks) + "\n"
     try:
@@ -128,13 +149,13 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
     if "VYD_CONFIG" in toml:
         raise Refusal("the configuration holds the text that ends its here-document")
 
-    body = ['LOG="${VYD_CLOUD_LOG:-/tmp/vyd-cloud-setup.log}"', 'exec >"$LOG" 2>&1',
+    body = ['LOG="${VYD_CLOUD_LOG:-/tmp/vyd-cloud-setup.log}"', 'exec 3>&1 4>&2 >"$LOG" 2>&1',
             'fail() { echo "FAILED: $1. Carrying on."; }',
             'export PATH="$HOME/.local/bin:$PATH"',
             f'uv tool install --force "{INSTALL}@v{__version__}" || fail "installing vyd"',
             'put() { mkdir -p "$(dirname "$1")" && base64 -d >"$1"; }']
     for name, (place, files) in embedded.items():
-        for rel, data in files:
+        for rel, data in files + ([(f"{ALWAYS}/{name}.md", always[name])] if name in always else []):
             body += [f'put {_home(place + "/" + rel)} <<\'VYD_B64\' || fail "writing {shlex.quote(name + "/" + rel)}"',
                      *base64.encodebytes(data).decode().splitlines(), "VYD_B64"]
     body += ['mkdir -p "$HOME/.config/vyvid" || fail "making the configuration folder"',
@@ -142,7 +163,9 @@ def build(config: cf.Config, named: list[str], grants: list[str]) -> tuple[str, 
              'cat >"$HOME/.config/vyvid/config.toml" <<\'VYD_CONFIG\' || fail "writing the configuration"', toml.rstrip("\n"), "VYD_CONFIG",
              'vyd kb clone || fail "cloning the public domains"',
              'vyd install --client claude-code || fail "installing the client files"',
-             "vyd --version", "vyd config | grep -E '^(configuration|domains):'", "exit 0"]
+             "vyd --version", "vyd config | grep -E '^(configuration|domains):'",
+             "# Output goes back where it went, and the script ends with success without exit, so lines pasted after it run.",
+             'exec 1>&3 2>&4 3>&- 4>&-', "true"]
     text = "\n".join(body) + "\n"
     digest = hashlib.sha256(text.encode()).hexdigest()[:12]
     head = ["#!/bin/sh", f"# Written by vyd cloud script, version {__version__}.",

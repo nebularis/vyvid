@@ -227,3 +227,55 @@ def test_a_file_over_the_limit_is_refused(world, capsys):
 
 def test_an_unnormalised_grant_is_refused(world, capsys):
     assert "must be written as github.com/example/project" in refused(world, capsys, "--domain", "mine", "--grant", "https://github.com/Example/project.git")
+
+
+def run_and_install(world, script) -> Path:
+    """Runs the script into a cloud home with stub tools, then the real install there, and returns the cloud home."""
+    cloud_home, stubs = world / "cloud", world / "stubs"
+    stubs.mkdir()
+    cloud_home.mkdir()
+    for tool in ("uv", "git", "vyd"):
+        (stubs / tool).write_text("#!/bin/sh\nexit 0\n")
+        (stubs / tool).chmod(0o755)
+    env = environment(cloud_home, PATH=f"{stubs}{os.pathsep}{os.environ['PATH']}", VYD_CLOUD_LOG=str(world / "log"))
+    assert subprocess.run(["sh", str(script)], env=env, capture_output=True).returncode == 0
+    real = environment(cloud_home, VYVID_CONFIG=str(cloud_home / ".config" / "vyvid" / "config.toml"))
+    assert vyd(real, "install", "--client", "claude-code").code == 0
+    return cloud_home
+
+
+@pytest.mark.skipif(not POSIX, reason="runs the script with sh")
+def test_a_named_domain_with_skills_is_always_on_in_the_cloud_only(world, capsys):
+    local = world / "local"
+    skilled = repo(local / "work" / "skilled", {"domain.toml": b'name = "skilled"\n', "skills/careful/SKILL.md": b"---\nname: careful\ndescription: x\n---\n\nBe careful.\n",
+                                               "skills/careful/notes.md": b"n\n"})
+    ruled = repo(local / "work" / "ruled", {"domain.toml": b'name = "ruled"\nalways_rules = "self:rules/on.md"\n', "rules/on.md": b"On.\n",
+                                           "skills/other/SKILL.md": b"---\nname: other\ndescription: y\n---\n"})
+    with cf.config_path().open("a", encoding="utf-8") as f:
+        f.write(f'\n[[domains]]\nname = "skilled"\npath = "{skilled}"\ntrust = "own"\n\n[[domains]]\nname = "ruled"\npath = "{ruled}"\ntrust = "own"\n')
+    code, out, err, script = make(world, capsys, "--domain", "skilled", "--domain", "ruled")
+    assert code == 0, err
+    assert "domain skilled: its 1 skill always on in the cloud" in out and "domain ruled: its" not in out
+    rules = run_and_install(world, script) / ".claude" / "rules"
+    on = (rules / "skilled.md").read_text(encoding="utf-8")
+    assert "@~/work/skilled/skills/careful/SKILL.md" in on and "notes.md" not in on
+    assert (rules / "on.md").is_file() and not (rules / "ruled.md").exists()
+    assert "always_rules" not in cf.config_path().read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(not POSIX, reason="runs the script with sh")
+def test_lines_pasted_after_the_script_run_with_their_own_output(world, capsys):
+    _, _, _, script = make(world, capsys, "--domain", "mine")
+    stubs = world / "stubs"
+    stubs.mkdir()
+    for tool in ("uv", "git", "vyd"):
+        (stubs / tool).write_text("#!/bin/sh\nexit 1\n")
+        (stubs / tool).chmod(0o755)
+    combined = world / "combined.sh"
+    combined.write_text(script.read_text(encoding="utf-8") + "echo after-the-script\n", encoding="utf-8")
+    env = environment(world / "cloud", PATH=f"{stubs}{os.pathsep}{os.environ['PATH']}", VYD_CLOUD_LOG=str(world / "log"))
+    done = subprocess.run(["sh", str(combined)], env=env, capture_output=True, text=True)
+    assert done.returncode == 0 and done.stdout == "after-the-script\n"
+    assert "FAILED: installing vyd" in (world / "log").read_text(encoding="utf-8")
+    plain = subprocess.run(["sh", str(script)], env=env, capture_output=True, text=True)
+    assert plain.returncode == 0 and plain.stdout == ""
