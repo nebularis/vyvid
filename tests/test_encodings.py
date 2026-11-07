@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from subprocess_support import NAME, POSIX, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
+from subprocess_support import NAME, POSIX, VYD, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
 from vyvid import __version__
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "vyvid"
@@ -225,7 +225,7 @@ def test_an_argument_that_cannot_be_decoded_is_no_traceback(locale, args, argume
     if locale != "utf8" and not sees(locale):
         pytest.skip(f"the {locale} locale is not installed")
     home, root = built_project
-    ran = run([sys.executable, "-m", "vyvid.cli", *(a.encode() for a in args), argument], environment(home, **LOCALES[locale]), cwd=root)
+    ran = run([*VYD, *(a.encode() for a in args), argument], environment(home, **LOCALES[locale]), cwd=root)
     assert ran.clean() and ran.code in (0, 1, 2), ran
 
 

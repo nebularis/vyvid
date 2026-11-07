@@ -606,7 +606,12 @@ def _inside(value: str, root: Path, tokens: dict[str, Path] | None = None) -> bo
             break
     if rest.startswith(("~", "/")) or re.match(r"[A-Za-z][\w-]*:", rest):
         return False
-    return Path(os.path.realpath(base / rest)).is_relative_to(Path(os.path.realpath(root)))
+    try:
+        return Path(os.path.realpath(base / rest)).is_relative_to(Path(os.path.realpath(root)))
+    except UnicodeEncodeError:
+        # The machine cannot name the path, so it is no file here and no symlink can lead out of it. Its text still must
+        # not climb out through "..", and that it cannot be named is reported where it is read (_nameable).
+        return Path(os.path.normpath(base / rest)).is_relative_to(Path(os.path.normpath(root)))
 
 
 def leaving(manifest: dict, root: Path, tokens: dict[str, Path] | None = None, paths: tuple[str, ...] = MANIFEST_PATHS,

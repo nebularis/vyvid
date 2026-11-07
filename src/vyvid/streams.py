@@ -8,6 +8,7 @@ that goes away ends the run quietly.
 
 from __future__ import annotations
 
+import codecs
 import errno
 import os
 import sys
@@ -88,6 +89,13 @@ def _hang_up() -> int:
     return HANGUP
 
 
+def _same_codec(one: str, other: str) -> bool:
+    try:
+        return codecs.lookup(one).name == codecs.lookup(other).name
+    except LookupError:
+        return False
+
+
 def guarded(main: Callable[[], int]) -> int:
     """Run an entry point: harden the streams first, flush inside the guard, and end quietly when a reader closes.
     Any other error goes on."""
@@ -101,6 +109,15 @@ def guarded(main: Callable[[], int]) -> int:
                     stream.flush()
     except BrokenPipeError:
         return _hang_up()
+    except UnicodeEncodeError as error:
+        # A path this machine cannot name reached the system, as on Linux, whose file names are the locale's, where glibc
+        # and Python's codec disagree (glibc's GBK reads byte 0x80 as the euro sign, which Python's gbk cannot write back).
+        # ponytail: matched by encoding, so a person's own strict PYTHONIOENCODING in the same encoding reads as this too.
+        if _same_codec(error.encoding, sys.getfilesystemencoding()):
+            print(f"vyd: a path holds {error.object[error.start:error.end]!a}, which cannot be a file name on this machine, "
+                  f"whose file names are {sys.getfilesystemencoding()}, so nothing was done", file=sys.stderr)
+            return 2
+        raise
     except OSError as error:
         if error.errno in CLOSED_PIPE:
             return _hang_up()

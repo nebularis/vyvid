@@ -14,8 +14,10 @@ from pathlib import Path
 
 import pytest
 
-VYD = [sys.executable, "-m", "vyvid.cli"]
-HOOK = [sys.executable, "-m", "vyvid.remind"]
+# -P keeps the working folder off the import path, as the installed vyd and vyd-hook launchers do, since under a locale
+# whose codec cannot hold the folder's name Python could not start with it there.
+VYD = [sys.executable, "-P", "-m", "vyvid.cli"]
+HOOK = [sys.executable, "-P", "-m", "vyvid.remind"]
 NAME = "Вивід"
 POSIX = pytest.mark.skipif(os.name != "posix", reason="needs POSIX file descriptors, signals or shell scripts")
 KEEP = ("PATH", "SYSTEMROOT", "SYSTEMDRIVE", "TMPDIR", "TEMP", "TMP", "COMSPEC", "PATHEXT", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH")

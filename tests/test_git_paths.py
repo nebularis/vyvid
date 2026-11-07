@@ -70,3 +70,31 @@ def test_a_folder_argument_keeps_its_bytes_and_a_text_argument_does_not():
     clean_arguments(arguments)
     assert arguments.folder == "caf\udce9" and os.fsencode(arguments.folder) == b"caf\xe9"
     assert arguments.words == ["caf�"] and arguments.identifier == "STD-1�"
+
+
+def test_a_path_inside_the_repository_that_this_machine_cannot_name_is_judged_by_its_text(monkeypatch, tmp_path):
+    from vyvid import config
+
+    def realpath(path, **_kwargs):
+        os.fspath(path).encode("gbk")
+        return os.fspath(path)
+
+    monkeypatch.setattr(config.os.path, "realpath", realpath)
+    assert config._inside("code:d-проєкт", tmp_path, {"code": tmp_path})
+    assert not config._inside("code:../d-проєкт", tmp_path, {"code": tmp_path}), "it still may not climb out"
+
+
+def test_a_path_the_machine_cannot_name_ends_the_run_with_a_message_and_no_traceback(monkeypatch, capsys):
+    from vyvid import streams
+
+    monkeypatch.setattr(sys, "getfilesystemencoding", lambda: "gbk")
+
+    def main():
+        "€".encode("gbk")
+        return 0
+
+    assert streams.guarded(main) == 2
+    assert "cannot be a file name on this machine" in capsys.readouterr().err
+    monkeypatch.setattr(sys, "getfilesystemencoding", lambda: "utf-8")
+    with pytest.raises(UnicodeEncodeError):
+        streams.guarded(main)  # another encoding's failure is a bug, and is not hidden
