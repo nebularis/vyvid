@@ -18,11 +18,9 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
-import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
 import platformdirs
 
 VECTORS = "vectors.npz"
@@ -69,6 +67,7 @@ def fetch(spec: ModelSpec) -> Path:
 
     A file reaches its own name only after its SHA-256 matched, so one that is there is trusted
     without hashing it again on every question."""
+    import urllib.request  # loaded only where it is needed, since every command imports this module
     for name, digest in spec.files.items():
         path = spec.directory / name
         if path.exists():
@@ -108,6 +107,7 @@ class Model:
 
     def embed(self, texts: list[str]) -> np.ndarray:
         """One unit vector per text: the model's first-token state, as bge is trained to give it."""
+        import numpy as np  # loaded only where it is needed, since every command imports this module
         out = []
         for start in range(0, len(texts), 32):
             encoded = self.tokenizer.encode_batch(texts[start : start + 32])
@@ -130,6 +130,7 @@ def join_text(parts) -> str:
 
 
 def _cached(source: Path, spec: ModelSpec) -> dict[str, np.ndarray]:
+    import numpy as np  # loaded only where it is needed, since every command imports this module
     if not source.exists():
         return {}
     with np.load(source) as previous:
@@ -144,6 +145,7 @@ def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None,
 
     Returns how many texts were embedded this time. Raises Unavailable, having removed any vectors,
     so a stale set is never ranked against a changed index."""
+    import numpy as np  # loaded only where it is needed, since every command imports this module
     target = directory / name
     digests = {node: hashlib.sha256(text.encode("utf-8")).hexdigest() for node, text in entries.items()}
     cached = {**_cached(warm / name, spec), **_cached(target, spec)} if warm else _cached(target, spec)
@@ -173,6 +175,7 @@ def build(entries: dict[str, str], directory: Path, spec: ModelSpec, model=None,
 
 def load(directory: Path, spec: ModelSpec, name: str = VECTORS) -> tuple[list[str], np.ndarray]:
     """The nodes and their vectors, or Unavailable if none were written or another model made them."""
+    import numpy as np  # loaded only where it is needed, since every command imports this module
     target = directory / name
     if not target.exists():
         raise Unavailable(f"no {name} in {directory}. Run vyd build, which says why")

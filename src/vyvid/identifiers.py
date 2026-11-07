@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .build import store_dir
-from .config import Config, Family, Scope
+from .config import Config, Family, Scope, _git_out, git_names
 from .model import normalise
 from .resolve import definition_sites, forget, moved, visible_families
 from .symbols import store as symbol_store
@@ -80,6 +80,10 @@ def tracked(project: Scope) -> list[Path]:
     tops: list[Path] = []
     for folder in (project.code, project.docs):
         if folder is not None and folder.is_dir():
+            if known := _git_out(folder, "rev-parse", "--show-toplevel"):  # often asked already in this run
+                if (top := Path(known).resolve()) not in tops:
+                    tops.append(top)
+                continue
             done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
             if not done.returncode and ("\0" in done.stdout or len(done.stdout) > 4096):
                 done.returncode = 1  # not a path
@@ -92,8 +96,8 @@ def tracked(project: Scope) -> list[Path]:
                 tops.append(top)
     scan, keep = project.identifiers, []
     for top in tops:
-        listing = subprocess.run(["git", "-C", str(top), "ls-files", "-z", "--", "*.md"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
-        for name in filter(None, listing.split("\0")):
+        listing = subprocess.run(["git", "-C", str(top), "ls-files", "-z", "--", "*.md"], capture_output=True, check=True).stdout
+        for name in git_names(listing):
             path = top / name
             if not path.is_file() or any(fnmatch.fnmatchcase(name, g) or fnmatch.fnmatchcase(path.name, g) for g in scan.skip):
                 continue

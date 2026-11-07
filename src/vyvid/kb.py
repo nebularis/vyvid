@@ -61,7 +61,7 @@ class Status:
 
 
 def git(folder: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=folder, capture_output=True, text=True, encoding="utf-8", errors="replace",
+    return subprocess.run(["git", "-c", "i18n.logOutputEncoding=UTF-8", *args], cwd=folder, capture_output=True, text=True, encoding="utf-8", errors="replace",
                           env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
 
 

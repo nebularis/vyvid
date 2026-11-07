@@ -45,10 +45,12 @@ def tracked(root: Path) -> set[Path] | None:
     if not (root / ".git").exists():
         return None
     try:
-        listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
+        listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError):
         return None
-    return {(root / name).resolve() for name in listing.split("\0") if name}
+    from ..config import git_names  # config imports the extractors
+
+    return {(root / name).resolve() for name in git_names(listing)}
 
 
 def ontology_files(checkout: Path | None, paths: list[Path]) -> list[Path]:

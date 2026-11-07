@@ -81,9 +81,9 @@ def bind(config: Config, folder: Path) -> Scope | None:
 
 
 def _git(folder: Path, *args: str) -> str | None:
-    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
-    out = done.stdout.strip()
-    return out if done.returncode == 0 and out and "\0" not in out and len(out) < 4096 else None  # a path or a ref, never a blob
+    from .config import _git_out  # config imports this module
+
+    return _git_out(folder, *args) or None  # a path or a ref, never NUL-laden or oversized
 
 
 def _common(folder: Path) -> Path | None:

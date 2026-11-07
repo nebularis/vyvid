@@ -81,10 +81,10 @@ def target(file: bool) -> Target:
         return Target(cf.config_path(), False)
     if (existing := project_file(Path.cwd())) is not None:
         return Target(existing, True)
-    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
     if done.returncode:
         raise Refusal(f"--file writes the {cf.PROJECT_FILE} of the repository you are in, and this folder is not in one")
-    return Target(Path(done.stdout.strip()) / cf.PROJECT_FILE, True)
+    return Target(Path(cf.git_path(done.stdout)) / cf.PROJECT_FILE, True)
 
 
 # -- rendering ---------------------------------------------------------------------------------------------
@@ -570,8 +570,8 @@ def domain_trust(name: str, trust: str, commit: str | None, dry_run: bool, perso
 # -- projects ---------------------------------------------------------------------------------------------
 
 def _checkout() -> Path | None:
-    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
-    return Path(done.stdout.strip()) if done.returncode == 0 else None
+    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
+    return Path(cf.git_path(done.stdout)) if done.returncode == 0 else None
 
 
 def project_add(name: str, code: str | None, docs: str | None, contracts: list[str], remotes: list[str], domains: list[str],

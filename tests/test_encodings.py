@@ -197,17 +197,26 @@ def test_the_message_for_a_file_it_cannot_decode_names_the_fix(tmp_path):
 # -- arguments --------------------------------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def built_project(tmp_path_factory):
+    """One project with its index built under UTF-8, which each case then runs a command in under its own locale. The
+    build is not what these cases test, so it is made once rather than once a case."""
+    home = tmp_path_factory.mktemp("arguments")
+    root = home / "repo"
+    project(root)
+    assert vyd(environment(home), "build", "--no-embed", cwd=root).code == 0
+    return home, root
+
+
 @POSIX
 @pytest.mark.parametrize("locale", ["utf8", "zh_CN.GBK"])
 @pytest.mark.parametrize("args", [["read"], ["exists"], ["find"], ["resolve"], ["context", "--no-pull"], ["config"], ["check", "identifiers"], ["build", "--no-embed"]])
 @pytest.mark.parametrize("argument", [b"\xff\xfe\x80", b"\xe9\xa1\xb9\xff", b"STD-1\xc3"], ids=["bytes", "cut-utf8", "id-and-cut"])
-def test_an_argument_that_cannot_be_decoded_is_no_traceback(locale, args, argument, tmp_path):
+def test_an_argument_that_cannot_be_decoded_is_no_traceback(locale, args, argument, built_project):
     if locale != "utf8" and not sees(locale):
         pytest.skip(f"the {locale} locale is not installed")
-    root = tmp_path / "repo"
-    project(root)
-    assert vyd(environment(tmp_path), "build", "--no-embed", cwd=root).code == 0
-    ran = run([sys.executable, "-m", "vyvid.cli", *(a.encode() for a in args), argument], environment(tmp_path, **LOCALES[locale]), cwd=root)
+    home, root = built_project
+    ran = run([sys.executable, "-m", "vyvid.cli", *(a.encode() for a in args), argument], environment(home, **LOCALES[locale]), cwd=root)
     assert ran.clean() and ran.code in (0, 1, 2), ran
 
 

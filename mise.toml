@@ -9,7 +9,7 @@ depends = ["check:tests", "check:writing", "check:identifiers"]
 
 [tasks."check:tests"]
 description = "Run the test suite"
-run = "uv run --extra test pytest -q"
+run = "uv run --extra test pytest -q -n auto"
 
 [tasks."check:writing"]
 description = "Check the writing rules on every Markdown file, and the publication rules on user-facing text (STD-3, STD-4, STD-14, STD-15)"

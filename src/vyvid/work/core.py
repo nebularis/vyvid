@@ -501,15 +501,15 @@ class Repo(Rules):
         folder = work.status
         while not folder.exists() and folder != folder.parent:
             folder = folder.parent
-        done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True)
         if done.returncode:
             raise NotARepository(f"{work.status} is in no git repository")
-        return cls(Path(done.stdout.strip()), work, **kwargs)
+        return cls(Path(os.fsdecode(done.stdout.strip())), work, **kwargs)
 
     # ---- git and paths ----
 
     def git(self, *args: str, check: bool = True) -> str:
-        result = subprocess.run(["git", *args], cwd=self.root, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(["git", "-c", "i18n.logOutputEncoding=UTF-8", *args], cwd=self.root, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if check and result.returncode:
             raise RuntimeError(f"git {' '.join(args)}: {result.stderr.strip()}")
         return result.stdout

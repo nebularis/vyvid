@@ -35,6 +35,7 @@ import re
 import shlex
 import signal
 import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -439,10 +440,42 @@ def trusted(config: Config) -> bool:
     return path == own_config().resolve() or _recorded().get(str(path)) == _digest(path)
 
 
+def git_names(raw: bytes) -> list[str]:
+    """The NUL-separated names ``git ls-files -z`` gives, decoded as Python decodes a file name, so each opens the file
+    it names. Git writes a name's bytes as they are, which are UTF-8 on Windows and macOS and on Linux whatever the file
+    system holds. A name the file system's encoding cannot decode is left out, with a note, since text an index or a log
+    stores cannot hold it."""
+    names = []
+    for name in (os.fsdecode(n) for n in raw.split(b"\0") if n):
+        if any("\udc80" <= c <= "\udcff" for c in name):
+            print(f"vyd: {name.encode('utf-8', 'backslashreplace').decode()} is a tracked name the file system's encoding cannot decode, so it is not read", file=sys.stderr)
+            continue
+        names.append(name)
+    return names
+
+
+def git_path(raw: bytes) -> str:
+    """One path git printed, such as a top level, decoded as Python decodes a file name."""
+    return os.fsdecode(raw.strip())
+
+
+_LAYOUT: dict[tuple[str, ...], str] = {}
+_LAYOUT_ASKS = {("rev-parse", "--show-toplevel"), ("rev-parse", "--git-common-dir")}
+
+
 def _git_out(folder: Path, *args: str) -> str:
-    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
-    out = done.stdout.strip()
-    return out if done.returncode == 0 and "\0" not in out and len(out) < 4096 else ""
+    """Git's answer, or "" where it failed. A folder's top level and common directory that git gave are kept for the
+    rest of the run, since one command asks them several times and each asking starts a process. Nothing else is kept,
+    since a commit changes what ``HEAD`` names, and a failure is asked again, so a repository made during the run is found."""
+    key = (str(folder), *args)
+    if key in _LAYOUT:
+        return _LAYOUT[key]
+    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True)
+    out = git_path(done.stdout)
+    out = out if done.returncode == 0 and "\0" not in out and len(out) < 4096 else ""
+    if out and args in _LAYOUT_ASKS:
+        _LAYOUT[key] = out
+    return out
 
 
 def file_key(path: Path) -> str:
