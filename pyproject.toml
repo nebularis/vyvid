@@ -1,6 +1,6 @@
 [project]
 name = "vyvid"
-version = "0.2.15"
+version = "0.2.16"
 description = "Вивід: what a coding agent needs to know before it acts, scoped to the folder it is in"
 readme = "README.md"
 license = "MIT"
