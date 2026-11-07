@@ -4,7 +4,7 @@
 
 A person runs this by hand on a Windows machine with PowerShell and Git for Windows, against the install at tag `v0.2.14`. Every step has an identifier such as `W3.2`, one block to paste, what a pass looks like and what a failure would mean or what to capture. The results go into one file under one test folder, and a final section removes everything.
 
-The PowerShell forms in this file have not been run on Windows, and none has been run in PowerShell at all. That includes every step added for v0.2.14, which are W3.10 to W3.12, W4.11, W4.12, W5.13, W5.14, W6.16 to W6.20 and W13.11 to W13.13. The `vyd` commands, their options and their expected output were run on macOS with a POSIX shell against the code at the tag, in a scratch folder with a scratch configuration. Expect to correct a PowerShell form that does not behave as written, and record that as a NOTE with the fix, since a wrong script is a result too. The sections below say which expected outputs were seen on macOS and which come from reading the code.
+The PowerShell forms in this file have not been run on Windows, and none has been run in PowerShell at all. That includes every step added for v0.2.14, which are W3.10 to W3.12, W4.11, W4.12, W5.13, W5.14, W6.16 to W6.20 and W13.11 to W13.13. The `vyd` commands, their options and their expected output were run on macOS with a POSIX shell against the code at the tag, in a scratch folder with a scratch configuration. The changes of v0.2.15 to encodings, pipes and `trusted_repositories` under `core.autocrlf` were exercised on macOS with other code pages and with real pipes, and none of it has run on Windows or in PowerShell. Expect to correct a PowerShell form that does not behave as written, and record that as a NOTE with the fix, since a wrong script is a result too. The sections below say which expected outputs were seen on macOS and which come from reading the code.
 
 ## How the test is meant to run
 
@@ -50,7 +50,8 @@ Dependencies between sections:
 ## Where each expected output came from
 
 - Seen on macOS at the tag, v0.2.14: the output of `vyd config`, `kb`, `domain`, `build`, `find`, `read`, `node`, `exists`, `reaches`, `sparql`, `misses`, `gap`, `close`, `install` with and without `--project`, `--target`, `--dry-run` and `--hooks`, `check skills`, `check identifiers`, `check citations`, `move check`, `docs record`, `board`, `work build`, `work roadmap`, `work check`, `work parse`, `work normalise`, `work rename`, `here`, `store prune`, `handoff` and `vyd-hook`.
-- Reproduced on macOS by forcing a narrow output encoding: the failure of `vyd --version` in W2.3.
+- Reproduced on macOS by forcing output encodings with `PYTHONIOENCODING`, and with locales such as `zh_CN.GBK`: in v0.2.15 `vyd --version` prints `vyvid` and the version where the stream cannot hold the name, and the name where it can (W2.3). Before it the same command ended in a `UnicodeEncodeError`.
+- Reproduced on macOS with the `core.autocrlf` setting forced on a clone: the grant of W6.20, which since v0.2.15 compares what git would store for the file with the blob at `HEAD`.
 - Reproduced on macOS: the configuration read with a byte order mark and as UTF-16 in W3.5 to W3.7, the refusal of a byte order mark in a settings file in W12.6, and the CRLF clone checks of W7.7 and W10.5.
 - Seen on macOS at v0.2.14 in a scratch home with the user's own configuration under it, with standard input from `/dev/null` where a pipe is meant and from a pseudo-terminal where a terminal is meant: `vyd domain add`, `remove` and `trust` (W3.10, W4.11, W4.12), `vyd project add`, `set`, `remove` and `scan` and `vyd family add` and `remove` (W3.11, W3.12), the refusals of a gated change from a pipe, the raise at a pseudo-terminal, `trusted_repositories` with its lapse on an uncommitted edit, its refusal for a fork whose `upstream` alone is listed and for a list in a `VYVID_CONFIG` file, and the clone made with `core.autocrlf=true` (W6.16 to W6.20), the reason an automatic build gives and its retry (W5.14, with a refusing proxy and the waits as written), the code fence reader (W5.13), the changed lines of W6.1, W5.3, W7.1 and W12.1, the prompts and refusals of `vyd trust` (W6.2 to W6.4), the reads of W13.6 against LATTICE's `main` with the five public domains cloned, and the figure of W13.11.
 - Read from the code and not run anywhere: the terminal check of `vyd trust` on a Windows console, the trust sharing and lapse by hash (W6.5 to W6.7), the effect of `WIN_PD_OVERRIDE_LOCAL_APPDATA` (W6.16), the whole of `mise run check:low-memory` and its exit 3 (W13.12), what Windows reports for the memory figure (W13.11), the hook commands under PowerShell (W8.7), file locks (W5.12), the time limit of a command extractor (W6.15), symbolic links (W6.8), long paths (W6.13), the case of a path (W6.12), non-ASCII paths under the default encoding (W6.10), the Windows mode bits (W4.9) and the mise tasks of W13, apart from the reads named above. Nothing in the steps added for v0.2.14 has run in PowerShell. Their PowerShell forms were written from the commands that did run, so each is as likely to need a correction as the older ones.
@@ -59,7 +60,7 @@ Dependencies between sections:
 
 | Risk found in the code | Where in `src/vyvid` | Step |
 |---|---|---|
-| The name Вивід is printed through the default stream encoding, which raises `UnicodeEncodeError` when output is redirected | `cli.py` printing of `--version`, `--help` and the `context` header | W2.3, W2.4, W4.5 |
+| The name Вивід is printed only where the stream's encoding can hold it, and as `vyvid` elsewhere, and a character the stream cannot hold is written as an escape | `streams.py`, `cli.py` printing of `--version`, `--help` and the `context` header | W2.3, W2.4, W4.5 |
 | A configuration saved with a byte order mark or as UTF-16 is read, and one in another encoding is a problem naming the file | `config.py` `read_toml_text` | W3.5 to W3.7 |
 | A settings file with a byte order mark is refused with a message | `install.py` `merged_settings` | W12.6 |
 | `subprocess` with `text=True` and no encoding decodes git output with the ANSI code page, so non-ASCII folder and file names can be misread | `resolve.py`, `config.py`, `identifiers.py`, `citations.py`, `kb.py`, `symbols/store.py`, `extractors/owl.py`, `work/core.py` | W6.9 to W6.11 |
@@ -74,9 +75,9 @@ Dependencies between sections:
 | A trust record and a checkout store are keyed by the text of a path, which differs by case | `config.py` `file_key`, `build.py` `store_dir` | W6.12 |
 | A path longer than 260 characters in a linked worktree | `resolve.py`, `build.py` | W6.13 |
 | A move compared byte for byte with the working tree differs under CRLF | `moves.py` | W10.5 |
-| A repository listed in `trusted_repositories` is granted only while its `vyvid.toml` equals the blob committed at `HEAD`, so CRLF conversion by `core.autocrlf` lapses the grant | `config.py` `file_granted` | W6.20 |
+| A repository listed in `trusted_repositories` is granted only while what git would store for its `vyvid.toml` is the blob committed at `HEAD`, which `core.autocrlf` does not change | `config.py` `file_granted` | W6.20 |
 | The user's own configuration is found through the platform's folders, so a test can move it only with `WIN_PD_OVERRIDE_LOCAL_APPDATA`, which `platformdirs` reads before it asks Windows | `config.py` `own_config`, `granted_repositories` | W6.16 |
-| A configuration command writes a path with forward slashes and `~` for the home folder, and a snippet printed by `vyd domain new` holds the path in a double-quoted string | `configure.py` `place`, `newdomain.py` | W3.10, W3.11, W4.7 |
+| A configuration command writes a path with forward slashes and `~` for the home folder, and a snippet printed by `vyd domain new` holds the path as a TOML string with its backslashes escaped | `configure.py` `place`, `newdomain.py` | W3.10, W3.11, W4.7 |
 | A raise of a domain's trust, or a change of a key that reaches what a client runs, needs standard input to be a terminal, which a console host and a pipe answer differently | `cli.py` `_person`, `configure.py` `run` | W4.11, W4.12, W3.11 |
 | The automatic build and the retry of a store without vectors depend on the download failing the same way under Windows' proxy settings | `ask.py` `open_stack`, `stale` | W5.14 |
 | The memory figure of Windows is 100 minus the system's memory load, which is not the figure macOS gives for the same load | `tools/testing/mem_check` in LATTICE | W13.11, W13.12 |
@@ -352,15 +353,15 @@ Step W2.2 { vyd --version; vyd-hook --help }
 
 #### W2.3 The name under the default encoding, output redirected
 
-`Step` captures output through a pipe, which is the case a script or an agent meets. With `PYTHONUTF8` removed, Python writes redirected output in the ANSI code page, which has no Cyrillic letters.
+`Step` captures output through a pipe, which is the case a script or an agent meets. With `PYTHONUTF8` removed, Python writes redirected output in the ANSI code page, which has no Cyrillic letters. Since v0.2.15 `vyd` keeps that encoding and prints the name as `vyvid` where the encoding cannot hold it.
 
 ```powershell
 Step W2.3 -Plain { vyd --version }
 ```
 
-**Pass or note.** On macOS with a narrow output encoding forced, this fails with a traceback ending `UnicodeEncodeError: 'charmap' codec can't encode characters in position 0-4`, exit code 1. If it fails the same way here, mark NOTE with the comment 'name raises UnicodeEncodeError when redirected', since the same happens for `vyd --help`, `vyd context` and anything else that prints the name. If it prints the name, mark PASS and say which code page W1.5 showed.
+**Pass or note.** Seen on macOS with a narrow output encoding forced, this prints `vyvid 0.2.15`, exit code 0, and `vyd --help` and `vyd context` print `vyvid` in place of the name. Where the code page can hold the name it prints `Вивід (vyvid) 0.2.15`. A traceback ending `UnicodeEncodeError` is a failure, so mark FAIL with the last lines. Say which code page W1.5 showed.
 
-**Capture.** The last five lines of the traceback and the ANSI code page from W1.5.
+**Capture.** The output, and the ANSI code page from W1.5.
 
 #### W2.4 The name on the console itself
 
@@ -372,7 +373,7 @@ vyd --version
 $env:PYTHONUTF8 = '1'
 ```
 
-**Pass.** The name prints, perhaps with some letters shown as boxes when the console font lacks them. A traceback is a failure. Run `Mark W2.4 PASS` or `Mark W2.4 FAIL 'comment'` yourself.
+**Pass.** The name prints, perhaps with some letters shown as boxes when the console font lacks them, or `vyvid` where the console's code page cannot hold it. A traceback is a failure. Run `Mark W2.4 PASS` or `Mark W2.4 FAIL 'comment'` yourself.
 
 #### W2.5 The workaround
 
@@ -382,7 +383,7 @@ Step W2.5 { $env:PYTHONUTF8; vyd --version; vyd --help }
 
 **Pass.** `1`, then the name correctly, then the help text with all subcommands from `context` to `close`, exit code 0. This is the form every later step uses, so a failure here makes the rest unreliable.
 
-**Capture.** If this fails, the whole output. If W2.3 failed and this passes, the workaround works, and the finding to report is that the name should print on redirected output with no setting.
+**Capture.** If this fails, the whole output.
 
 #### W2.6 Every subcommand answers `--help`
 
@@ -750,7 +751,7 @@ Step W4.5 { vyd context "$T\kb" --no-pull }
 Step W4.5b -Plain { vyd context "$T\kb" --no-pull }
 ```
 
-**Note.** The header carries the name, so under the default encoding this fails as in W2.3. Mark NOTE if it does.
+**Note.** The header carries the name, so under the default encoding it reads `vyvid` as in W2.3. A traceback is a failure.
 
 #### W4.6 Audit a domain you did not write
 
@@ -771,7 +772,7 @@ Step W4.7 {
 }
 ```
 
-**Pass.** `wrote <folder>: domain.toml, facets.md, notes.md, skills/demo/SKILL.md`, a snippet to add to the configuration, and the listing of `domain.toml`, `facets.md`, `notes.md` and `skills\demo\SKILL.md`. The folder name has a space on purpose. The command also ran `git init` in the folder. The snippet writes the path in a double-quoted string, so on Windows it holds single backslashes, which TOML reads as escapes and refuses. Do not paste it. W4.8 writes the entry by hand and `vyd domain add` in W3.10 writes it with forward slashes. Mark NOTE with 'snippet path has backslashes' if it does, since it is read from the code and has not been run.
+**Pass.** `wrote <folder>: domain.toml, facets.md, notes.md, skills/demo/SKILL.md`, a snippet to add to the configuration, and the listing of `domain.toml`, `facets.md`, `notes.md` and `skills\demo\SKILL.md`. The folder name has a space on purpose. The command also ran `git init` in the folder. The snippet writes the path as a TOML string with its backslashes escaped, so it parses and gives the path back, and the command names `vyd domain add` as the way to add the domain for you. W4.8 writes the entry by hand. Check that the snippet's `path` has doubled backslashes and mark NOTE if it does not, since this has not been run on Windows.
 
 #### W4.8 Add it to the configuration
 
@@ -1549,7 +1550,7 @@ Step W6.19 {
 
 #### W6.20 The grant under `core.autocrlf`
 
-The grant holds only where the file's bytes equal the blob committed at `HEAD`. Git for Windows is often set to `core.autocrlf=true`, which checks a text file out with CRLF line endings, so a checkout made that way may never be granted. This step clones the repository with the setting on and records what `vyd` says. It is a result to report whichever way it goes, since it may be a real defect on Windows.
+The grant holds only where what git would store for the file is the blob committed at `HEAD`. Git for Windows is often set to `core.autocrlf=true`, which checks a text file out with CRLF line endings. Since v0.2.15 `vyd` compares `git hash-object --path` of the file with `git rev-parse HEAD:vyvid.toml`, which applies the same conversion git does, so such a checkout is granted. This step clones the repository with the setting on and records what `vyd` says.
 
 ```powershell
 Step W6.20 {
@@ -1567,7 +1568,7 @@ Step W6.20 {
 }
 ```
 
-**Pass or note.** Seen on macOS with `core.autocrlf=true`, the committed size is 127 bytes and the checked-out size 134, with 7 carriage returns, `ls-files --eol` shows `i/lf    w/crlf`, `git status` is empty so git sees no change, and the project line reads `which is not trusted`. If it reads the same here, mark NOTE with 'trusted_repositories lapses under autocrlf' and the values above, since a Windows checkout with the default git setting is then never granted. If it reads `trusted through trusted_repositories`, mark PASS and say what `core.autocrlf` was in W1.2. We have not changed `vyd` for this.
+**Pass or note.** Seen on macOS with `core.autocrlf=true`, the committed size is 127 bytes and the checked-out size 134, with 7 carriage returns, `ls-files --eol` shows `i/lf    w/crlf`, `git status` is empty, and the project line reads `trusted through trusted_repositories`. If it reads `which is not trusted` here, mark FAIL with the values above and what `core.autocrlf` was in W1.2. An edit to the file must still lapse the grant, and so must one hidden with `git update-index --assume-unchanged`.
 
 ## W7 Skills
 

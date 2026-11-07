@@ -67,12 +67,12 @@ def glob_regex(pattern: str, prefix: bool = False) -> re.Pattern:
 
 def tracked(folder: Path) -> list[str]:
     """The files git tracks under ``folder``, relative to it. Raises ``subprocess.CalledProcessError`` outside a repository."""
-    done = subprocess.run(["git", "-C", str(folder), "ls-files", "-z"], capture_output=True, text=True, check=True)
+    done = subprocess.run(["git", "-C", str(folder), "ls-files", "-z"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
     return [n for n in done.stdout.split("\0") if n]
 
 
 def toplevel(folder: Path) -> Path:
-    return Path(subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()).resolve()
+    return Path(subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout.strip()).resolve()
 
 
 def listed(project) -> tuple[list[tuple[str, str]], list[str]]:

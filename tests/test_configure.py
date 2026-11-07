@@ -437,6 +437,15 @@ def test_scan_proposes_a_family_where_the_header_tells_the_type_and_names_what_i
     assert tomllib.loads(conf.read_text(encoding="utf-8"))["projects"][0].get("families") is None, "nothing is written without --apply"
 
 
+def test_scan_names_a_table_whose_first_column_is_an_identifier_column_but_holds_no_identifier(tmp_path, conf, capsys):
+    docs = docs_repo(tmp_path)
+    (docs / "words.md").write_text("| ID | Word |\n|---|---|\n| alpha | x |\n| beta | y |\n", encoding="utf-8")
+    conf.write_text(f'[[projects]]\nname = "p"\ncode = "{tmp_path.as_posix()}"\ndocs = "{docs.as_posix()}"\n', encoding="utf-8")
+    code, out, err = vyd(capsys, "project", "scan", "p")
+    assert code == 0, err
+    assert "words.md:1" in out.split("Not placed")[1] and "no cell is an identifier" in out
+
+
 def test_scan_leaves_an_existing_family_alone_proposes_a_pattern_only_where_the_default_does_not_fit_and_applies(tmp_path, conf, capsys):
     docs = docs_repo(tmp_path, {"debt.md": REGISTERS["debt.md"], "board.md": "| Slice | Deliverable | State | Blocked on |\n|---|---|---|---|\n| SL-1.2 | **a** | planned | |\n"})
     conf.write_text(f'[[projects]]\nname = "p"\ncode = "{tmp_path.as_posix()}"\ndocs = "{docs.as_posix()}"\n[projects.families]\nTD = {{ defined = "docs:old.md", type = "debt" }}\n', encoding="utf-8")

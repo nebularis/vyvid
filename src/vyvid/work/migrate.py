@@ -211,7 +211,7 @@ def still_mentioned(repo: Repo, old: str) -> bool:
     spelling such as a pack's FMH-H2-1, which the identifier check reads as FMH-H2. The sweep reaches only some
     areas and leaves such spellings, so an exception may still be needed."""
     out = subprocess.run(["git", "grep", "-lP", "-e", r"(?<![\w\-/.])" + re.escape(old) + r"(?![\w.])", "--"],
-                         cwd=repo.root, capture_output=True, text=True).stdout.split("\n")
+                         cwd=repo.root, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split("\n")
     baseline = {Path(p).resolve() for p in repo.exceptions}
     return any((repo.root / f).resolve() not in baseline for f in out if f)
 

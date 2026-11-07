@@ -18,6 +18,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from . import streams
+
 SEARCH_TOOLS = {"Grep", "Glob", "grep", "glob", "rg", "search", "semantic_search", "grep_search", "file_search"}  # rg is Copilot's
 SHELL_TOOLS = {"Bash", "PowerShell", "bash", "powershell", "shell", "exec_command", "run_in_terminal", "runInTerminal", "execute"}
 SEARCH = re.compile(r"(?:^|[|;&(]\s*|\bxargs\s+|\benv\s+\S+\s+|\bsudo\s+)(?:git\s+grep|grep|egrep|fgrep|rg|ag|ack|sed|awk|find|fd|Select-String|sls|findstr|Get-ChildItem|gci|ls\s+-R|dir\s+/s)\b", re.M | re.I)
@@ -103,12 +105,25 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--client", default="claude-code", choices=("claude-code", "codex", "copilot"))
         p.add_argument("--ask", default="vyd find", help="the command that asks the index in this project")
         a = p.parse_args(argv)
-        answer = handle(a.client, sys.stdin.read(), a.ask, state_dir(), time.time())
-    except (OSError, ValueError, KeyError, AttributeError, TypeError, SystemExit):
+        answer = handle(a.client, streams.read_stdin(), a.ask, state_dir(), time.time())
+    except (Exception, SystemExit):  # a hook never fails a tool, whatever went wrong, such as nesting too deep for the parser
         answer = {}
-    print(json.dumps(answer))
+    try:
+        print(json.dumps(answer))
+        sys.stdout.flush()
+    except (OSError, ValueError, AttributeError):
+        pass
     return 0
 
 
+def run() -> None:
+    """The ``vyd-hook`` console script. A reader that has gone away is no failure either."""
+    try:
+        code = streams.guarded(main)
+    except Exception:
+        code = 0
+    sys.exit(0 if code == streams.HANGUP else code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    run()

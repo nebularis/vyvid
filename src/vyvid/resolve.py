@@ -43,7 +43,7 @@ def remotes(folder: Path) -> list[str]:
     """The normalised remote URLs of the git repository holding ``folder``, if any."""
     found = subprocess.run(
         ["git", "-C", str(folder), "config", "--get-regexp", r"^remote\..*\.url$"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     return [normalise_remote(line.split(None, 1)[1]) for line in found.stdout.splitlines() if " " in line]
 
@@ -81,8 +81,9 @@ def bind(config: Config, folder: Path) -> Scope | None:
 
 
 def _git(folder: Path, *args: str) -> str | None:
-    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
-    return done.stdout.strip() if done.returncode == 0 and done.stdout.strip() else None
+    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = done.stdout.strip()
+    return out if done.returncode == 0 and out and "\0" not in out and len(out) < 4096 else None  # a path or a ref, never a blob
 
 
 def _common(folder: Path) -> Path | None:

@@ -4,6 +4,8 @@ specialise a domain's row, and a vyvid.toml naming a domain nobody configured dr
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from test_index_core import Words
@@ -117,3 +119,16 @@ def test_the_users_own_entry_naming_an_unknown_domain_stays_an_error(tmp_path, m
     configure(tmp_path, monkeypatch, f'[[projects]]\nname = "other"\ncode = "{tmp_path.as_posix()}/elsewhere"\ndomains = ["tools"]\n')
     with pytest.raises(ConfigError, match="domain 'tools' is not configured"):
         load()
+
+
+def test_the_printed_snippet_parses_and_gives_back_a_path_with_backslashes(tmp_path, capsys):
+    import tomllib
+
+    folder = tmp_path / "back\\slash \"quoted\""
+    if os.name == "nt":
+        pytest.skip("Windows file names cannot hold a quote, and its separator is the backslash the snippet must escape")
+    assert newdomain.new("tools", "note", folder) == 0
+    out = capsys.readouterr().out
+    assert "vyd domain add" in out and "which vyd does not change" not in out
+    snippet = out.split("Add this to your configuration", 1)[1].split("\n\n", 1)[1]
+    assert tomllib.loads(snippet)["domains"][0]["path"] == str(folder.resolve())

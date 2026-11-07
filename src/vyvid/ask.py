@@ -1108,7 +1108,7 @@ def log_miss(a: Asker, question: str) -> None:
         return
     private_dir(a.logs)
     private_file(a.miss_log)
-    with a.miss_log.open("a", encoding="utf-8") as handle:
+    with a.miss_log.open("a", encoding="utf-8", errors="backslashreplace") as handle:
         handle.write(f"{dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\t{question}\n")
 
 
@@ -1121,7 +1121,7 @@ def log_ask(a: Asker, verb: str, text: str, best: float | None, ids: list[str], 
     private_file(a.ask_log)
     score = "" if best is None else f"{best:.2f}"
     tail = "" if asked is None else f"\t{asked}"
-    with a.ask_log.open("a", encoding="utf-8") as handle:
+    with a.ask_log.open("a", encoding="utf-8", errors="backslashreplace") as handle:
         handle.write(f"{dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\t{verb}\t{score}\t{','.join(ids)}\t{text}{tail}\n")
 
 

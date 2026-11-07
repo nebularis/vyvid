@@ -202,6 +202,16 @@ The user configuration and a project’s `vyvid.toml` serve different purposes:
 
 The `[framework]` table in the user configuration holds settings for Vyvid itself. This guide introduces `kb` here, `glue` with recipes, `logs` and `store` with the graph and its logs, `commit_trailers` with domain maintenance, and `doc_share` with source search.
 
+### Understand text encodings and pipes
+
+Output keeps the encoding of the stream it goes to, so a program that reads `vyd` in a code page gets text in that code page. Vyvid does not force UTF-8 on a redirected stream. What it changes is that a character the stream cannot hold, or an argument whose bytes do not decode, is written as an escape such as `\u0456` and never ends the command with a traceback. A program that needs exact UTF-8 asks for it with `PYTHONIOENCODING=utf-8`, and a person who chooses the error handling with `PYTHONIOENCODING=<encoding>:<errors>` keeps their choice.
+
+The name prints as `Вивід` where the output can hold it and as `vyvid` where it cannot, for example in a Windows console on the code page 437 or in a pipe in code page 1252. `vyd --version` always ends in the bare version number.
+
+What Vyvid reads is fixed, whatever the locale. Output from `git` and from the commands you register as glue or command extractors is read as UTF-8, and a byte that is not valid there is replaced rather than failing the command. The request sent to a command extractor is UTF-8. Your configuration, a `vyvid.toml`, a `domain.toml` and a register type file are read as UTF-8, with or without a byte order mark, or as UTF-16. A file in any other encoding, such as one saved in a Chinese, Japanese, Korean or Cyrillic code page, is reported as a problem that names the file. Save it as UTF-8, for example with `Set-Content -Encoding UTF8` in PowerShell. Standard input is read as UTF-8 by `vyd-hook`, which prints no decision and exits 0 for input it cannot use. A prompt that meets invalid bytes or the end of the input counts as no.
+
+A program that stops reading, as `head` does, ends the command quietly with status 141 on a POSIX system and 1 elsewhere. Notes and problems go to standard error and results to standard output, so a pipe carries only the results.
+
 ### Configure the published domains
 
 The following user configuration declares all the domains discussed in this guide:

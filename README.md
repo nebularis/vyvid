@@ -56,7 +56,7 @@ vyd kb accept <domain>                 # a person fast-forwards a domain whose p
 vyd trust [path]                       # a person trusts a configuration outside their own folder, or this repository's vyvid.toml, by its hash, so its glue and command extractors run
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install [--client name] [--project] [--in folder] [--hooks] [--target folder] [--dry-run] # set up each client found, its rule file and the skills of private domains
-vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change
+vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change (`vyd domain add` adds a domain)
 vyd domain trust <name> own|reviewed|knowledge [--commit <hash>] [--dry-run] # change the trust of a configured domain, keeping your comments. Raising it, or moving a reviewed commit, needs a person at a terminal
 vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge] [--commit <hash>] [--dry-run] # add a domain to your configuration, keeping your comments. A trust of own or reviewed needs a person at a terminal. A remote is cloned later by vyd kb clone
 vyd domain remove <name> [--dry-run]   # take a domain out of your configuration, refused while a project uses it. Its folder is left alone

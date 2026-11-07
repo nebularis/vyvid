@@ -228,14 +228,26 @@ def read(path: Path, name: str, family_pattern: Pattern, register_type: str, typ
     return rows, problems
 
 
+def type_texts(stack) -> list[tuple[str, str]]:
+    """``(path, text)`` of each register-type file the stack's scopes have. A file that is not UTF-8 or UTF-16 is a DeclarationError naming it."""
+    from .config import read_toml_text  # config imports this module
+
+    out, problems = [], []
+    for scope in stack:
+        for path in scope.readable(scope.register_types):
+            if path.exists():
+                try:
+                    out.append((str(path), read_toml_text(path)))
+                except UnicodeError as error:
+                    problems.append(f"{path}: cannot be decoded ({error}). Save it as UTF-8")
+    if problems:
+        raise DeclarationError(problems)
+    return out
+
+
 def types_for(stack) -> RegisterTypes:
     """The register types a stack of scopes declares: the packaged ones, then each scope's that exist."""
-    sources = [("vyvid:data/register-types.toml", default_declarations())]
-    for scope in stack:
-        from .config import read_toml_text  # config imports this module
-
-        sources += [(str(p), read_toml_text(p)) for p in scope.readable(scope.register_types) if p.exists()]
-    return declarations(sources)
+    return declarations([("vyvid:data/register-types.toml", default_declarations()), *type_texts(stack)])
 
 
 def read_scope(scope, types: RegisterTypes, taggable: dict[str, set[str]]) -> tuple[list[Row], list[str]]:

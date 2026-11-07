@@ -77,7 +77,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills
+from . import __version__, ask, audit, board, citations, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -101,7 +101,10 @@ QUESTIONS = ("find", "read", "node", "reaches", "exists", "sparql", "misses", "g
 
 def _person() -> bool:
     """Whether a person is at a terminal. A speed bump for an agent, and no proof, since one can be given a pseudo-terminal."""
-    return sys.stdin is not None and sys.stdin.isatty()
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except ValueError:  # closed
+        return False
 
 
 def _set_aside(config) -> None:
@@ -161,7 +164,7 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
         print(json.dumps({"folder": str(folder.resolve()), "project": project and project.name,
                           "checkout": str(project.checkout) if project and project.checkout else None, "layers": stack}, indent=2))
         return 0
-    print(f"Вивід {__version__}: the contract for {folder.resolve()}")
+    print(f"{streams.display_name()} {__version__}: the contract for {folder.resolve()}")
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
     if project and project.checkout:
         entry = configured.projects.get(project.name)  # a project a vyvid.toml declares alone has no configured folder
@@ -274,7 +277,7 @@ def _typed(prompt: str) -> str:
     """What a person typed, empty when the input ends first, which is no agreement."""
     try:
         return input(prompt).strip()
-    except EOFError:
+    except (EOFError, UnicodeError, OSError, ValueError):
         return ""
 
 
@@ -545,8 +548,8 @@ def main(argv: list[str] | None = None) -> int:
     # A git hook exports these, and under them `git -C <folder> rev-parse --show-toplevel` answers the folder itself. GIT_INDEX_FILE stays, as a partial commit's temporary index is what --staged reads.
     for name in ("GIT_DIR", "GIT_WORK_TREE"):
         os.environ.pop(name, None)
-    parser = argparse.ArgumentParser(prog="vyd", description="Вивід: the contract and knowledge for the folder an agent is in")
-    parser.add_argument("--version", action="version", version=f"Вивід (vyvid) {__version__}")
+    parser = argparse.ArgumentParser(prog="vyd", description=f"{streams.display_name()}: the contract and knowledge for the folder an agent is in")
+    parser.add_argument("--version", action="version", version=f"{streams.version_text()} {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     c = sub.add_parser("context", help="the contract that applies in a folder, general first and the project last")
     c.add_argument("folder", nargs="?", default=".")
@@ -720,6 +723,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
     arguments = parser.parse_args(argv)
+    streams.clean_arguments(arguments)
     try:
         if arguments.command == "context":
             return context(Path(arguments.folder), arguments.json, not arguments.no_pull)
@@ -869,3 +873,12 @@ def main(argv: list[str] | None = None) -> int:
     except Unresolved as error:
         print(f"unresolved: {error}", file=sys.stderr)
         return 1
+
+
+def run() -> None:
+    """The ``vyd`` console script."""
+    sys.exit(streams.guarded(main))
+
+
+if __name__ == "__main__":
+    run()

@@ -12,8 +12,8 @@ symbols = ["tree-sitter==0.26.0", "tree-sitter-python==0.25.0", "tree-sitter-has
 test = ["pytest>=8", "vyvid[symbols]"]
 
 [project.scripts]
-vyd = "vyvid.cli:main"
-vyd-hook = "vyvid.remind:main"
+vyd = "vyvid.cli:run"
+vyd-hook = "vyvid.remind:run"
 
 [project.entry-points."vyvid.extractors"]
 owl-terms = "vyvid.extractors.owl:extract"

@@ -130,6 +130,21 @@ def test_a_malformed_own_configuration_grants_nothing(tmp_path):
 
 
 @pytest.mark.real_trust
+def test_the_grant_survives_core_autocrlf_and_an_edit_hidden_from_diff_still_lapses_it(tmp_path):
+    root = cloned(tmp_path)
+    grant(LISTED)
+    path = root / "vyvid.toml"
+    crlf = path.read_bytes().replace(b"\n", b"\r\n")
+    path.write_bytes(crlf)
+    assert not configuration.file_trusted(path), "without autocrlf a changed line ending is an edit"
+    sh(root, "config", "core.autocrlf", "true")
+    assert configuration.file_trusted(path), "with it, the working tree's CRLF is the committed text"
+    sh(root, "update-index", "--assume-unchanged", "vyvid.toml")
+    path.write_bytes(crlf + b"# edited\r\n")
+    assert not configuration.file_trusted(path), "an edit hidden from git diff still lapses the grant"
+
+
+@pytest.mark.real_trust
 def test_a_real_command_with_no_terminal_trusts_the_listed_repository_and_trust_still_refuses(tmp_path):
     home = tmp_path / "home"
     home.mkdir()

@@ -26,7 +26,7 @@ class GitError(Exception):
 
 
 def git(folder: Path, *args: str) -> str:
-    done = subprocess.run(["git", *args], cwd=folder, capture_output=True, text=True,
+    done = subprocess.run(["git", *args], cwd=folder, capture_output=True, text=True, encoding="utf-8", errors="replace",
                           env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
     if done.returncode != 0:
         raise GitError(f"git {' '.join(args)} failed in {folder}: {done.stderr.strip()}")

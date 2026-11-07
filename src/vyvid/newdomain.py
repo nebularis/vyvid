@@ -14,6 +14,7 @@ from importlib import resources
 from pathlib import Path
 
 from .config import NAME_RE, ConfigError, load
+from .configure import _rhs
 
 SPDX = "<!-- SPDX-License-Identifier: MIT -->"
 RECIPE = "how-do-i"
@@ -131,6 +132,6 @@ def new(name: str, registers: str, path: Path | None) -> int:
     if not in_repository(folder):
         subprocess.run(["git", "init", "-q", "-b", "main", str(folder)], check=True)
     print(f"wrote {folder}: {', '.join(files)}")
-    print("Add this to your configuration, which vyd does not change:\n")
-    print(f'[[domains]]\nname = "{name}"' + ("" if folder == default_path(name) else f'\npath = "{folder.resolve()}"'))
+    print("Add this to your configuration, or have vyd add it with vyd domain add:\n")
+    print(f'[[domains]]\nname = "{name}"' + ("" if folder == default_path(name) else f"\npath = {_rhs(str(folder.resolve()))}"))
     return 0

@@ -33,7 +33,7 @@ from . import config as cf
 from .anchors import Fences
 from .config import Config, ConfigError, Scope
 from .credentials import private_dir
-from .registers import SEPARATOR_RE, DeclarationError, _cells, default_declarations, types_for
+from .registers import SEPARATOR_RE, DeclarationError, _cells, default_declarations, type_texts, types_for
 from .resolve import layers, normalise_remote, project_file, remotes as git_remotes
 
 # Project keys `project set` writes, by how the value is read. The rest of an entry has its own command or stays hand-edited.
@@ -81,7 +81,7 @@ def target(file: bool) -> Target:
         return Target(cf.config_path(), False)
     if (existing := project_file(Path.cwd())) is not None:
         return Target(existing, True)
-    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if done.returncode:
         raise Refusal(f"--file writes the {cf.PROJECT_FILE} of the repository you are in, and this folder is not in one")
     return Target(Path(done.stdout.strip()) / cf.PROJECT_FILE, True)
@@ -507,7 +507,7 @@ TRUST_RANK = {"knowledge": 0, "reviewed": 1, "own": 2}  # what each gives: revie
 def _head(folder: Path | None) -> str | None:
     if folder is None or not folder.is_dir():
         return None
-    done = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True)
+    done = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     return done.stdout.strip() or None if done.returncode == 0 else None
 
 
@@ -570,7 +570,7 @@ def domain_trust(name: str, trust: str, commit: str | None, dry_run: bool, perso
 # -- projects ---------------------------------------------------------------------------------------------
 
 def _checkout() -> Path | None:
-    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    done = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     return Path(done.stdout.strip()) if done.returncode == 0 else None
 
 
@@ -856,7 +856,7 @@ def tables(root: Path) -> list[Table]:
 
 def signs(stack: list[Scope]) -> dict[str, set[str]]:
     """The columns each register type declares as its own, from the packaged declarations and the stack's."""
-    texts = [default_declarations(), *(cf.read_toml_text(p) for s in stack for p in s.readable(s.register_types) if p.exists())]
+    texts = [default_declarations(), *(text for _, text in type_texts(stack))]
     out: dict[str, set[str]] = {}
     for text in texts:
         for name, spec in tomllib.loads(text).get("types", {}).items():
@@ -894,6 +894,8 @@ def scan(scope: Scope, config: Config) -> Proposal:
             continue
         matches = [LOOSE_ID_RE.match(c) for c in table.cells]
         if not any(matches):
+            if table.header[0] in types.columns and types.columns[table.header[0]].kind == "id":
+                named.append(f"{label}, columns {', '.join(table.header)}: its first column is an identifier column, but no cell is an identifier of the form PREFIX-number, so it is not placed")
             continue
         prefixes = sorted({m.group(1) for m in matches if m})
         if not all(matches):

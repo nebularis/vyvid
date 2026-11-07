@@ -80,7 +80,9 @@ def tracked(project: Scope) -> list[Path]:
     tops: list[Path] = []
     for folder in (project.code, project.docs):
         if folder is not None and folder.is_dir():
-            done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+            done = subprocess.run(["git", "-C", str(folder), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if not done.returncode and ("\0" in done.stdout or len(done.stdout) > 4096):
+                done.returncode = 1  # not a path
             if done.returncode and folder is project.docs and project.private_docs:
                 continue  # private documents in no repository track nothing, so none is read
             if done.returncode:
@@ -90,7 +92,7 @@ def tracked(project: Scope) -> list[Path]:
                 tops.append(top)
     scan, keep = project.identifiers, []
     for top in tops:
-        listing = subprocess.run(["git", "-C", str(top), "ls-files", "-z", "--", "*.md"], capture_output=True, text=True, check=True).stdout
+        listing = subprocess.run(["git", "-C", str(top), "ls-files", "-z", "--", "*.md"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
         for name in filter(None, listing.split("\0")):
             path = top / name
             if not path.is_file() or any(fnmatch.fnmatchcase(name, g) or fnmatch.fnmatchcase(path.name, g) for g in scan.skip):
@@ -229,10 +231,10 @@ def committed_on(path: Path, line: int) -> str:
     try:
         if line == 0:
             out = subprocess.run(["git", "log", "--diff-filter=A", "--format=%ct", "--", str(path)],
-                                 cwd=path.parent, capture_output=True, text=True, check=True).stdout
+                                 cwd=path.parent, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
             return _utc(int(out.strip().splitlines()[-1])) if out.strip() else "uncommitted"
         out = subprocess.run(["git", "blame", "--line-porcelain", f"-L{line},{line}", "--", str(path)],
-                             cwd=path.parent, capture_output=True, text=True, check=True).stdout
+                             cwd=path.parent, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
     except (subprocess.CalledProcessError, OSError, IndexError):
         return "unknown"
     if out.startswith("0" * 40):

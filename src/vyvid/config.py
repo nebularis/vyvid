@@ -288,7 +288,7 @@ class Scope:
         if self.kind != "domain" or self.trust == "own":
             return "own"
         if self.trust == "reviewed" and self.commit and self.path is not None:
-            head = subprocess.run(["git", "-C", str(self.path), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+            head = subprocess.run(["git", "-C", str(self.path), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
             if head.lower().startswith(self.commit.lower()):
                 return "reviewed"
         return "knowledge"
@@ -379,8 +379,8 @@ def run_limited(command: list[str], request: str, folder: Path, env: dict[str, s
     program a wrapper like ``mise run`` runs: SIGTERM to the group, a moment to finish, then SIGKILL.
     As the session's leader, ``mise run`` keeps its task in the group. Raises
     ``subprocess.TimeoutExpired`` at the limit."""
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                               errors="replace", cwd=folder, env=env, start_new_session=True)
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                               cwd=folder, env=env, start_new_session=True)
     try:
         out, err = process.communicate(request, timeout=seconds)
     except subprocess.TimeoutExpired:
@@ -440,8 +440,9 @@ def trusted(config: Config) -> bool:
 
 
 def _git_out(folder: Path, *args: str) -> str:
-    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
-    return done.stdout.strip() if done.returncode == 0 else ""
+    done = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = done.stdout.strip()
+    return out if done.returncode == 0 and "\0" not in out and len(out) < 4096 else ""
 
 
 def file_key(path: Path) -> str:
@@ -487,9 +488,11 @@ def file_granted(path: Path) -> bool:
         origin, top = _git_out(folder, "remote", "get-url", "origin"), _git_out(folder, "rev-parse", "--show-toplevel")
         if not origin or not top or normalise_remote(origin) not in listed:
             return False
-        blob = subprocess.run(["git", "-C", str(folder), "cat-file", "blob", f"HEAD:{path.resolve().relative_to(Path(top).resolve()).as_posix()}"],
-                              capture_output=True)
-        return blob.returncode == 0 and blob.stdout == path.read_bytes()
+        rel = path.resolve().relative_to(Path(top).resolve()).as_posix()
+        # hash-object applies the line-ending conversion git would, so core.autocrlf does not lapse the grant
+        # and, unlike diff, an --assume-unchanged edit is still seen
+        committed = _git_out(folder, "rev-parse", f"HEAD:{rel}")
+        return bool(committed) and committed == _git_out(folder, "hash-object", f"--path={rel}", "--", str(path.resolve()))
     except (OSError, ValueError):
         return False
 
@@ -976,7 +979,7 @@ def _manifest(root: Path | None, name: str, where: str, problems: list[str]) -> 
     try:
         manifest = tomllib.loads(read_toml_text(root / "domain.toml"))
     except (UnicodeError, tomllib.TOMLDecodeError) as error:
-        problems.append(f"{where}: domain.toml does not parse ({error})")
+        problems.append(f"{where}: {root / 'domain.toml'} does not parse ({error})")
         return {}
     if manifest.get("name", name) != name:
         problems.append(f"{where}: domain.toml names the domain '{manifest['name']}'")
@@ -1189,7 +1192,7 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
     try:
         raw = tomllib.loads(text if text is not None else read_toml_text(path)) if text is not None or path.exists() else {}
     except (UnicodeError, tomllib.TOMLDecodeError) as error:
-        raise ConfigError([f"{path}: does not parse ({error}). Save it as UTF-8"]) from error
+        raise ConfigError([f"{path}: does not parse ({error}). Save it as UTF-8 (in PowerShell, Set-Content -Encoding UTF8)"]) from error
     problems: list[str] = []
     framework = raw.get("framework", {})
     kb = Path(framework["kb"]).expanduser() if "kb" in framework else None
