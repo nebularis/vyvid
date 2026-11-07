@@ -2,7 +2,7 @@
 
 # Sketch: agents in cloud sessions with no terminal
 
-**Status:** sketch, 2026-11-06. The maintainer chose option A on 2026-11-06, so it is built for public domains as slice VYD-21. Private domains wait for VYD-10.
+**Status:** sketch, 2026-11-06. The maintainer chose option A on 2026-11-06, so it is built for public domains as slice VYD-21. Private domains are written by `vyd cloud script`, see VYD-Q43.
 **Unit:** vyvid-framework
 **Questions:** VYD-Q42, VYD-Q43
 
@@ -42,7 +42,7 @@ Two smaller changes came from the same sessions. The automatic build now prints 
 ## 3. Questions
 
 - **VYD-Q42. Why does embedding fail during setup?** Answered 2026-11-06: the model's download host was not allowed. A setup script has no proxy variables in its environment and `huggingface.co` redirected it to `us.gcp.cdn.hf.co`, while a session goes through the proxy and was redirected to `us.aws.cdn.hf.co`. The setup script could not resolve the first until `*.cdn.hf.co` was allowed, after which the download and the embedding worked there. That name lookups follow the allowed list is inferred from those results.
-- **VYD-Q43. How does a cloud session get a private domain?** Open, waiting for VYD-10. A private domain needs a credential to clone, which a setup script should not hold, and a trust decision that nobody is at a terminal to make.
+- **VYD-Q43. How does a cloud session get a private domain?** Answered 2026-11-07. A private repository is refused during setup and in the session unless it is attached, attaching a second repository makes the session ignore the first one's `.claude/settings.json`, and no secret can be attached to requests to the hosting service. So private text reaches a cloud session only inside the setup script, which anyone who can use the environment can read. `vyd cloud script --output <file>` writes that script. It embeds the files `git ls-files` lists in the private domains named with `--domain`, each as base64 so every byte survives, and no other private domain, so a large one is never sent by accident. It writes a configuration of those domains as `trust = "own"` and of the public ones as cloned domains with every git policy `manual`, installs `vyd` at the running version, clones and installs the client files. The file is owner-only and never printed, and a fingerprint of its body says which version an environment holds. The script has a limit of about 64 KB, so a domain too large for it is cloned some other way or left out.
 
 ## 4. What it costs
 

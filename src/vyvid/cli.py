@@ -58,6 +58,9 @@
 ``vyd install --client claude-code [--target folder] [--dry-run]``
     write the client's user-level rule file and one skill per configured domain
 
+``vyd cloud script --output <file> [--domain name[=~/path]] [--grant remote] [--dry-run]``
+    write the setup script for a cloud environment: the private domains named are embedded, the public ones cloned. The script holds private text and is never printed
+
 ``vyd kb status | clone [domain ...] | pull [domain ...] [--due] | record <path> ... -m <message> | accept <domain>``
     the domains under the knowledge base, each a git clone of its remote, kept by its git policy. A pull of
     a domain that is not your own holds changes to its manifest, rules or skills until a person accepts them
@@ -77,7 +80,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
+from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -719,6 +722,12 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings, for a client that documents a place for one")
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
+    c = sub.add_parser("cloud", help="set up a cloud environment").add_subparsers(dest="cloud_command", required=True)
+    p = c.add_parser("script", help="write the setup script for a cloud environment, holding the private domains you name and cloning the public ones")
+    p.add_argument("--output", required=True, help="the file to write, owner-only. The script holds private text, so it is never printed")
+    p.add_argument("--domain", action="append", default=[], metavar="NAME[=PATH]", help="a private domain to embed, and where to write it in the cloud, under ~/. Repeat for several")
+    p.add_argument("--grant", action="append", default=[], metavar="REMOTE", help="a repository whose vyvid.toml the cloud trusts, written as host/owner/repository. Repeat for several")
+    p.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
     sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
@@ -769,6 +778,8 @@ def main(argv: list[str] | None = None) -> int:
             return recipe_command(arguments, parser)
         if arguments.command == "store":
             return store_command(arguments)
+        if arguments.command == "cloud":
+            return cloud.command(arguments.output, arguments.domain, arguments.grant, arguments.dry_run)
         if arguments.command == "domain":
             if arguments.domain_command == "add":
                 return configure.domain_add(arguments.name, arguments.path, arguments.remote, arguments.trust, arguments.commit, arguments.visibility,

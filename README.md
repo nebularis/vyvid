@@ -54,6 +54,7 @@ vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe
 vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
 vyd kb accept <domain>                 # a person fast-forwards a domain whose pull was held, after reading what changed
 vyd trust [path]                       # a person trusts a configuration outside their own folder, or this repository's vyvid.toml, by its hash, so its glue and command extractors run
+vyd cloud script --output <file> [--domain name[=~/path]] [--grant remote] [--dry-run] # write the setup script for a cloud environment, embedding the private domains you name and cloning the public ones. The script holds private text, so it goes to a file and is never printed
 vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
 vyd install [--client name] [--project] [--in folder] [--hooks] [--target folder] [--dry-run] # set up each client found, its rule file and the skills of private domains
 vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change (`vyd domain add` adds a domain)
