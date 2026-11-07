@@ -10,6 +10,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 |---|---|---|---|---|
 | vyvid-framework | VYD | [plan](plans/vyvid-framework.md) | [status](status/vyvid-framework.md) | building 2026-11-03 |
 | windows-tests | WT | [plan](plans/windows-tests.md) | [status](status/windows-tests.md) | building 2026-11-07 |
+| project-reads | RD | [plan](plans/project-reads.md) | [status](status/project-reads.md) | building 2026-11-08 |
 
 ## Work
 
@@ -54,3 +55,8 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | WT-2 | windows-tests | `vyd` fixes found on Windows | built 2026-11-07, building 2026-11-07 |
 | WT-3 | windows-tests | Windows forms of the tests that cannot run there as written | built 2026-11-07, building 2026-11-07 |
 | WT-4 | windows-tests | the whole suite on Windows, and the records | built 2026-11-07, building 2026-11-07 |
+| RD-1 | project-reads | the `reads` configuration and the visibility guard | building 2026-11-08 |
+| RD-2 | project-reads | the snapshot of a pinned commit | planned |
+| RD-3 | project-reads | the read scope in the stack and the index | planned |
+| RD-4 | project-reads | `vyd reads status` and `vyd reads pin` | planned |
+| RD-5 | project-reads | the guide, the sketch note and the release | planned |
