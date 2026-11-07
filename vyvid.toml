@@ -24,6 +24,7 @@ TOOL = { defined = "docs:developer/tools.md", type = "note" }
 SEC = { defined = "docs:developer/security.md", type = "security-finding" }
 # A slice is defined by its row in the index, and a bare match elsewhere is a mention only where the index defines it.
 VYD = { pattern = 'VYD-\d+[a-z]?', defined = "docs:developer/INDEX.md", type = "slice", defined_only = true }
+WT = { pattern = 'WT-\d+', defined = "docs:developer/INDEX.md", type = "slice", defined_only = true }
 # A question is a bold lead or a table row of a plan or a sketch.
 VYDQ = { pattern = 'VYD-Q\d+', defined = ["docs:developer/plans", "docs:developer/sketches"], rule = "question", type = "question" }
 
