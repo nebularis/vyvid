@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from subprocess_support import HOOK, POSIX, VYD, environment, project, quote, run, sees, vyd
+from subprocess_support import HOOK, POSIX, VYD, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
 from test_encodings import ENCODINGS, LOCALES
 from vyvid import streams
 
@@ -314,11 +314,12 @@ json.dump({"protocol": 1}, open(os.path.join(request["output"], "result.json"), 
 LABEL = "日本語 тест проєкт 😀"
 
 
-def extractor_world(tmp_path: Path, mode: str, pad: int = 0, name: str = "code") -> tuple[dict, Path, Path]:
+def extractor_world(tmp_path: Path, mode: str, pad: int = 0, name: str = "code", encoding: str = "utf-8") -> tuple[dict, Path, Path]:
     env = environment(tmp_path)
     code = tmp_path / name
-    (code / "docs").mkdir(parents=True)
-    (code / "docs" / "a.md").write_text("x\n", encoding="utf-8")
+    os.makedirs(on_disk(code / "docs", encoding))
+    with open(on_disk(code / "docs" / "a.md", encoding), "wb") as handle:
+        handle.write(b"x\n")
     script, seen = tmp_path / "child.py", tmp_path / "seen"
     script.write_text(CHILD, encoding="utf-8")
     own_config(env, tmp_path).write_text(
@@ -333,9 +334,11 @@ def extractor_world(tmp_path: Path, mode: str, pad: int = 0, name: str = "code")
 def test_a_command_extractor_that_writes_invalid_bytes_floods_or_leaves_early_is_no_crash(mode, pad, locale, tmp_path):
     if locale != "utf8" and not sees(locale):
         pytest.skip(f"the {locale} locale is not installed")
-    env, code, seen = extractor_world(tmp_path, mode, pad, name="代码 проєкт")
+    # A name this locale can hold, written in its encoding: on Linux a GBK machine cannot name a folder in Ukrainian
+    encoding = file_name_encoding(tuple(LOCALES[locale].items()))
+    env, code, seen = extractor_world(tmp_path, mode, pad, name="代码 проєкт" if holds("代码 проєкт", encoding) else "代码 项目", encoding=encoding)
     env.update(LOCALES[locale])
-    ran = vyd(env, "build", "--no-embed", cwd=code, seconds=60)
+    ran = vyd(env, "build", "--no-embed", cwd=on_disk(code, encoding), seconds=60)
     assert ran.clean() and ran.code == 0, ran
     if mode == "fail":
         assert b"exited 3" in ran.out + ran.err
@@ -365,14 +368,15 @@ def test_glue_that_writes_invalid_bytes_or_unicode_is_no_crash(mode, code, local
     if locale != "utf8" and not sees(locale):
         pytest.skip(f"the {locale} locale is not installed")
     env = environment(tmp_path, **LOCALES[locale])
+    encoding = file_name_encoding(tuple(LOCALES[locale].items()))
     root = tmp_path / "代码"
-    (root / "docs").mkdir(parents=True)
+    os.makedirs(on_disk(root / "docs", encoding))
     script = tmp_path / "glue.py"
     script.write_text(GLUE, encoding="utf-8")
     own_config(env, tmp_path).write_text(
         f'[[projects]]\nname = "p"\ncode = {quote(str(root))}\ndocs = "code:docs"\n\n[[projects.recipes]]\nname = "g"\ndescription = "d"\n'
         f'steps = [{{ step = "glue", command = [{quote(sys.executable)}, {quote(str(script))}, "{mode}"] }}]\n', encoding="utf-8")
-    ran = vyd(env, "recipe", "run", "g", "q", cwd=root)
+    ran = vyd(env, "recipe", "run", "g", "q", cwd=on_disk(root, encoding))
     assert ran.clean() and ran.code == code, ran
     if mode == "unicode":
         assert "G-1" in ran.out.decode(env.get("PYTHONIOENCODING", "utf-8") if locale == "utf8" else "gbk", "replace")

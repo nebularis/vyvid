@@ -44,3 +44,29 @@ def test_a_latin_1_file_name_on_linux_is_no_traceback_and_is_named(tmp_path):
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "latin-1"], check=True, env=environment(tmp_path))
     ran = vyd(environment(tmp_path, PYTHONUTF8="1"), "check", "identifiers", cwd=root)
     assert ran.clean() and b"is a tracked name the file system's encoding cannot decode" in ran.err, ran
+
+
+def gbk_file_names(monkeypatch):
+    """Python as it is on Linux under a GBK locale, whose file names are GBK, here where they are UTF-8."""
+    monkeypatch.setattr(os, "fsencode", lambda path: os.fspath(path).encode("gbk", "surrogateescape"))
+
+
+def test_a_configured_folder_this_machine_cannot_name_is_a_problem_and_no_crash(monkeypatch, tmp_path):
+    from vyvid.config import ConfigError, load
+
+    gbk_file_names(monkeypatch)
+    text = f'[[projects]]\nname = "p"\ncode = "{(tmp_path / "代码 проєкт").as_posix()}"\ndocs = "code:docs"\n'
+    with pytest.raises(ConfigError, match="cannot be a file name on this machine"):
+        load(tmp_path / "config.toml", text=text)
+    assert load(tmp_path / "config.toml", text=text.replace(" проєкт", "")).projects  # a name GBK holds is read
+
+
+def test_a_folder_argument_keeps_its_bytes_and_a_text_argument_does_not():
+    from argparse import Namespace
+
+    from vyvid.streams import clean_arguments
+
+    arguments = Namespace(folder="caf\udce9", words=["caf\udce9"], identifier="STD-1\udcc3")
+    clean_arguments(arguments)
+    assert arguments.folder == "caf\udce9" and os.fsencode(arguments.folder) == b"caf\xe9"
+    assert arguments.words == ["caf�"] and arguments.identifier == "STD-1�"

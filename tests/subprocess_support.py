@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
@@ -74,26 +75,47 @@ def git(root: Path, *args: str, env: dict[str, str] | None = None) -> None:
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, env=env or environment(root.parent))
 
 
-def project(root: Path, docs: str = "docs", defined: str = "std.md", mention: str = "a.md", row: str = "x", extra: str = "") -> Path:
+def on_disk(path: Path, encoding: str = "utf-8") -> bytes:
+    """``path`` as the bytes a machine whose file names are ``encoding`` holds it in. A test runs under UTF-8, so a name for a
+    process under another locale is written in that locale's encoding, as a person on that machine would have it."""
+    return str(path).encode(encoding, "surrogateescape")
+
+
+def project(root: Path, docs: str = "docs", defined: str = "std.md", mention: str = "a.md", row: str = "x", extra: str = "",
+            encoding: str = "utf-8") -> Path:
     """A repository at ``root`` whose vyvid.toml declares project ``p`` with a standards register, STD-1 defined and STD-99 mentioned
-    and never defined. Names may hold any character the file system allows. The docs folder is returned."""
+    and never defined. Names may hold any character the file system allows, and are written in ``encoding``. The docs folder is
+    returned."""
     folder = root / docs
-    folder.mkdir(parents=True)
-    (root / "vyvid.toml").write_text(f'[project]\nname = "p"\ndocs = {quote("code:" + docs)}\n{extra}\n[project.families]\n'
-                                     f'STD = {{ defined = {quote("docs:" + defined)}, type = "standard" }}\n', encoding="utf-8")
-    (folder / defined).write_text(f"# Standards\n\n| ID | Standard |\n|---|---|\n| STD-1 | {row} |\n", encoding="utf-8")
-    (folder / mention).write_text("See STD-1 and STD-99.\n", encoding="utf-8")
-    git(root, "init", "-q", "-b", "main")
-    git(root, "add", "-A")
-    git(root, "commit", "-q", "-m", "i")
+    os.makedirs(on_disk(folder, encoding))
+    toml = (f'[project]\nname = "p"\ndocs = {quote("code:" + docs)}\n{extra}\n[project.families]\n'
+            f'STD = {{ defined = {quote("docs:" + defined)}, type = "standard" }}\n')
+    for path, text in ((root / "vyvid.toml", toml), (folder / defined, f"# Standards\n\n| ID | Standard |\n|---|---|\n| STD-1 | {row} |\n"),
+                       (folder / mention, "See STD-1 and STD-99.\n")):
+        with open(on_disk(path, encoding), "wb") as handle:
+            handle.write(text.encode("utf-8"))
+    for args in (("init", "-q", "-b", "main"), ("add", "-A"), ("commit", "-q", "-m", "i")):
+        subprocess.run(["git", "-C", on_disk(root, encoding), *args], check=True, capture_output=True, env=environment(root.parent))
     return folder
 
 
+@functools.cache
 def sees(name: str) -> bool:
-    """Whether a locale of this name is installed."""
-    if shutil.which("locale") is None:
-        return False
-    return name in subprocess.run(["locale", "-a"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
+    """Whether a locale of this name is installed, asked of the C library as a process under it would ask, since glibc finds
+    ``zh_CN.GBK`` installed as ``zh_CN.gbk`` and ``locale -a`` lists only the second. On Linux the locales are made with, for
+    example, ``localedef -i zh_CN -f GBK zh_CN.GBK``."""
+    probe = "import locale; locale.setlocale(locale.LC_ALL, '')"
+    return subprocess.run([sys.executable, "-c", probe], env={**environment(Path(tempfile.gettempdir())), "LC_ALL": name},
+                          capture_output=True).returncode == 0
+
+
+@functools.cache
+def file_name_encoding(locale_env: tuple[tuple[str, str], ...]) -> str:
+    """The encoding a process with this environment holds file names in: UTF-8 on macOS and Windows, the locale's on Linux."""
+    probe = "import sys; print(sys.getfilesystemencoding())"
+    env = {**environment(Path(tempfile.gettempdir())), **dict(locale_env)}
+    return subprocess.run([sys.executable, "-c", probe], env=env, capture_output=True, text=True, encoding="ascii").stdout.strip()
+
 
 
 def holds(text: str, encoding: str) -> bool:

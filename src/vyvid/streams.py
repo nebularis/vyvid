@@ -61,16 +61,21 @@ def read_stdin() -> str:
         return ""
 
 
+PATH_ARGUMENTS = {"folder", "path", "paths"}
+
+
 def clean_arguments(arguments) -> None:
     """Replace the bytes of a text argument that do not decode, which arrive as lone surrogates, with U+FFFD, since text
-    handed to a store or a log cannot hold them. A path keeps its bytes."""
+    handed to a store or a log cannot hold them. A path keeps its bytes, as the surrogates Python turns back into them,
+    since U+FFFD is no file name under a locale such as GBK that cannot encode it."""
     def clean(value):
         if isinstance(value, str):
-            return value.encode("utf-8", "surrogatepass").decode("utf-8", "replace") if any("\ud800" <= c <= "\udfff" for c in value) else value
+            return value.encode("utf-8", "surrogateescape").decode("utf-8", "replace") if any("\ud800" <= c <= "\udfff" for c in value) else value
         return [clean(v) for v in value] if isinstance(value, list) else value
 
     for name, value in vars(arguments).items():
-        setattr(arguments, name, clean(value))
+        if name not in PATH_ARGUMENTS:
+            setattr(arguments, name, clean(value))
 
 
 def _hang_up() -> int:

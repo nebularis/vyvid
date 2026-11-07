@@ -648,6 +648,18 @@ def leaving(manifest: dict, root: Path, tokens: dict[str, Path] | None = None, p
     return found
 
 
+def _nameable(path: Path, value: str, where: str, problems: list[str]) -> Path | None:
+    """``path`` where this machine can name it as a file. On Linux a file name is held in the locale's encoding, so a
+    folder named in Ukrainian cannot exist under a GBK locale, and asking the system for it would raise."""
+    try:
+        os.fsencode(path)
+    except UnicodeEncodeError:
+        problems.append(f"{where}: '{value}' cannot be a file name on this machine, whose file names are "
+                        f"{sys.getfilesystemencoding()}, so it is not read")
+        return None
+    return path
+
+
 def _expand(value: str, bases: dict[str, Path | None], where: str, problems: list[str]) -> Path | None:
     """A path by its token, and a bare relative one under the scope's own folder, never the folder a
     command happens to run in, where a domain's manifest could name a file outside it."""
@@ -656,10 +668,10 @@ def _expand(value: str, bases: dict[str, Path | None], where: str, problems: lis
             if base is None:
                 problems.append(f"{where}: '{value}' needs '{token}', which is not set")
                 return None
-            return (base / value[len(token) + 1 :]).expanduser()
+            return _nameable((base / value[len(token) + 1 :]).expanduser(), value, where, problems)
     own = next((bases[t] for t in ("self", "code", "kb") if bases.get(t) is not None), None)
     path = Path(value).expanduser()
-    return own / path if own is not None else path
+    return _nameable(own / path if own is not None else path, value, where, problems)
 
 
 def _families(raw: dict, where: str, problems: list[str], bases: dict[str, Path | None] | None = None) -> dict[str, Family]:
@@ -1281,8 +1293,10 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
         if "code" not in p:
             problems.append(f"{where}: a project needs a code folder")
             continue
+        if (code := _nameable(Path(p["code"]).expanduser(), p["code"], f"project '{name}'", problems)) is None:
+            continue
         entries[name] = p
-        projects[name] = _project(p, name, Path(p["code"]).expanduser(), kb, set_aside, problems)
+        projects[name] = _project(p, name, code, kb, set_aside, problems)
 
     trailers = framework.get("commit_trailers", [])
     if not isinstance(trailers, list) or not all(isinstance(t, str) for t in trailers):

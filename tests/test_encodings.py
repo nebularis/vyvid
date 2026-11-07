@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from subprocess_support import NAME, POSIX, environment, holds, project, quote, run, sees, vyd
+from subprocess_support import NAME, POSIX, environment, file_name_encoding, holds, on_disk, project, quote, run, sees, vyd
 from vyvid import __version__
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "vyvid"
@@ -99,8 +99,17 @@ def test_a_project_under_any_name_is_found_read_and_checked_in_any_locale(label,
     if os.name == "nt" and any(c in name for c in '"|'):
         pytest.skip("Windows file names cannot hold these characters")
     root = tmp_path / f"r-{name}"
-    project(root, docs=f"d-{name}", defined=f"{name}.md", mention=f"m-{name}.md", row="x")
     env = environment(tmp_path, **LOCALES[locale])
+    encoding = file_name_encoding(tuple(LOCALES[locale].items()))
+    if not holds(name, encoding):
+        # No file on this machine can have the name, which happens on Linux, whose file names are in the locale's encoding.
+        # A folder made elsewhere in UTF-8 is a problem naming it, never a crash.
+        project(root, docs=f"d-{name}", defined=f"{name}.md", mention=f"m-{name}.md", row="x")
+        ran = vyd(env, "config", cwd=on_disk(root))
+        assert ran.clean() and b"cannot be a file name on this machine" in ran.out + ran.err, ran
+        return
+    project(root, docs=f"d-{name}", defined=f"{name}.md", mention=f"m-{name}.md", row="x", encoding=encoding)
+    root = on_disk(root, encoding)
     found = vyd(env, "config", cwd=root)
     assert found.clean() and found.code == 0 and b"projects: p" in found.out, found
     checked = vyd(env, "check", "identifiers", cwd=root)
