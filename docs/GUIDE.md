@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.19**, inspected on **7 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.20**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -500,7 +500,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.19"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.20"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -917,6 +917,35 @@ vyd find "request validation" --in ~/work/example-service
 ```
 
 Scope selection changes the query’s visibility. It does not grant instruction trust or permission to publish private knowledge.
+
+### Read another project’s knowledge
+
+A project that builds on another needs the other’s index beside its own. It names the project in its `vyvid.toml`, at a full commit:
+
+```toml
+[project.reads.example-library]
+commit = "0123456789abcdef0123456789abcdef01234567"
+skills = ["architecture"]
+recipes = ["sparql-for-studio"]
+domains = ["architecture-quanta"]
+```
+
+The other project must also be one you have configured with a code folder, since Вивід takes the commit from your clone of it. It extracts that commit with `git archive` into the index store, so what is read never changes under you and a different pin is a rebuild. A tag or a branch is not accepted as a pin because it moves. `vyd reads pin example-library v2.1` resolves a ref to its full commit, refuses one that the clone’s default branch does not hold, and writes it for you. Then run `vyd trust`, since the file changed.
+
+By default a read gives knowledge alone: its families, vocabulary, facets and register types, in the stack after the domains and before your project, so your own entries win. Its rules, contract, hooks, domains, moves and command extractors never come with it, and a read does not pull in what the other project itself reads.
+
+A skill or a recipe comes only under two conditions. You name it in the read’s `skills` or `recipes`, and a person has reviewed the read at this commit:
+
+```bash
+vyd reads status
+vyd reads review example-library
+```
+
+`review` prints what you are approving and the command that shows what changed since your last review, then records the commit in your own configuration, under the project’s entry as `reviewed_reads`. A new pin lapses the review until you review again. A recipe that runs a command is never carried. A carried skill is written under the other project’s prefix, such as `example-library-architecture`, and you change it with files in `.vyvid/skills/example-library/`, using the same headings as for a domain’s skill. A heading that ends `(drop)` removes that section, and one that ends `(replace)` replaces it.
+
+Extra indexing of a read, such as architectural quanta, is done by a domain you already use. Name it in the read’s `domains`, and its extractors run over the snapshot with the settings the other project gives that domain. No code of the other project runs.
+
+A public project never reads a private one. Vyvid refuses the declaration when it loads the configuration, and refuses `--scope` naming a private project from a public one.
 
 ### Search for existing concepts
 
