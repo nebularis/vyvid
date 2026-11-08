@@ -549,7 +549,7 @@ def stale(a: Asker, ranking: bool = False) -> bool:
     store, stamp, built_for = a.directory / "store", a.directory / "built-from", a.directory / "built-for"
     if not store.exists() or not stamp.exists() or not built_for.exists():
         return True
-    if {s.name for s in a.built_scopes} - set(built_for.read_text(encoding="utf-8").split()):
+    if {s.stamp for s in a.built_scopes} - set(built_for.read_text(encoding="utf-8").split()):
         return True
     built = float(stamp.read_text(encoding="utf-8").strip())
     if ranking and not (a.directory / embed.VECTORS).exists() and not (a.directory / NO_VECTORS).exists() and time.time() - stamp.stat().st_mtime > RETRY_EMBEDDING:

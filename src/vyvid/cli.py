@@ -151,11 +151,13 @@ def _layer(config, scope) -> dict:
         out[key] = [] if withheld else [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
     out["recipes"] = [{"name": r.name, "description": None if withheld else r.description} for r in scope.recipes]
     if withheld:
-        why = ("a vyvid.toml nobody has trusted" if scope.kind == "project" else scope.trust if scope.trust != "reviewed"
+        why = (f"a read of commit {scope.read_commit[:12]} that no person has reviewed" if scope.read_of else "a vyvid.toml nobody has trusted" if scope.kind == "project" else scope.trust if scope.trust != "reviewed"
                else f"reviewed at {scope.commit}, which HEAD has moved past")
         out["withheld"] = {"trust": why, "rules": [str(p) for p in scope.rules], "skills": [str(p) for p in scope.skills], "recipes": [r.name for r in scope.recipes]}
     if scope.kind == "domain":
         out["brings"] = [e["kind"] for e in scope.extractors]
+    if scope.read_of:
+        out["read"] = {"by": scope.read_of, "commit": scope.read_commit, "standing": scope.standing}
     if scope.kind == "project":
         out["file"] = str(scope.file) if scope.file else None
         out["runs"] = [{"kind": r.kind, "domain": r.domain, "settings": {k: [str(p) for p in v] if k == "paths" else v for k, v in r.settings.items()},
@@ -193,16 +195,19 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
     print("Read each layer's rules in this order. A later layer overrides an earlier one, and the project's is last.\n")
     for n, layer in enumerate(stack, 1):
         print((f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}") + f" ({layer['visibility']})")
+        if "read" in layer:
+            print(f"   a snapshot of commit {layer['read']['commit'][:12]}, read by {layer['read']['by']}: knowledge" + (", with the skills and recipes it names" if layer["read"]["standing"] == "reviewed" else " alone"))
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
         if "withheld" in layer:
             w = layer["withheld"]
-            since = (f"the vyvid.toml of project {layer['scope']} is not trusted" if layer["kind"] == "project"
+            since = (f"project {layer['read']['by']}'s read of {layer['scope']} has not been reviewed" if "read" in layer
+                     else f"the vyvid.toml of project {layer['scope']} is not trusted" if layer["kind"] == "project"
                      else f"domain {layer['scope']} has trust {w['trust']}")
             print(f"   withheld: {len(w['rules'])} rule file(s), {len(w['skills'])} skill path(s) and {len(w['recipes'])} recipe description(s), "
                   f"since {since}, which gives knowledge alone")
-            if layer["kind"] == "project":
+            if layer["kind"] == "project" and "read" not in layer:
                 print(f"   no glue or command extractor of {layer['file']} runs. A person runs vyd trust in a terminal, in that repository, after reading what it declares")
         for recipe in layer["recipes"]:
             print(f"   recipe {recipe['name']}  {recipe['description'] or '(description withheld)'}")

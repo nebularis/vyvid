@@ -2,8 +2,8 @@
 """Skills that reach an agent: a domain's or a project's own, composed for a project and written into it.
 
 A domain ships ``skills/<name>/SKILL.md``. A project adds to one with ``<additions>/<domain>/<name>.md``, whose text joins
-the skill under the heading of the same name, or takes that heading's place where the heading ends ``(replace)``, and whose
-new headings follow at the end. ``{{name}}`` in a skill is a value of the project's ``skill_values``, else of the domain's.
+the skill under the heading of the same name, or takes that heading's place where the heading ends ``(replace)``, or removes
+that section where the heading ends ``(drop)``, and whose new headings follow at the end. ``{{name}}`` in a skill is a value of the project's ``skill_values``, else of the domain's.
 
 The composed file names no folder of this machine, since it is committed and read on others. A skill names its registers
 by family and domain, and an agent reaches them through the index.
@@ -24,6 +24,7 @@ NAME_RE = re.compile(r"[a-z][a-z0-9-]*\Z")
 FRONT_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
 HEADING_RE = re.compile(r"^## +(.+?)\s*$", re.M)
 REPLACE_RE = re.compile(r"\s*\(replace\)$")
+DROP_RE = re.compile(r"\s*\(drop\)$")
 VALUE_RE = re.compile(r"(?<!\$)\{\{\s*([a-z][a-z0-9_.-]*)\s*\}\}")  # never a workflow's ${{ x }}
 SPDX_RE = re.compile(r"<!-- SPDX-License-Identifier: [^>]*-->\s*")
 DEFAULT_VALUES = {"ask": "vyd find", "read": "vyd read", "misses": "vyd misses --near", "gap": "vyd gap"}
@@ -91,6 +92,12 @@ def merge(base: str, addition: str) -> str:
     merged = {name: body for name, body in rows}
     order = [name for name, _ in rows]
     for raw, body in extras:
+        if DROP_RE.search(raw):  # the section goes, and a heading of the base that is not there is left alone
+            name = DROP_RE.sub("", raw)
+            if name in merged:
+                del merged[name]
+                order.remove(name)
+            continue
         name = REPLACE_RE.sub("", raw)
         if name not in merged:
             order.append(name)
@@ -211,6 +218,28 @@ def for_project(config: Config, project: Scope) -> tuple[list[Written], list[str
             if installed in out:
                 notes.append(f"skill {installed} of domain {name} takes the place of one from a parent")
             out[installed] = written
+    for name, read in project.reads.items():
+        taken = config.projects.get(name)
+        if taken is None or taken.read_of != project.name or not read.skills:
+            continue
+        if not taken.trusted:
+            notes.append(f"no skill from {name}, which {project.name} reads at {read.commit[:12]} without a review. After reading what it declares there, a person runs: vyd reads review {name}")
+            continue
+        have = found(taken)
+        prefix = taken.skill_prefix if taken.skill_prefix is not None else f"{name}-"
+        notes += [f"reads {name} takes the skill {w}, which {name} does not have" for w in read.skills if w not in have and w.removeprefix(prefix) not in have]
+        for short, path in have.items():
+            if short not in read.skills and f"{prefix}{short}" not in read.skills:
+                continue
+            extra = additions / name / f"{short}.md" if additions is not None else None
+            text = ""
+            if extra is not None and extra.is_file():
+                text = extra.read_text(encoding="utf-8")
+                used.add(extra)
+            installed = short if short.startswith(prefix) else prefix + short
+            if installed in out:
+                notes.append(f"skill {installed} of {name}, which {project.name} reads, takes the place of one from a domain")
+            out[installed] = compose(path.read_text(encoding="utf-8"), taken, project, text, installed)
     for short, path in found(project).items():
         installed = skill_name(project, short, project)
         if installed in out:

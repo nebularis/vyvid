@@ -229,7 +229,7 @@ class Move:
 
 
 FULL_COMMIT_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
-READ_KEYS = {"commit", "skills", "recipes"}
+READ_KEYS = {"commit", "skills", "recipes", "domains"}
 
 
 @dataclass(frozen=True)
@@ -241,6 +241,7 @@ class Read:
     commit: str
     skills: tuple[str, ...] = ()
     recipes: tuple[str, ...] = ()
+    domains: tuple[str, ...] = ()  # domains of the reader whose extractors run over the read (RD-P6)
 
     def standing(self, reader: "Scope") -> str:
         """``reviewed`` when the user recorded a review of this commit for ``reader``, else ``knowledge``."""
@@ -301,6 +302,7 @@ class Scope:
     dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
     reads: dict[str, Read] = field(default_factory=dict)  # projects only: the projects it reads, by name
     unread: list[str] = field(default_factory=list)  # projects only: reads it names that this user has not configured
+    read_notes: list[str] = field(default_factory=list)  # projects only: why a read could not be made, for this run
     reviewed_reads: dict[str, str] = field(default_factory=dict)  # projects only, the user's entry alone: read -> the commit a person reviewed
     read_of: str | None = None  # a read scope: the project that reads it
     read_commit: str | None = None  # a read scope: the commit it is a snapshot of
@@ -321,6 +323,11 @@ class Scope:
             if head.lower().startswith(self.commit.lower()):
                 return "reviewed"
         return "knowledge"
+
+    @property
+    def stamp(self) -> str:
+        """What the store records of the scope it was built for: its name, and for a read the commit too, so a new pin is a rebuild."""
+        return f"{self.name}@{self.read_commit}" if self.read_commit else self.name
 
     @property
     def trusted(self) -> bool:
@@ -1206,13 +1213,13 @@ def _reads(raw, reviewed, where: str, problems: list[str]) -> tuple[dict[str, Re
             problems.append(f"{here}: commit must be a full commit of 40 or 64 hexadecimal characters, since a tag or a branch moves")
             continue
         lists = {}
-        for key in ("skills", "recipes"):
+        for key in ("skills", "recipes", "domains"):
             value = item.get(key, [])
             if not (isinstance(value, list) and all(isinstance(v, str) and NAME_RE.match(v) for v in value)):
                 problems.append(f"{here}: {key} must be a list of lower-case names")
                 value = []
             lists[key] = tuple(value)
-        out[name] = Read(name, commit.lower(), lists["skills"], lists["recipes"])
+        out[name] = Read(name, commit.lower(), lists["skills"], lists["recipes"], lists["domains"])
     seen: dict[str, str] = {}
     if reviewed is not None and not (isinstance(reviewed, dict) and all(isinstance(v, str) and COMMIT_RE.match(v) for v in reviewed.values())):
         problems.append(f"{where}: reviewed_reads must map a project to a commit of at least 7 hexadecimal characters")

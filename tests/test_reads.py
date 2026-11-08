@@ -13,6 +13,7 @@ from test_checkouts import quiet_git  # noqa: F401  an autouse fixture
 from test_index_core import Words
 from test_project_file import commit, configure, put, sh
 from vyvid import ask
+from vyvid import build as builder
 from vyvid import config as configuration
 from vyvid.config import ConfigError, load
 from vyvid.resolve import bind_in
@@ -39,11 +40,20 @@ steps = [{ step = "find", words = "{question}", limit = 3 }]
 name = "other"
 description = "Another"
 steps = [{ step = "find", words = "{question}", limit = 3 }]
+
+[[project.recipes]]
+name = "g"
+description = "With glue"
+steps = [{ step = "glue", command = ["python", "tools/glue.py"] }]
+
+[[project.extractors]]
+kind = "cmd"
+command = ["python", "tools/ex.py"]
+paths = ["code:docs/*.md"]
 """
 DOWN = """[project]
 name = "down"
 visibility = "VIS"
-domains = []
 EXTRA
 [project.reads.up]
 commit = "COMMIT"
@@ -54,7 +64,7 @@ READ
 def upstream(tmp_path: Path, visibility: str = "public") -> tuple[Path, str]:
     """A repository of project ``up`` with a standard, a contract, a skill and two recipes, and its commit."""
     root = tmp_path / "up"
-    root.mkdir()
+    root.mkdir(parents=True)
     sh(root, "init", "-b", "main")
     put(root, "vyvid.toml", UPSTREAM.replace("VIS", visibility))
     put(root, "docs/standards.md", STANDARDS)
@@ -194,3 +204,167 @@ def test_context_shows_what_a_project_reads_and_says_what_it_cannot(tmp_path, mo
     configure(tmp_path, monkeypatch, "")
     assert cli.main(["context", str(down), "--no-pull"]) == 0
     assert "NOTE: reads up, which is not configured here" in capsys.readouterr().err
+
+
+# ---- RD-2: the snapshot --------------------------------------------------------------------------
+
+
+def read_of(tmp_path, monkeypatch, up, head, review="", **kw):
+    down = downstream(tmp_path, head, **kw)
+    text = f'[[projects]]\nname = "up"\ncode = "{up.as_posix()}"\n[[projects]]\nname = "down"\ncode = "{down.as_posix()}"\n'
+    configure(tmp_path, monkeypatch, text + (f'[projects.reviewed_reads]\nup = "{review}"\n' if review else ""))
+    config, project = bind_in(load(), down)
+    return down, config, project
+
+
+def test_the_snapshot_is_the_pinned_commit_and_not_the_checkout(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    put(up, "docs/standards.md", STANDARDS + "| STD-2 | Added after the pin. | docs/standards.md |\n")
+    commit(up, "later")
+    _, config, project = read_of(tmp_path, monkeypatch, up, head)
+    scope = config.projects["up"]
+    assert scope.read_of == "down" and scope.read_commit == head and scope.kind == "project"
+    assert "STD-2" not in (scope.code / "docs" / "standards.md").read_text() and (up / "docs" / "standards.md").read_text().count("STD-") == 2
+    assert head in scope.code.parts, "kept by the commit"
+    assert project.read_notes == []
+
+
+def test_the_snapshot_is_kept_by_commit_and_extracted_again_when_it_no_longer_matches_its_record(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    down, config, project = read_of(tmp_path, monkeypatch, up, head)
+    standards = config.projects["up"].code / "docs" / "standards.md"
+    before = standards.stat().st_mtime_ns
+    assert bind_in(load(), down)[1].read_notes == [] and standards.stat().st_mtime_ns == before, "an unchanged snapshot is left as it is"
+    standards.write_text("tampered\n")
+    again = bind_in(load(), down)
+    assert any("did not match its record" in n for n in again[1].read_notes) and "tampered" not in standards.read_text()
+
+
+def test_a_commit_the_source_does_not_hold_is_noted_and_the_read_left_out(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    _, config, project = read_of(tmp_path, monkeypatch, up, "b" * 40)
+    assert project.reads == {} and config.projects["up"].read_of is None
+    assert any("is not in" in n and "b" * 12 in n for n in project.read_notes)
+
+
+def test_the_read_scope_is_cut_to_knowledge(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    _, config, _ = read_of(tmp_path, monkeypatch, up, head)
+    scope = config.projects["up"]
+    assert list(scope.families) == ["STD"] and scope.rules == [] and scope.recipes == [] and scope.remotes == []
+    assert scope.extractors == [], "a command extractor of the read project never runs"
+    assert scope.standing == "knowledge" and not scope.trusted
+
+
+def test_a_reviewed_read_brings_the_recipes_named_and_never_one_with_glue(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    _, config, _ = read_of(tmp_path, monkeypatch, up, head, review=head, read='recipes = ["r", "g"]\n')
+    scope = config.projects["up"]
+    assert scope.standing == "reviewed" and [r.name for r in scope.recipes] == ["r"], "other is not named, and g runs a command"
+    assert scope.recipes[0].scope == "up"
+
+
+# ---- RD-3: the stack and the index ---------------------------------------------------------------
+
+
+def test_the_read_sits_between_the_domains_and_the_project(tmp_path, monkeypatch):
+    from vyvid.resolve import layers
+
+    up, head = upstream(tmp_path)
+    _, config, project = read_of(tmp_path, monkeypatch, up, head)
+    assert [s.name for s in layers(config, project)] == ["general", "up", "down"]
+
+
+def ask_ids(down):
+    config, project = bind_in(load(), down)
+    a = ask.open_stack(config, down, model=Words())
+    return a, {r["id"] for r in ask.candidates(a, set(), set(), set())}
+
+
+def test_the_index_holds_the_pinned_knowledge_and_is_stale_when_the_pin_moves(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    put(up, "docs/standards.md", STANDARDS.replace("A ledger is kept per key.", "A ledger is kept per account."))
+    commit(up, "later")
+    later = subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    down, config, project = read_of(tmp_path, monkeypatch, up, head)
+    a, found = ask_ids(down)
+    assert any(i.endswith("STD-1") for i in found)
+    built_for = (a.directory / "built-for").read_text().split()
+    assert f"up@{head}" in built_for and "down" in built_for and not ask.stale(a)
+    put(down, "vyvid.toml", (down / "vyvid.toml").read_text().replace(head, later))
+    config, project = bind_in(load(), down)
+    assert ask.stale(ask.open_stack(config, down, model=Words(), need_store=False)), "a new pin is a rebuild"
+
+
+def test_a_domain_of_the_reader_runs_its_extractors_over_the_read_with_the_settings_the_read_gives(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    put(up, "vyvid.toml", (up / "vyvid.toml").read_text() + '\n[project.uses.onto.owl-terms]\npaths = ["code:ontology/*.ttl"]\n')
+    put(up, "ontology/o.ttl", '@prefix owl: <http://www.w3.org/2002/07/owl#> .\n@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n'
+                              '<https://example.org/o#Thing> a owl:Class ; rdfs:label "Thing" .\n')
+    commit(up, "ontology")
+    head = subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    dom = tmp_path / "onto"
+    put(dom, "domain.toml", 'name = "onto"\nextractors = [{ kind = "owl-terms" }]\n')
+    outcomes = {}
+    for label, read in (("named", 'domains = ["onto"]\n'), ("unnamed", "")):
+        down = downstream(tmp_path / label, head, extra='domains = ["onto"]\n', read=read)
+        configure(tmp_path, monkeypatch, f'[[domains]]\nname = "onto"\npath = "{dom.as_posix()}"\n[[projects]]\nname = "up"\ncode = "{up.as_posix()}"\n')
+        config, project = bind_in(load(), down)
+        outcomes[label] = builder.build(config, project, embed=False).counts.get("term", 0)
+    assert outcomes == {"named": 1, "unnamed": 0}, "the reader's domain runs over a read only where the read is told to"
+
+
+# ---- RD-3: skills by name under review, and the (drop) marker ------------------------------------
+
+
+def test_a_heading_ending_drop_removes_that_section_of_a_skill():
+    from vyvid.skills import merge
+
+    base = "# Skill\n\nOpening.\n\n## A\n\nalpha\n\n## B\n\nbeta\n"
+    out = merge(base, "## A (drop)\n\n## C\n\ngamma\n")
+    assert "## A" not in out and "alpha" not in out and "beta" in out and "## C" in out and "gamma" in out
+    assert merge(base, "## Missing (drop)\n") == merge(base, ""), "dropping a section that is not there changes nothing"
+
+
+def composed(tmp_path, monkeypatch, review="", read='skills = ["architecture"]\n', additions=None):
+    from vyvid import skills
+
+    up, head = upstream(tmp_path)
+    down, config, project = read_of(tmp_path, monkeypatch, up, head, review=head if review else "", read=read)
+    for name, text in (additions or {}).items():
+        put(down, f".vyvid/skills/up/{name}.md", text)
+    config, project = bind_in(load(), down)
+    return skills.for_project(config, project)
+
+
+def test_a_skill_of_a_read_comes_by_name_under_its_own_prefix_and_only_once_reviewed(tmp_path, monkeypatch):
+    written, notes = composed(tmp_path, monkeypatch)
+    assert written == [] and any("without a review" in n and "up" in n for n in notes)
+    written, notes = composed(tmp_path / "r", monkeypatch, review="yes")
+    assert [w.name for w in written] == ["up-architecture"] and "Three of them." in written[0].text and not written[0].problems
+    assert "entries of project up" in written[0].text
+    written, notes = composed(tmp_path / "n", monkeypatch, review="yes", read='skills = ["nonesuch"]\n')
+    assert written == [] and any("nonesuch" in n for n in notes)
+    written, _ = composed(tmp_path / "x", monkeypatch, review="yes", read="")
+    assert written == [], "a skill not named is not carried"
+
+
+def test_the_reader_changes_a_carried_skill_with_additions_and_may_drop_a_section(tmp_path, monkeypatch):
+    written, notes = composed(tmp_path, monkeypatch, review="yes",
+                              additions={"architecture": "## Layers (drop)\n\n## Down's layers\n\nFour of ours.\n"})
+    text = written[0].text
+    assert "Three of them." not in text and "Four of ours." in text and not any("adds to no skill" in n for n in notes)
+
+
+def test_context_lists_the_read_as_a_layer_between_general_and_the_project(tmp_path, monkeypatch, capsys):
+    import json
+
+    from vyvid import cli
+
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head)
+    assert cli.main(["context", str(down), "--no-pull", "--json"]) == 0
+    layers = json.loads(capsys.readouterr().out)["layers"]
+    assert [x["scope"] for x in layers] == ["general", "up", "down"] and layers[1]["read"] == {"by": "down", "commit": head, "standing": "knowledge"}
+    assert cli.main(["context", str(down), "--no-pull"]) == 0
+    assert f"a snapshot of commit {head[:12]}, read by down: knowledge alone" in capsys.readouterr().out
