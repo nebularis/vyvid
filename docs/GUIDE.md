@@ -2560,7 +2560,7 @@ By default a term is owned by the folder of the document that declares it. When 
 
 ### Derive architectural quanta with the built-in `quanta` kind
 
-An architectural quantum is the smallest set that must change and be released together because of its coupling, so its size is the lower bound on incremental change. The built-in kind `quanta` derives them, in two views, and the entries answer to `vyd find --kind quantum`.
+An architectural quantum is the smallest set that must change and be released together because of its coupling, so its size is the lower bound on incremental change. The built-in kind `quanta` derives them, in two views, and `vyd find` returns them as entries of kind Quantum, such as `data/substrate`. The `--kind` filter does not take that kind, and `vyd read` does not print one yet.
 
 ```toml
 [[project.extractors]]
