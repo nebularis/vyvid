@@ -394,6 +394,9 @@ class Asker:
             raise ValueError(f"--scope {', '.join(unknown)} is not one of {', '.join(configured)}")
         if only and not names:
             raise ValueError(f"--scope only: names no scope, so it is one of {', '.join(configured)}")
+        if self.project is not None and self.project.visibility == "public":  # a public project never reads a private one (RD-P4)
+            if hidden := [n for n in names if n in self.config.projects and n != self.project.name and self.config.projects[n].visibility == "private"]:
+                raise ValueError(f"--scope {', '.join(hidden)} is a private project, and project {self.project.name} is public, so its knowledge could reach public text")
         chosen = [self.config.scope(n) for n in names]
         self.named = frozenset(names)
         in_stack = {s.name for s in self.stack}

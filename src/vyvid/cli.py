@@ -140,6 +140,8 @@ def _dropped(project) -> None:
     """Say which domains a repository's vyvid.toml names that this user has not configured. It is a note, since a clone's reader will not have them."""
     for name in project.dropped if project else []:
         print(f"NOTE: domain {name} is named by {project.file.name} and is not configured here, so it is left out of the stack for this run", file=sys.stderr)
+    for name in project.unread if project else []:
+        print(f"NOTE: reads {name}, which is not configured here, so it is left out of the stack for this run", file=sys.stderr)
 
 
 def _layer(config, scope) -> dict:
@@ -160,6 +162,8 @@ def _layer(config, scope) -> dict:
                         "sources": r.sources} for r in extractor_runs(config, scope)]
         out["code"] = str(scope.code)
         out["docs"] = str(scope.docs)
+        out["reads"] = [{"name": r.name, "commit": r.commit, "standing": r.standing(scope), "skills": list(r.skills), "recipes": list(r.recipes)}
+                        for r in scope.reads.values()]
         out["specialises"] = {d: {"path": str(p), "exists": p.exists()} for d, p in scope.specialises.items()}
         out["symbols"] = [{"language": x.language, "paths": [str(p) for p in x.paths]} for x in scope.symbols]
         out["code_index"] = [{"kind": handoff.clean(i.kind), "database": str(i.database), "exists": i.database.is_file(), "sources": str(i.sources) if i.sources else None,
@@ -208,6 +212,9 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
             print(f"   runs extractor {run['kind']}" + (f" of domain {run['domain']}" if run["domain"] else ""))
             for key, value in run["settings"].items():
                 print(f"      {key} = {value}   ({run['sources'][key]})")
+        for item in layer.get("reads", []):
+            taken = f"; takes skills {', '.join(item['skills']) or 'none'} and recipes {', '.join(item['recipes']) or 'none'}" if item["standing"] == "reviewed" else ""
+            print(f"   reads {item['name']} at {item['commit'][:12]}, {'reviewed' if item['standing'] == 'reviewed' else 'knowledge alone'}{taken}")
         for domain, item in layer.get("specialises", {}).items():
             print(f"   specialises {domain} in {item['path']}" + ("" if item["exists"] else "   (missing)"))
         for item in layer.get("symbols", []):
