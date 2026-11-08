@@ -227,6 +227,16 @@ def test_moves_text_names_ids_or_the_remedy() -> None:
 
 # ---- git ------------------------------------------------------------------------------------------
 
+def test_records_are_in_the_order_of_their_names_on_every_platform(repo: Repo) -> None:
+    """Windows compares paths ignoring case, so sorting the paths would put a capitalised record after a lower-case one
+    there and before it elsewhere, and the register would differ by machine."""
+    folder = repo.root / "records"
+    folder.mkdir()
+    for name in ("applied.md", "DESIGN.md"):
+        (folder / name).write_text("x\n", encoding="utf-8")
+    assert [p.name for p in repo.records(folder)] == ["DESIGN.md", "applied.md"]
+
+
 def test_read_blobs_returns_text_exact(repo: Repo) -> None:
     first, second = "café — dash\n", "second file\n"
     commit(repo.root, "docs/one.md", first)

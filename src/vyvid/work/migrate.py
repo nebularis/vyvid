@@ -200,7 +200,7 @@ def crosswalk_path(repo: Repo) -> Path:
 def sweep_files(repo: Repo, exceptions: bool = True) -> list[Path]:
     """Every file the sweep rewrites: the Markdown under each folder of ``folders`` and, unless told not to, the
     identifier exceptions baseline. The crosswalk is never rewritten."""
-    files = [p for folder in folders(repo) for p in sorted(folder.rglob("*.md")) if p.is_file() and repo.contained(p)]
+    files = [p for folder in folders(repo) for p in sorted(folder.rglob("*.md"), key=lambda p: p.as_posix()) if p.is_file() and repo.contained(p)]
     files += [p for p in repo.exceptions if p.exists()] if exceptions else []
     walk = Path(crosswalk_path(repo))
     return [f for f in files if f.resolve() != walk.resolve()]
@@ -313,7 +313,7 @@ def rename(repo: Repo, apply: bool) -> list[str]:
     validation = w.validation
     moves: list[tuple[str, str]] = []
     unmatched: list[str] = []
-    for pack in (sorted(validation.glob("*.md")) if validation is not None and validation.is_dir() else []):
+    for pack in (sorted(validation.glob("*.md"), key=lambda p: p.name) if validation is not None and validation.is_dir() else []):
         target = next((t for r in w.rename if (t := pack_target(r, pack.stem))), None)
         if target and target != pack.stem:
             moves.append((pack.name, f"{target}.md"))

@@ -527,7 +527,7 @@ class Repo(Rules):
 
     def records(self, folder: Path) -> list[Path]:
         """The Markdown files directly in ``folder``, less any link that leaves the repository."""
-        return [p for p in sorted(folder.glob("*.md")) if p.is_file() and self.contained(p)] if folder.is_dir() else []
+        return [p for p in sorted(folder.glob("*.md"), key=lambda p: p.name) if p.is_file() and self.contained(p)] if folder.is_dir() else []
 
     def writable(self, path: Path) -> bool:
         """Whether the module may write the path: inside the repository and outside every ``.git``."""
@@ -980,7 +980,7 @@ def list_presence(directory: Path, now_epoch: float) -> list[dict[str, str]]:
     """Every session whose file was touched within PRESENCE_HOURS of ``now_epoch``, oldest first. A
     crashed session ages out, a left one is gone, and no lock is ever held."""
     found: list[dict[str, str]] = []
-    for path in sorted(directory.glob("*.toml")) if directory.is_dir() else []:
+    for path in sorted(directory.glob("*.toml"), key=lambda p: p.name) if directory.is_dir() else []:
         age = max(0.0, now_epoch - path.stat().st_mtime)
         if age > PRESENCE_HOURS * 3600:
             continue
