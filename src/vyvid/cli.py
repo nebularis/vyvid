@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
+from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -171,6 +171,32 @@ def _layer(config, scope) -> dict:
         out["code_index"] = [{"kind": handoff.clean(i.kind), "database": str(i.database), "exists": i.database.is_file(), "sources": str(i.sources) if i.sources else None,
                               "built_by": None if withheld else (handoff.clean(i.built_by) or None), "known": i.kind in handoff.KNOWN} for i in scope.code_index]
     return out
+
+
+def reads_command(arguments) -> int:
+    config, project = bind_in(load(), Path(arguments.folder))
+    if project is None:
+        print("vyd: this folder belongs to no project", file=sys.stderr)
+        return 1
+    if arguments.reads_command == "status":
+        return reads.status(config, project)
+    name = arguments.name
+    if name not in project.reads:
+        print(f"vyd: project {project.name} does not read {name}" + (f". {'; '.join(project.read_notes)}" if project.read_notes else ""), file=sys.stderr)
+        return 1
+    if arguments.reads_command == "pin":
+        source = reads.source_of(config, name)
+        commit, why = reads.resolve_pin(source, arguments.ref) if source is not None else (None, f"{name} has no configured code folder")
+        if commit is None:
+            print(f"vyd: {why}", file=sys.stderr)
+            return 1
+        return configure.reads_pin(project, name, commit, arguments.dry_run, _person)
+    if not arguments.dry_run and not _person():
+        print("vyd: a person must review a read, in a terminal", file=sys.stderr)
+        return 1
+    for line in reads.review_text(config, project, name):
+        print(line)
+    return configure.reads_review(project.name, name, project.reads[name].commit, arguments.dry_run, _person)
 
 
 def context(folder: Path, as_json: bool, pull: bool = True) -> int:
@@ -658,6 +684,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--ref", help="a git ref, the working tree by default")
     p.add_argument("--json", action="store_true")
+    rd = sub.add_parser("reads", help="the projects a folder's project reads for their knowledge: status, pin and review").add_subparsers(dest="reads_command", required=True)
+    rd.add_parser("status", help="each read's pin against its source, its standing and what it may bring").add_argument("--in", dest="folder", default=".")
+    p = rd.add_parser("pin", help="pin a read to the full commit a ref names, which must be on the source's default branch")
+    p.add_argument("name")
+    p.add_argument("ref")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--dry-run", action="store_true")
+    p = rd.add_parser("review", help="a person records that they read what a read may bring at its pin, so its skills and recipes count")
+    p.add_argument("name")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("recipe", help="the named chains of queries of a folder's stack").add_subparsers(dest="recipe_command", required=True)
     p.add_parser("list", help="each recipe of the stack, its scope and when to use it").add_argument("--in", dest="folder", default=".")
     r = p.add_parser("run", help="run one recipe for a question and print its briefing")
@@ -801,6 +838,8 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "move":
             config, project = bind_in(load(), Path(arguments.folder))
             return moves.command(config, project, arguments.ref, arguments.json)
+        if arguments.command == "reads":
+            return reads_command(arguments)
         if arguments.command == "recipe":
             return recipe_command(arguments, parser)
         if arguments.command == "store":

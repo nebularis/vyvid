@@ -130,3 +130,95 @@ def realise(config: Config, reader: Scope) -> Config:
         else:
             made[name] = scope
     return replace(config, projects={**config.projects, **made}) if made else config
+
+
+# ---- vyd reads ------------------------------------------------------------------------------------
+
+
+def default_branch(source: Path) -> str | None:
+    """The branch a pin must be reachable from: the remote's default, else main or master."""
+    head = _git(source, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    candidates = [head.stdout.strip()] if head.returncode == 0 and head.stdout.strip() else []
+    for name in (*candidates, "main", "master"):
+        if _git(source, "rev-parse", "--verify", "--quiet", name).returncode == 0:
+            return name
+    return None
+
+
+def resolve_pin(source: Path, ref: str) -> tuple[str | None, str]:
+    """The full commit ``ref`` names in ``source``, else why not. It must be reachable from the source's default branch,
+    since a tag or a branch moves and a commit on a side branch may never be merged."""
+    found = _git(source, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+    if found.returncode != 0 or not found.stdout.strip():
+        return None, f"{ref} names no commit in {source}"
+    commit = found.stdout.strip()
+    trunk = default_branch(source)
+    if trunk is None:
+        return None, f"{source} has no main or master branch to hold {commit[:12]} against"
+    if _git(source, "merge-base", "--is-ancestor", commit, trunk).returncode != 0:
+        return None, f"{commit[:12]} is not reachable from {trunk}, so it may never be merged. Pin a commit of {trunk}"
+    return commit, ""
+
+
+def status(config: Config, project: Scope) -> int:
+    """For each read of ``project``: its pin against the source's default branch, its standing, what it is allowed to bring and whether its
+    snapshot is here. 1 when a read could not be made."""
+    failed = bool(project.read_notes)
+    for name, read in project.reads.items():
+        source = source_of(config, name)
+        trunk = default_branch(source) if source is not None else None
+        behind = ""
+        if trunk is not None:
+            count = _git(source, "rev-list", "--count", f"{read.commit}..{trunk}").stdout.strip()
+            behind = f", {count} commit{'' if count == '1' else 's'} behind {trunk}" if count not in ("", "0") else f", at the tip of {trunk}"
+        taken = config.projects.get(name)
+        present = taken is not None and taken.read_of == project.name
+        print(f"{name}  pinned at {read.commit[:12]}{behind}")
+        print(f"   {'reviewed at this pin' if read.standing(project) == 'reviewed' else 'knowledge alone'}"
+              f"; skills: {', '.join(read.skills) or 'none'}; recipes: {', '.join(read.recipes) or 'none'}; domains run over it: {', '.join(read.domains) or 'none'}")
+        print(f"   snapshot: {'present' if present else 'absent'}")
+    for note in project.read_notes:
+        print(f"   {note}")
+    for name in project.unread:
+        print(f"{name}  is not configured here, so it is left out")
+    if not project.reads and not project.unread and not project.read_notes:
+        print(f"project {project.name} reads nothing")
+    return 1 if failed else 0
+
+
+def review_text(config: Config, project: Scope, name: str) -> list[str]:
+    """What a person approves by reviewing the read ``name``: the skills and recipes it is allowed to bring, as they stand in the snapshot,
+    and the command that shows what changed since the last review."""
+    read = project.reads[name]
+    root, _ = snapshot(config, read)
+    lines = [f"Reviewing the read of {name} at {read.commit}, for project {project.name}."]
+    table, _ = read_project_file(root / "vyvid.toml") if root is not None else ({}, [])
+    have = _skills_scope(root, table)
+    for skill in read.skills:
+        path = have.get(skill)
+        lines.append(f"skill {skill}: " + (str(path) if path else "not in the snapshot"))
+    by_name = {r.get("name"): r for r in table.get("recipes", []) if isinstance(r, dict)}
+    for recipe in read.recipes:
+        item = by_name.get(recipe)
+        steps = ", ".join(s.get("step", "?") for s in item.get("steps", []) if isinstance(s, dict)) if item else "not in the snapshot"
+        lines.append(f"recipe {recipe}: {steps}" + ("   (runs a command, so it is not carried)" if item and "glue" in steps else ""))
+    before = project.reviewed_reads.get(name)
+    source = source_of(config, name)
+    if before and source is not None:
+        lines.append(f"Read what changed since your last review: git -C {source} diff {before}..{read.commit} -- .vyvid vyvid.toml")
+    else:
+        lines.append(f"Read it at the snapshot: {root}")
+    return lines
+
+
+def _skills_scope(root: Path | None, table: dict) -> dict[str, Path]:
+    """The skills a snapshot ships, by name, from the folders its vyvid.toml names."""
+    out: dict[str, Path] = {}
+    if root is None:
+        return out
+    listed = table.get("skills", [])
+    for entry in [listed] if isinstance(listed, str) else listed:
+        base = root / entry.removeprefix("code:") if isinstance(entry, str) else None
+        if base is not None and base.is_dir():
+            out.update({p.parent.name: p for p in sorted(base.glob("*/SKILL.md"))})
+    return out

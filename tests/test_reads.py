@@ -368,3 +368,81 @@ def test_context_lists_the_read_as_a_layer_between_general_and_the_project(tmp_p
     assert [x["scope"] for x in layers] == ["general", "up", "down"] and layers[1]["read"] == {"by": "down", "commit": head, "standing": "knowledge"}
     assert cli.main(["context", str(down), "--no-pull"]) == 0
     assert f"a snapshot of commit {head[:12]}, read by down: knowledge alone" in capsys.readouterr().out
+
+
+# ---- RD-4: vyd reads status, pin and review ------------------------------------------------------
+
+
+def run_cli(*args):
+    from vyvid import cli
+
+    return cli.main(list(args))
+
+
+def test_status_says_where_each_read_stands_against_its_source(tmp_path, monkeypatch, capsys):
+    up, head = upstream(tmp_path)
+    put(up, "docs/standards.md", STANDARDS + "| STD-2 | New. | docs/standards.md |\n")
+    commit(up, "later")
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head, read='skills = ["architecture"]\nrecipes = ["r"]\n')
+    capsys.readouterr()
+    assert run_cli("reads", "status", "--in", str(down)) == 0
+    out = capsys.readouterr().out
+    assert f"up  pinned at {head[:12]}" in out and "1 commit behind main" in out and "knowledge alone" in out
+    assert "skills: architecture" in out and "recipes: r" in out and "snapshot: present" in out
+
+
+def test_status_reports_a_read_it_could_not_make_and_one_not_configured(tmp_path, monkeypatch, capsys):
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, "c" * 40)
+    capsys.readouterr()
+    assert run_cli("reads", "status", "--in", str(down)) == 1
+    assert "is not in" in capsys.readouterr().out
+
+
+def test_pin_resolves_a_ref_to_a_full_commit_on_the_default_branch_and_writes_it(tmp_path, monkeypatch, capsys):
+    up, head = upstream(tmp_path)
+    put(up, "docs/standards.md", STANDARDS + "| STD-2 | New. | docs/standards.md |\n")
+    commit(up, "later")
+    tip = subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    sh(up, "tag", "v1")
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head)
+    monkeypatch.chdir(down)
+    assert run_cli("reads", "pin", "up", "v1", "--in", str(down)) == 0
+    assert f'commit = "{tip}"' in (down / "vyvid.toml").read_text() and head not in (down / "vyvid.toml").read_text()
+    assert "trust" in capsys.readouterr().out, "it says that the file's trust lapses"
+    assert bind_in(load(), down)[1].reads["up"].commit == tip
+
+
+def test_pin_refuses_a_commit_the_default_branch_does_not_hold_and_a_ref_that_is_nothing(tmp_path, monkeypatch, capsys):
+    up, head = upstream(tmp_path)
+    sh(up, "checkout", "-q", "-b", "side")
+    put(up, "docs/extra.md", "x\n")
+    commit(up, "side")
+    sh(up, "tag", "onside")
+    sh(up, "checkout", "-q", "main")
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head)
+    monkeypatch.chdir(down)
+    assert run_cli("reads", "pin", "up", "onside", "--in", str(down)) == 1
+    assert "not reachable from main" in capsys.readouterr().err
+    assert run_cli("reads", "pin", "up", "nonesuch", "--in", str(down)) == 1
+    assert (down / "vyvid.toml").read_text().count(head) == 1
+
+
+def test_review_needs_a_person_names_what_it_approves_and_records_the_pin(tmp_path, monkeypatch, capsys):
+    from vyvid import cli
+
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head, read='skills = ["architecture"]\nrecipes = ["r"]\n')
+    cfg = configuration.own_config()
+    capsys.readouterr()
+    assert run_cli("reads", "review", "up", "--in", str(down)) == 1 and "reviewed_reads" not in cfg.read_text()
+    monkeypatch.setattr(cli, "_person", lambda: True)
+    assert run_cli("reads", "review", "up", "--in", str(down)) == 0
+    out = capsys.readouterr().out
+    assert "architecture" in out and "recipe r" in out and head[:12] in out
+    assert bind_in(load(), down)[1].reads["up"].standing(bind_in(load(), down)[1]) == "reviewed"
+    # A new pin lapses the review.
+    sh(up, "commit", "--allow-empty", "-q", "-m", "next")
+    put(down, "vyvid.toml", (down / "vyvid.toml").read_text().replace(head, subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()))
+    project = bind_in(load(), down)[1]
+    assert project.reads["up"].standing(project) == "knowledge"
