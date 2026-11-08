@@ -446,3 +446,13 @@ def test_review_needs_a_person_names_what_it_approves_and_records_the_pin(tmp_pa
     put(down, "vyvid.toml", (down / "vyvid.toml").read_text().replace(head, subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()))
     project = bind_in(load(), down)[1]
     assert project.reads["up"].standing(project) == "knowledge"
+
+
+def test_what_an_unreviewed_read_says_is_labelled_as_data_and_a_reviewed_one_is_not(tmp_path, monkeypatch):
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head)
+    a = ask.open_stack(*bind_in(load(), down)[:1], down, model=Words())
+    assert f"which down reads at {head[:12]} and no person has reviewed" in ask.data_note(a, "up", "claim")
+    down, _, _ = read_of(tmp_path / "r", monkeypatch, up, head, review=head)
+    a = ask.open_stack(*bind_in(load(), down)[:1], down, model=Words())
+    assert ask.data_note(a, "up", "claim") == ""
