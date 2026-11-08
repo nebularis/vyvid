@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.23**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.24**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -500,7 +500,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.23"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.24"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
