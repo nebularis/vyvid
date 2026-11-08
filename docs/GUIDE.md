@@ -3189,30 +3189,30 @@ A private reader may read a private or a public project, and a public reader a p
 
 ### 21.11 A worked example
 
-UltraFoo is private and reads LATTICE, which is public. In a UltraFoo checkout:
+`example-service` is private and reads `example-library`, which is public. In an `example-service` checkout:
 
 ```bash
 # once, in your own configuration
-vyd project add lattice --code ~/work/lattice --visibility public
+vyd project add example-library --code ~/work/example-library --visibility public
 
-# in UltraFoo's vyvid.toml, add [project.reads.lattice] with skills = ["architecture", "ontology-authoring"], then
-vyd reads pin lattice origin/main
+# in example-service's vyvid.toml, add [project.reads.example-library] with skills = ["architecture"], then
+vyd reads pin example-library origin/main
 vyd trust
 
-# ask. LATTICE's entries appear as lattice:PRI-17, marked U
+# ask. The library's entries appear as example-library:STD-12, marked U
 vyd find "which layers may a module depend on"
 
-# a person reads the two skills, then
-vyd reads review lattice
+# a person reads the skill, then
+vyd reads review example-library
 
-# compose the skills into the checkout and check them
+# compose the skill into the checkout and check it
 vyd install --project
 vyd check skills
 
-# later, to move to a newer LATTICE
+# later, to move to a newer library
 vyd reads status
-vyd reads pin lattice origin/main
-vyd reads review lattice
+vyd reads pin example-library origin/main
+vyd reads review example-library
 ```
 
 ### 21.12 What stays out of reach

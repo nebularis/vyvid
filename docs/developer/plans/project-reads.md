@@ -8,7 +8,7 @@
 
 ## Scope
 
-A project that is downstream of another needs the other's index beside its own. MERIDIAN is private and builds on LATTICE, which is public, and an agent in MERIDIAN should find LATTICE's decisions, mechanisms and standards by the same `find`. Today the only way is `--scope`, which is per question, and which names a configured scope without saying where it stands.
+A project that is downstream of another needs the other's index beside its own. A private project can build on a public one such as LATTICE, and an agent in it should find LATTICE's decisions, mechanisms and standards by the same `find`. Today the only way is `--scope`, which is per question, and which names a configured scope without saying where it stands.
 
 A project declares what it reads in its `vyvid.toml`:
 
