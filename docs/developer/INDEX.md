@@ -12,6 +12,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | windows-tests | WT | [plan](plans/windows-tests.md) | [status](status/windows-tests.md) | building 2026-11-07 |
 | project-reads | RD | [plan](plans/project-reads.md) | [status](status/project-reads.md) | built 2026-11-08 |
 | guard | GD | [plan](plans/guard.md) | [status](status/guard.md) | built 2026-11-08 |
+| quanta | QU | [plan](plans/quanta.md) | [status](status/quanta.md) | building 2026-11-08 |
 
 ## Work
 
@@ -66,3 +67,5 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | GD-3 | guard | the hooks and their install | built 2026-11-08 |
 | GD-4 | guard | `vyd guard` and the context line | built 2026-11-08 |
 | GD-5 | guard | the guide, the registers and the release | built 2026-11-08 |
+| QU-1 | quanta | the built-in kind `quanta` | building 2026-11-08 |
+| QU-2 | quanta | quanta over a read, the guide and the release | planned |
