@@ -2585,7 +2585,8 @@ kind = "applied"
 | `paths` | the ontology documents (`.ttl`) whose `owl:imports` give the data view, and the compose files that give the software view |
 | `modules` | the project’s modules, each with a `name`, a `path` inside the project, a `kind` and `release`, which says whether it is released with the core. A readme at `<path>/README.md` becomes the entry’s pointer, or name another file with `readme` |
 | `core_kind` | the kind that forms the core quantum. It is `substrate` unless you say otherwise |
-| `pointer` | the file the core quantum’s entry points at, when the first module has no readme |
+| `pointer` | the file the core quantum’s entry points at. It is the catalogue when the project has one, and otherwise the first core module’s readme |
+| `skip_kinds` | kinds of module that have no quantum of their own, such as a scaffold with no artefacts yet |
 
 **Data view.** The modules of the core kind are one quantum, because they form one dependency order and one release. Any other module is its own quantum, since its coupling to the core runs one way, unless something in the core imports it, in which case the core’s quantum grows to take it in. A release member outside the core’s quantum shares its release number without being coupled to it, and the build reports it as a finding.
 

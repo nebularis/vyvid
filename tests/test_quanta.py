@@ -163,3 +163,8 @@ def test_a_project_that_reads_another_gets_its_quanta_with_no_review_and_no_comm
     builder.build(config, project, embed=False)
     found = quanta_of(builder.store_dir(config, project))
     assert "data/substrate" in found and "software/prod/api" in found
+
+
+def test_a_kind_can_be_skipped_and_the_core_points_at_the_catalogue_when_there_is_one():
+    found, _ = quanta.data_quanta({"a": "core", "b": "scaffold", "c": "applied"}, set(), set(), {}, core="core", core_pointer="cat.md", skip=("scaffold",))
+    assert [q.identifier for q in found] == ["data/core", "data/c"] and found[0].pointer == "cat.md"

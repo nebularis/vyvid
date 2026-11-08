@@ -79,11 +79,11 @@ def _listed(names: list[str]) -> str:
 
 
 def data_quanta(kinds: dict[str, str], imports: set[tuple[str, str]], release: set[str], pointers: dict[str, str],
-                core: str = "substrate", core_pointer: str = "") -> tuple[list[Quantum], list[str]]:
+                core: str = "substrate", core_pointer: str = "", skip: tuple[str, ...] = ()) -> tuple[list[Quantum], list[str]]:
     """The data view's quanta, and the release members the release policy places across a boundary.
 
     ``kinds`` maps a module to its kind, ``imports`` holds ``(importer, imported)`` pairs between modules, ``release`` the
-    modules released together, ``pointers`` a document per module."""
+    modules released together, ``pointers`` a document per module. A module of a kind in ``skip`` has no quantum of its own."""
     inside = {name for name, kind in kinds.items() if kind == core}
     grew = True
     while grew:
@@ -99,7 +99,7 @@ def data_quanta(kinds: dict[str, str], imports: set[tuple[str, str]], release: s
             claim=_fit(f"The {core}'s {len(inside)} layers are one data quantum: one dependency order released as one, so a change to any of them is a release of all."),
             pointer=core_pointer or pointers.get(sorted(inside)[0], "")))
     for name in sorted(kinds):
-        if name in inside:
+        if name in inside or kinds[name] in skip:
             continue
         shared = f" It shares the {core}'s release number all the same." if name in release else ""
         found.append(Quantum(
@@ -268,7 +268,9 @@ def extract(context: Context, settings: dict) -> Result:
     pointers = {m["name"]: (m["readme"] if isinstance(m["readme"], str) else f"{m['path']}/README.md") for m in modules}
     pointers = {n: p for n, p in pointers.items() if (root / p).is_file()}
     found, straddling = data_quanta({m["name"]: m["kind"] for m in modules}, imports, {m["name"] for m in modules if m["release"]}, pointers, core,
-                                    str(settings.get("pointer", "")))
+                                    str(settings.get("pointer", "")) or (context.scope.catalogue.file.relative_to(root).as_posix() if context.scope.catalogue is not None
+                                                                         and context.scope.catalogue.file.resolve().is_relative_to(root) else ""),
+                                    tuple(str(k) for k in settings.get("skip_kinds", ())))
     result.findings += [f"{name} shares the {core}'s release number although nothing in the {core} imports it, so the release policy places it across a quantum boundary"
                         for name in straddling]
     for path in (f for f in files if f.name in COMPOSE):
