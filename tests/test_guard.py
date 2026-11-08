@@ -28,7 +28,7 @@ FILES = {
     "private-upstreams": "github.com/example-org/closed\n",
     "guard/deny-terms": "# everywhere\n\\bfoobar\\b\n!docs/legal/**\n",
     "guard/public-deny-terms": "\\bsecret-project\\b\nquux[\\s-]+corp\n",
-    "guard/warn-terms": "liquidity venue\n",
+    "guard/warn-terms": "example tripwire\n",
     "guard/never-track": ".local/**\n",
     "guard/sensitive-paths": "github.com/example-org/open: ontology/applied/**\nsketches/**\n",
 }
@@ -142,7 +142,7 @@ def hits(findings):
 
 def test_terms_apply_by_class_and_a_finding_never_holds_the_term(tmp_path, monkeypatch):
     lists = lists_of(tmp_path, monkeypatch)
-    lines = [("a.md", 1, "the Secret-Project is here"), ("a.md", 2, "a foobar b"), ("a.md", 3, "a liquidity venue"), ("b.md", 4, "QUUX  corp")]
+    lines = [("a.md", 1, "the Secret-Project is here"), ("a.md", 2, "a foobar b"), ("a.md", 3, "an example tripwire"), ("b.md", 4, "QUUX  corp")]
     public = guard.check_lines(lists, "public", lines)
     assert hits(public) == [("a.md", 1, "matches public-deny-terms:1", False), ("a.md", 2, "matches deny-terms:2", False),
                             ("a.md", 3, "matches warn-terms:1", True), ("b.md", 4, "matches public-deny-terms:2", False)]
@@ -164,7 +164,7 @@ def token() -> str:
 def test_built_in_patterns_guard_paths_everywhere_and_secrets_in_every_class(tmp_path, monkeypatch):
     lists = lists_of(tmp_path, monkeypatch)
     home = "see " + "/" + "Users" + "/someone/work/x"
-    lines = [("a", 1, home), ("a", 2, "token " + token()), ("a", 3, "-----BEGIN RSA PRIVATE KEY-----"), ("a", 4, "/" + "Users" + "/example/x")]
+    lines = [("a", 1, home), ("a", 2, "token " + token()), ("a", 3, "-----BEGIN RSA " + "PRIVATE KEY-----"), ("a", 4, "/" + "Users" + "/example/x")]
     assert [f.what for f in guard.check_lines(lists, "public", lines)] == [
         "matches the built-in pattern home-path", "matches the built-in pattern token", "matches the built-in pattern private-key"]
     assert [f.what for f in guard.check_lines(lists, "private", lines)] == ["matches the built-in pattern token", "matches the built-in pattern private-key"]

@@ -50,11 +50,11 @@ ALL_HOOKS = ("applypatch-msg", "pre-applypatch", "post-applypatch", "pre-commit"
 # Generic patterns, shipped with the code. A user's ``allow`` file switches one off by name. ``everywhere`` ones also guard private repositories.
 BUILTIN = {
     "home-path": (r"(?<![\w.~$])(?:/Users|/home)/(?!(?:example|user|username|you|name|me|runner|vscode|node)/)[A-Za-z0-9._-]+/"
-                  r"|\b[A-Za-z]:\\Users\\(?!(?:example|user|username|you|name|me)\\)[^\\\s]+\\", False),
+                  r"|\b[A-Za-z]:\\Users\\(?!(?:example|user|username|you|name|me)\\)[^\\\s<>%$]+\\", False),
     "private-key": (r"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----", True),
     "token": (r"\b(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-ant-[A-Za-z0-9_-]{20,})\b", True),
 }
-ADVICE = ("A guarded public repository must not hold what is listed. Do not bypass this check. Report the findings to the maintainer "
+ADVICE = ("A guarded repository must not hold what is listed. Do not bypass this check. Report the findings to the maintainer "
           "by file and line, and propose a change that keeps the meaning without them. Only the maintainer may override, with "
           f"{SKIP_ENV}=\"<reason>\", which is logged.")
 
@@ -278,7 +278,7 @@ def run_hook(config: Config, hook: str, args: list[str], stdin: str, folder: Pat
         return 0
     if verdict.kind == "unclassified":
         print(f"vyd guard: this repository ({verdict.repo}) is under a watched owner and is in neither list, so this {hook} stops until the maintainer "
-              f"classifies it in the guard's upstreams or private-upstreams. {ADVICE}", file=sys.stderr)
+              f"classifies it in the guard's upstreams or private-upstreams. Do not bypass this check. Tell the maintainer, who may also override with {SKIP_ENV}=\"<reason>\".", file=sys.stderr)
         return 1
     try:
         findings: list[Finding] = []

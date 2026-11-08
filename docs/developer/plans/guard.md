@@ -2,7 +2,7 @@
 
 # Plan: a guard that keeps private terms out of public repositories
 
-**Status:** building 2026-11-08, at the maintainer's request and with the design settled the same day.
+**Status:** built 2026-11-08, at the maintainer's request and with the design settled the same day.
 **Prefix:** GD
 
 ## Scope

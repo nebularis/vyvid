@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.20**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.21**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -500,7 +500,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.20"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.21"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -3240,6 +3240,147 @@ What remains is the same as for a domain you mark as reviewed: a person who revi
 |---|---|---|
 | `[project.reads.<name>]` | the reader’s `vyvid.toml` or your entry | `commit`, `skills`, `recipes`, `domains` |
 | `reviewed_reads` | your entry only | `<name> = "<commit>"` |
+
+## 22. Keep private terms out of public repositories
+
+If you work across public and private repositories, some names, phrases and paths must never reach the public ones. An agent that has not read your rules, or has not worked out which repository it is in, publishes them by accident, and a commit stays in the history once it is pushed. The guard checks every commit and push against lists that you keep privately. The mechanism ships with Вивід and holds no term. Your lists live in a private domain, so they are versioned and shared between your machines the way any domain is.
+
+### 22.1 Keep the lists in a private domain
+
+Pick a private domain you own, or make one ([chapter 13](#13-create-a-new-domain)). Add a `guard` folder to it. Every file is optional, a line starting `#` is a comment, and a blank line is ignored.
+
+| File | Holds |
+|---|---|
+| `upstreams` | public repositories, one `host/owner/repository` per line, lower case, with no scheme, user or `.git` |
+| `private-upstreams` | private repositories that are guarded for the terms that apply everywhere. Same format |
+| `deny-terms` | one case-insensitive regular expression per line, applied to every guarded repository, public or private |
+| `public-deny-terms` | the same, applied to public repositories alone |
+| `warn-terms` | the same, applied to public repositories, and a match warns without blocking |
+| `never-track` | path globs that no commit may add, in any guarded repository |
+| `sensitive-paths` | `repository: glob`, or a bare glob for every repository. A commit to a public repository that touches one needs a `Placement:` trailer |
+| `allow` | names of built-in patterns to switch off |
+
+A domain may keep `upstreams` and `private-upstreams` at its root instead, which suits a domain that already holds them. A line starting `!` in a terms file names a path glob to skip, for a file where a term is legitimate. Terms run on the same time-limited regular-expression engine as families, so a hostile pattern cannot hang a commit.
+
+An example `public-deny-terms`:
+
+```text
+# Names of private projects.
+\bacme-secret\b
+# A partner whose drafts stay ahead of publication.
+\bexample[\s-]+partner\b
+```
+
+Terms that belong everywhere, such as an employer’s name, go in `deny-terms`. A private project may name itself freely, because `public-deny-terms` applies to public repositories alone.
+
+### 22.2 Turn the guard on
+
+In your own configuration:
+
+```toml
+[framework.guard]
+domains = ["example-private"]
+watch_owners = ["github.com/example-org"]
+```
+
+| Key | Meaning |
+|---|---|
+| `domains` | the domains whose `guard` folders supply the lists. Their lists are merged |
+| `watch_owners` | `host/owner` entries. A repository under one that is in neither list fails closed |
+| `terms`, `public_terms` | optional extra files, applied like `deny-terms` and `public-deny-terms` |
+
+Nothing is guarded until a domain, an owner or a file is named, and a guard that is not configured costs nothing.
+
+A repository’s class comes from its remotes. It is **public** if any remote is in `upstreams`, **private** if any is in `private-upstreams`, and **unclassified** if one is under a watched owner and listed in neither. Anything else is left alone, including a repository with no remote. Because the class comes from the remotes and not from anything an agent does, it cannot forget the check.
+
+### 22.3 Install the hooks
+
+```bash
+vyd install
+```
+
+Where a guard is configured, `vyd install` also writes git hooks into Вивід’s data folder and points git’s global `core.hooksPath` at them. Pass `--no-git-hooks` to leave them out and `--dry-run` to see what would happen. The hooks cover every repository on the machine, including a fresh clone, a new worktree and a repository created tomorrow, without a step per repository.
+
+Git runs hooks from `core.hooksPath` instead of a repository’s own `hooks` folder, so each shim runs the guard where it applies and then the repository’s own hook of the same name. All of git’s client-side hooks get a shim, so none of a repository’s own hooks stops running. Three cases are left to you:
+
+- **Another global `core.hooksPath`.** `vyd install` leaves it alone and says so. Run `vyd guard hook <pre-commit|commit-msg|pre-push>` from your own hooks, or unset yours and install again.
+- **A repository with its own `core.hooksPath`**, such as one that uses a hook manager. Git ignores the global setting there, so call `vyd guard hook` from its hooks.
+- **`vyd` missing from `PATH`.** The shim prints a warning and lets the commit through, so a broken tool never stops git.
+
+To remove the hooks, run `git config --global --unset core.hooksPath`.
+
+### 22.4 What is checked, and when
+
+| Hook | Checks |
+|---|---|
+| `pre-commit` | each line the commit adds, and each path it adds or changes |
+| `commit-msg` | the message, and, in a public repository, that a commit touching a sensitive path carries a `Placement:` trailer |
+| `pre-push` | every commit the push would send, by message, added lines and paths. A commit made with `--no-verify` is caught here |
+
+Merge commits are checked by message alone. Only added lines are read, so text that is already in a repository is never blocked until someone edits it. To find what a new list leaves in existing text, run `vyd guard check --all`.
+
+Three built-in patterns ship with the code and need no list. `home-path` finds a personal home folder such as `/Users/<name>/` in a public repository. `private-key` and `token` find a private key block and the common token shapes in every guarded repository. Switch one off by naming it in `allow`.
+
+A finding names the file, the line and the entry’s line number in its list, and never the term, so a log you share does not repeat it:
+
+```text
+vyd guard: docs/guide.md:12: matches public-deny-terms:3
+vyd guard: 1 finding(s) in a public repository, so this pre-commit stops.
+```
+
+Open the list at that line to see the term. Rewrite the text so that it keeps the meaning without it, or, if the term is right in that file, add `!path` to the list.
+
+### 22.5 Record where content was placed
+
+If your work has a rule about which content may be published, make the commit say how it was placed. List the paths where that question is real in `sensitive-paths`. A commit to a public repository that touches one is stopped at `commit-msg` unless the message ends with a trailer such as:
+
+```text
+Placement: T1, public applied
+```
+
+The guard checks that the trailer is present. A person checks that it is right, when the change is reviewed. A repository where no path is sensitive never needs the trailer.
+
+### 22.6 A repository nobody has classified
+
+A repository under a watched owner that is in neither list stops at its first commit, with the repository’s name and the reason. This catches a new repository before it can leak. Add it to `upstreams` or `private-upstreams` in the guard’s domain, and commit that change to the domain.
+
+### 22.7 Overriding the guard
+
+You can always override. Set `VYD_GUARD_SKIP` to a reason for the one command:
+
+```bash
+VYD_GUARD_SKIP="quoted from a public source, reviewed" git commit
+```
+
+The guard passes, prints that it was skipped, and appends the time, hook, class, repository and reason to `guard-skips.log` in Вивід’s state folder. The `--no-verify` flag skips the commit hooks and not the push check. The message a blocked agent sees tells it not to bypass the guard, to report the findings by file and line, and to propose a conformant change. Treat an agent that sets the variable itself as a fault.
+
+### 22.8 Inspect and test
+
+```bash
+vyd guard status
+vyd guard check
+vyd guard check --all
+```
+
+`status` gives the folder’s class, the size of the lists in force and whether the hooks are in place. `check` runs the lists over what is staged, and `--all` over every tracked file. `vyd context` opens with a line when the folder is guarded, so an agent is told as its first act: whether the repository is public, private or unclassified, and whether the hooks are missing.
+
+### 22.9 What the guard does not do
+
+- It runs on your machine. Public continuous integration cannot hold your terms, so it cannot repeat the check.
+- A hook can be bypassed with `--no-verify` or by a repository’s own `core.hooksPath`, and the push check is the second line.
+- Terms are regular expressions. They find a name, and they do not find a paraphrase or a copy of private text with the name changed. A check for copied text is planned.
+- Whether content is right to publish is a judgement. The `Placement:` trailer makes that judgement visible, and review is where it is made.
+
+### 22.10 Reference
+
+| Item | Meaning |
+|---|---|
+| `[framework.guard]` | `domains`, `watch_owners`, `terms`, `public_terms` |
+| `vyd install [--no-git-hooks] [--dry-run]` | writes the hooks and sets git’s global `core.hooksPath` where a guard is configured |
+| `vyd guard status [--in folder]` | class, lists, hook state |
+| `vyd guard check [--all] [--in folder]` | the staged lines, or every tracked file, against the lists. Exits 1 on a blocking finding |
+| `vyd guard hook <name> [args]` | what the hooks run |
+| `VYD_GUARD_SKIP` | the maintainer’s override, with a reason, which is logged |
 
 ## Daily operating pattern
 
