@@ -386,6 +386,6 @@ def status_lines(config: Config, folder: Path) -> list[str]:
     elif verdict.kind == "unclassified":
         out.append(f"NOT CLASSIFIED: {verdict.repo} is under a watched owner and in neither list, so a commit here stops until the maintainer classifies it")
     if verdict.kind != "none" and hooks_state() != "installed":
-        out.append("NOTE: the guard's git hooks are not installed here, so nothing is checked at commit. Run vyd install --client")
+        out.append("NOTE: the guard's git hooks are not installed here, so nothing is checked at commit. Run vyd install")
     out += [f"NOTE: {p}" for p in lists.problems]
     return out
