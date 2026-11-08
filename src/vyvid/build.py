@@ -236,6 +236,6 @@ def build(config: Config, project: Scope | None = None, store_path: Path | None 
         (directory / ROOT_FILE).write_text(f"{project.checkout.resolve()}\n", encoding="utf-8", newline="\n")
     (directory / "built-from").write_text(f"{built_from}\n", encoding="utf-8", newline="\n")
     # The scopes the store holds, so a question in a folder bound to another stack knows to rebuild.
-    (directory / "built-for").write_text("".join(f"{s.name}\n" for s in sorted(stack, key=lambda s: s.name)), encoding="utf-8", newline="\n")
+    (directory / "built-for").write_text("".join(f"{s.stamp}\n" for s in sorted(stack, key=lambda s: s.name)), encoding="utf-8", newline="\n")
     out.counts["seconds"] = round(time.perf_counter() - start, 2)
     return out

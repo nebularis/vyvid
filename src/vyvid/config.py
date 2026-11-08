@@ -62,10 +62,10 @@ DOMAIN_KEYS = {"description", "visibility", "parents", "families", "delegates", 
 VISIBILITIES = ("public", "private")
 # The file a repository names its own project in, and what it may not set or hold.
 PROJECT_FILE = "vyvid.toml"
-PROJECT_REFUSED = ("code", "git", "remote", "trust", "match")
+PROJECT_REFUSED = ("code", "git", "remote", "trust", "match", "reviewed_reads")
 PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
                 "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index", "doc_share", "work",
-                "skill_values", "skill_additions", "skill_prefix", "skill_targets", "hook_clients"}
+                "skill_values", "skill_additions", "skill_prefix", "skill_targets", "hook_clients", "reads", "catalogue"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -228,6 +228,49 @@ class Move:
     copy_removed: bool = False  # the project has removed its copy, so ``vyd move check`` does not compare it
 
 
+@dataclass(frozen=True)
+class CatalogueSpec:
+    """Where a project's repository catalogue is, and where its modules have their READMEs (see ``catalogue``)."""
+
+    file: Path
+    module_root: str = ""
+
+
+def _catalogue(raw, bases: dict, where: str, problems: list[str]) -> CatalogueSpec | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"file", "module_root"} or not isinstance(raw.get("file"), str):
+        problems.append(f"{where}: catalogue is a table with a file, and optionally a module_root")
+        return None
+    root = raw.get("module_root", "")
+    if not isinstance(root, str) or Path(root).is_absolute() or ".." in Path(root).parts:
+        problems.append(f"{where}: catalogue module_root must be a folder inside the project")
+        return None
+    file = _expand(raw["file"], bases, where, problems)
+    return CatalogueSpec(file, root) if file is not None else None
+
+
+FULL_COMMIT_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
+READ_KEYS = {"commit", "skills", "recipes", "domains"}
+
+
+@dataclass(frozen=True)
+class Read:
+    """Another project a project reads for its knowledge, at a full commit. ``skills`` and ``recipes`` name what of the
+    read project's own the reader takes, which comes only once a person has reviewed the read at this commit."""
+
+    name: str
+    commit: str
+    skills: tuple[str, ...] = ()
+    recipes: tuple[str, ...] = ()
+    domains: tuple[str, ...] = ()  # domains of the reader whose extractors run over the read (RD-P6)
+
+    def standing(self, reader: "Scope") -> str:
+        """``reviewed`` when the user recorded a review of this commit for ``reader``, else ``knowledge``."""
+        seen = reader.reviewed_reads.get(self.name, "")
+        return "reviewed" if len(seen) >= 7 and self.commit.lower().startswith(seen.lower()) else "knowledge"
+
+
 @dataclass
 class Scope:
     """A layer of rules: the general scope, a domain or a project."""
@@ -279,11 +322,21 @@ class Scope:
     file: Path | None = None  # projects only: the vyvid.toml this project was declared in, if any
     file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
     dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
+    reads: dict[str, Read] = field(default_factory=dict)  # projects only: the projects it reads, by name
+    catalogue: CatalogueSpec | None = None  # projects only: its repository catalogue
+    unread: list[str] = field(default_factory=list)  # projects only: reads it names that this user has not configured
+    read_notes: list[str] = field(default_factory=list)  # projects only: why a read could not be made, for this run
+    reviewed_reads: dict[str, str] = field(default_factory=dict)  # projects only, the user's entry alone: read -> the commit a person reviewed
+    read_of: str | None = None  # a read scope: the project that reads it
+    read_commit: str | None = None  # a read scope: the commit it is a snapshot of
+    read_standing: str = "knowledge"  # a read scope: its reader's standing for it
 
     @property
     def standing(self) -> str:
         """What the scope gives now. A reviewed domain whose HEAD is not its commit gives knowledge alone, and so
         does a project declared by a vyvid.toml whose bytes nobody has trusted."""
+        if self.read_of is not None:
+            return self.read_standing
         if self.kind == "project":
             return "own" if self.file is None or file_trusted(self.file) else "knowledge"
         if self.kind != "domain" or self.trust == "own":
@@ -293,6 +346,11 @@ class Scope:
             if head.lower().startswith(self.commit.lower()):
                 return "reviewed"
         return "knowledge"
+
+    @property
+    def stamp(self) -> str:
+        """What the store records of the scope it was built for: its name, and for a read the commit too, so a new pin is a rebuild."""
+        return f"{self.name}@{self.read_commit}" if self.read_commit else self.name
 
     @property
     def trusted(self) -> bool:
@@ -309,6 +367,48 @@ class Scope:
             return []
         named = [*self.rules, *self.skills, *self.facets, *self.register_types, *self.vocabulary]
         return [*(p for p in named if escapes(p, self.path)), *(p for f in self.families.values() for p in f.refused())]
+
+
+GUARD_KEYS = {"domains", "watch_owners", "terms", "public_terms"}
+OWNER_RE = re.compile(r"^[a-z0-9.-]+/[a-z0-9._-]+$")
+
+
+@dataclass(frozen=True)
+class GuardSettings:
+    """The user's guard against private terms reaching a public repository (see ``guard``). Nothing is guarded
+    unless a domain or an owner is named."""
+
+    domains: tuple[str, ...] = ()  # domains whose ``guard`` folder holds the lists
+    watch_owners: tuple[str, ...] = ()  # ``host/owner``: a repository under one that is in neither list fails closed
+    terms: tuple[Path, ...] = ()  # extra files of terms applied to every guarded repository
+    public_terms: tuple[Path, ...] = ()  # extra files of terms applied to public repositories alone
+
+    @property
+    def on(self) -> bool:
+        return bool(self.domains or self.watch_owners or self.terms or self.public_terms)
+
+
+def _guard(raw, domains: dict, set_aside: dict, problems: list[str]) -> GuardSettings:
+    where = "[framework.guard]"
+    if raw is None:
+        return GuardSettings()
+    if not isinstance(raw, dict):
+        problems.append(f"{where}: must be a table")
+        return GuardSettings()
+    if unknown := sorted(set(raw) - GUARD_KEYS):
+        problems.append(f"{where}: unknown keys {', '.join(unknown)}")
+    lists = {}
+    for key in ("domains", "watch_owners", "terms", "public_terms"):
+        value = raw.get(key, [])
+        if not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+            problems.append(f"{where}: {key} must be a list of strings")
+            value = []
+        lists[key] = value
+    problems += [f"{where}: domain '{d}' is not configured" for d in lists["domains"] if d not in domains and d not in set_aside]
+    owners = [o.strip().lower() for o in lists["watch_owners"]]
+    problems += [f"{where}: watch_owners entry '{o}' must be written host/owner, such as github.com/example" for o in owners if not OWNER_RE.match(o)]
+    return GuardSettings(tuple(d for d in lists["domains"] if d in domains), tuple(owners),
+                         tuple(Path(p).expanduser() for p in lists["terms"]), tuple(Path(p).expanduser() for p in lists["public_terms"]))
 
 
 @dataclass
@@ -328,6 +428,7 @@ class Config:
     files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
     trusted_repositories: tuple[str, ...] = ()  # normalised origins whose committed vyvid.toml is trusted, in the user's own configuration only
     doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
+    guard: GuardSettings = field(default_factory=GuardSettings)
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -1160,6 +1261,57 @@ def extractor_runs(config: Config, project: Scope) -> list[Run]:
     return runs
 
 
+def _reads(raw, reviewed, where: str, problems: list[str]) -> tuple[dict[str, Read], dict[str, str]]:
+    """A project's ``reads`` table, each a full commit and optional allow-lists of names, and the user's record of what was reviewed."""
+    out: dict[str, Read] = {}
+    if raw is not None and not isinstance(raw, dict):
+        problems.append(f"{where}: reads must be a table of projects")
+        raw = {}
+    for name, item in (raw or {}).items():
+        here = f"{where}, reads.{name}"
+        if not NAME_RE.match(str(name)) or not isinstance(item, dict):
+            problems.append(f"{here}: a read needs a lower-case project name and a table")
+            continue
+        if unknown := sorted(set(item) - READ_KEYS):
+            problems.append(f"{here}: unknown keys {', '.join(unknown)}")
+        commit = item.get("commit")
+        if not (isinstance(commit, str) and FULL_COMMIT_RE.match(commit)):
+            problems.append(f"{here}: commit must be a full commit of 40 or 64 hexadecimal characters, since a tag or a branch moves")
+            continue
+        lists = {}
+        for key in ("skills", "recipes", "domains"):
+            value = item.get(key, [])
+            if not (isinstance(value, list) and all(isinstance(v, str) and NAME_RE.match(v) for v in value)):
+                problems.append(f"{here}: {key} must be a list of lower-case names")
+                value = []
+            lists[key] = tuple(value)
+        out[name] = Read(name, commit.lower(), lists["skills"], lists["recipes"], lists["domains"])
+    seen: dict[str, str] = {}
+    if reviewed is not None and not (isinstance(reviewed, dict) and all(isinstance(v, str) and COMMIT_RE.match(v) for v in reviewed.values())):
+        problems.append(f"{where}: reviewed_reads must map a project to a commit of at least 7 hexadecimal characters")
+    elif reviewed:
+        seen = {str(k): v for k, v in reviewed.items()}
+    return out, seen
+
+
+def read_problems(config: Config, project: Scope) -> list[str]:
+    """What stops a project's reads from standing. A read of a project this user has not configured is only noted, in
+    ``project.unread``, since a contributor who clones the repository may not have it. A project never reads itself, and a
+    public project never reads a private one: the refusal is here, in loading, and costs no graph work."""
+    problems: list[str] = []
+    project.unread = []
+    for name in list(project.reads):
+        source = config.projects.get(name)
+        if name == project.name:
+            problems.append(f"project '{project.name}': reads itself")
+        elif source is None:
+            project.unread.append(name)
+            del project.reads[name]
+        elif project.visibility == "public" and source.visibility == "private":
+            problems.append(f"project '{project.name}' is public and reads '{name}', which is private, so its knowledge could reach public text")
+    return problems
+
+
 def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[str, list[str]], problems: list[str]) -> Scope:
     """A project's scope from its entry ``p``: a ``[[projects]]`` entry, or a vyvid.toml merged under one."""
     where = f"project '{name}'"
@@ -1174,6 +1326,7 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         for kind, settings in kinds.items():
             problems += credential_problems(settings, f"{where}, uses {domain}.{kind}")
     moves = [m for m in _moves(p.get("moves"), bases, where, problems) if m.to not in set_aside]
+    reads, reviewed_reads = _reads(p.get("reads"), p.get("reviewed_reads"), where, problems)
     return Scope(
         name, "project", _visibility(p, "public", where, problems), code=code, docs=docs,
         private_docs=outside and docs_visibility == "private",
@@ -1196,6 +1349,7 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         work=work_settings.parse(p.get("work"), lambda v: _expand(v, bases, where, problems), where, problems),
         doc_share=_share(p.get("doc_share"), None, where, problems), symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
         uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
+        reads=reads, reviewed_reads=reviewed_reads, catalogue=_catalogue(p.get("catalogue"), bases, where, problems),
         specialises={k: v for k, s in p.get("specialises", {}).items()
                      if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
     )
@@ -1349,7 +1503,8 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
                     Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
-                    trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems))
+                    trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems),
+                    guard=_guard(framework.get("guard"), domains, set_aside, problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():
@@ -1390,6 +1545,7 @@ def _check(config: Config) -> list[str]:
     for p in config.projects.values():
         problems += [f"project '{p.name}': domain '{d}' is not configured" for d in p.domains if d not in config.domains]
         problems += [f"project '{p.name}': specialises '{d}', which it does not use" for d in p.specialises if d not in p.domains]
+        problems += read_problems(config, p)
     for s in [config.general, *config.domains.values(), *config.projects.values()]:
         for family, target in s.delegates.items():
             other = config.scope(target)

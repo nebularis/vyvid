@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -140,6 +140,8 @@ def _dropped(project) -> None:
     """Say which domains a repository's vyvid.toml names that this user has not configured. It is a note, since a clone's reader will not have them."""
     for name in project.dropped if project else []:
         print(f"NOTE: domain {name} is named by {project.file.name} and is not configured here, so it is left out of the stack for this run", file=sys.stderr)
+    for name in project.unread if project else []:
+        print(f"NOTE: reads {name}, which is not configured here, so it is left out of the stack for this run", file=sys.stderr)
 
 
 def _layer(config, scope) -> dict:
@@ -149,22 +151,127 @@ def _layer(config, scope) -> dict:
         out[key] = [] if withheld else [{"path": str(p), "exists": p.exists()} for p in getattr(scope, key)]
     out["recipes"] = [{"name": r.name, "description": None if withheld else r.description} for r in scope.recipes]
     if withheld:
-        why = ("a vyvid.toml nobody has trusted" if scope.kind == "project" else scope.trust if scope.trust != "reviewed"
+        why = (f"a read of commit {scope.read_commit[:12]} that no person has reviewed" if scope.read_of else "a vyvid.toml nobody has trusted" if scope.kind == "project" else scope.trust if scope.trust != "reviewed"
                else f"reviewed at {scope.commit}, which HEAD has moved past")
         out["withheld"] = {"trust": why, "rules": [str(p) for p in scope.rules], "skills": [str(p) for p in scope.skills], "recipes": [r.name for r in scope.recipes]}
     if scope.kind == "domain":
         out["brings"] = [e["kind"] for e in scope.extractors]
+    if scope.read_of:
+        out["read"] = {"by": scope.read_of, "commit": scope.read_commit, "standing": scope.standing}
     if scope.kind == "project":
         out["file"] = str(scope.file) if scope.file else None
         out["runs"] = [{"kind": r.kind, "domain": r.domain, "settings": {k: [str(p) for p in v] if k == "paths" else v for k, v in r.settings.items()},
                         "sources": r.sources} for r in extractor_runs(config, scope)]
         out["code"] = str(scope.code)
         out["docs"] = str(scope.docs)
+        out["reads"] = [{"name": r.name, "commit": r.commit, "standing": r.standing(scope), "skills": list(r.skills), "recipes": list(r.recipes)}
+                        for r in scope.reads.values()]
         out["specialises"] = {d: {"path": str(p), "exists": p.exists()} for d, p in scope.specialises.items()}
         out["symbols"] = [{"language": x.language, "paths": [str(p) for p in x.paths]} for x in scope.symbols]
         out["code_index"] = [{"kind": handoff.clean(i.kind), "database": str(i.database), "exists": i.database.is_file(), "sources": str(i.sources) if i.sources else None,
                               "built_by": None if withheld else (handoff.clean(i.built_by) or None), "known": i.kind in handoff.KNOWN} for i in scope.code_index]
     return out
+
+
+def _guard_hooks(config, arguments) -> int:
+    """Set up the guard's git hooks where a guard is configured, unless told not to."""
+    if arguments.no_git_hooks or not config.guard.on:
+        return 0
+    return guard.install_hooks(arguments.dry_run)
+
+
+def catalogue_command(arguments) -> int:
+    _, project = bind_in(load(), Path(arguments.folder))
+    try:
+        known = catalogue.for_scope(project)
+    except catalogue.CatalogueError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    if known is None:
+        print(f"vyd: {'this folder belongs to no project' if project is None else 'project ' + project.name + ' declares no catalogue'}. Add [project.catalogue] with a file to its vyvid.toml", file=sys.stderr)
+        return 1
+    command = arguments.catalogue_command
+    show = (lambda p: str(known.root / p)) if getattr(arguments, "absolute", False) else (lambda p: Path(p).as_posix())
+    try:
+        if command == "dump":
+            print(json.dumps(catalogue.dump(known), indent=2))
+        elif command == "area":
+            print(show(known.area(arguments.name)))
+        elif command == "path":
+            print(show(known.module(arguments.module).directory(arguments.role)))
+        elif command == "paths":
+            for path in known.module(arguments.module).files(arguments.role):
+                print(show(path))
+        elif command == "modules":
+            for m in known.modules.values():
+                if arguments.kind is None or m.kind == arguments.kind:
+                    print(f"{m.name}  {m.kind}  {m.path.as_posix()}")
+        else:
+            release = f", release {known.release_version} of {len(known.release_members())} module(s)" if known.release_version else ""
+            print(f"{known.file}: {len(known.modules)} module(s), {len(known.roots) + len(known.docs)} area(s), {len(known.tools)} tool package(s){release}")
+    except catalogue.CatalogueError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def guard_command(arguments) -> int:
+    config = load()
+    folder = Path(getattr(arguments, "folder", "."))
+    if arguments.guard_command == "hook":
+        text = sys.stdin.read() if arguments.name == "pre-push" and not sys.stdin.isatty() else ""
+        return guard.run_hook(config, arguments.name, arguments.args, text, Path.cwd())
+    if arguments.guard_command == "status":
+        if not config.guard.on:
+            print("no guard is configured. Name domains in [framework.guard] to guard repositories")
+            return 0
+        lists = guard.read_lists(config)
+        verdict = guard.classify(config, lists, folder)
+        print(f"{folder.resolve()}: {verdict.kind}" + (f" ({verdict.repo})" if verdict.repo else ""))
+        print(f"lists: {len(lists.public)} public and {len(lists.private)} private repositories, {len(lists.deny)} terms for all, "
+              f"{len(lists.public_deny)} for public, {len(lists.warn)} warnings, {len(lists.never_track)} never-track and {len(lists.sensitive)} sensitive paths")
+        print(f"git hooks: {guard.hooks_state()}")
+        for line in guard.status_lines(config, folder):
+            print(line)
+        return 0
+    if arguments.all:
+        verdict, findings = guard.check_tree(config, folder)
+    else:
+        lists = guard.read_lists(config)
+        verdict = guard.classify(config, lists, folder)
+        lines, paths = guard.staged(folder) if verdict.kind in ("public", "private") else ([], [])
+        findings = guard.check_lines(lists, verdict.kind, lines) + guard.check_paths(lists, verdict.kind, verdict.repo, paths, None)
+    for f in findings:
+        print(f)
+    blocking = [f for f in findings if not f.warn]
+    print(f"guard check ({verdict.kind}): {len(blocking)} finding(s), {len(findings) - len(blocking)} warning(s)")
+    return 1 if blocking else 0
+
+
+def reads_command(arguments) -> int:
+    config, project = bind_in(load(), Path(arguments.folder))
+    if project is None:
+        print("vyd: this folder belongs to no project", file=sys.stderr)
+        return 1
+    if arguments.reads_command == "status":
+        return reads.status(config, project)
+    name = arguments.name
+    if name not in project.reads:
+        print(f"vyd: project {project.name} does not read {name}" + (f". {'; '.join(project.read_notes)}" if project.read_notes else ""), file=sys.stderr)
+        return 1
+    if arguments.reads_command == "pin":
+        source = reads.source_of(config, name)
+        commit, why = reads.resolve_pin(source, arguments.ref) if source is not None else (None, f"{name} has no configured code folder")
+        if commit is None:
+            print(f"vyd: {why}", file=sys.stderr)
+            return 1
+        return configure.reads_pin(project, name, commit, arguments.dry_run, _person)
+    if not arguments.dry_run and not _person():
+        print("vyd: a person must review a read, in a terminal", file=sys.stderr)
+        return 1
+    for line in reads.review_text(config, project, name):
+        print(line)
+    return configure.reads_review(project.name, name, project.reads[name].commit, arguments.dry_run, _person)
 
 
 def context(folder: Path, as_json: bool, pull: bool = True) -> int:
@@ -183,22 +290,27 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
         return 0
     print(f"{streams.display_name()} {__version__}: the contract for {folder.resolve()}")
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
+    for line in guard.status_lines(configured, folder):
+        print(line)
     if project and project.checkout:
         entry = configured.projects.get(project.name)  # a project a vyvid.toml declares alone has no configured folder
         print(f"checkout: answering from {project.checkout}" + (f", not the configured code folder {entry.code}" if entry is not None else ""))
     print("Read each layer's rules in this order. A later layer overrides an earlier one, and the project's is last.\n")
     for n, layer in enumerate(stack, 1):
         print((f"{n}. {layer['scope']}" if layer["kind"] == layer["scope"] else f"{n}. {layer['kind']} {layer['scope']}") + f" ({layer['visibility']})")
+        if "read" in layer:
+            print(f"   a snapshot of commit {layer['read']['commit'][:12]}, read by {layer['read']['by']}: knowledge" + (", with the skills and recipes it names" if layer["read"]["standing"] == "reviewed" else " alone"))
         for key in ("rules", "skills"):
             for item in layer[key]:
                 print(f"   {key[:-1]:<5} {item['path']}" + ("" if item["exists"] else "   (missing)"))
         if "withheld" in layer:
             w = layer["withheld"]
-            since = (f"the vyvid.toml of project {layer['scope']} is not trusted" if layer["kind"] == "project"
+            since = (f"project {layer['read']['by']}'s read of {layer['scope']} has not been reviewed" if "read" in layer
+                     else f"the vyvid.toml of project {layer['scope']} is not trusted" if layer["kind"] == "project"
                      else f"domain {layer['scope']} has trust {w['trust']}")
             print(f"   withheld: {len(w['rules'])} rule file(s), {len(w['skills'])} skill path(s) and {len(w['recipes'])} recipe description(s), "
                   f"since {since}, which gives knowledge alone")
-            if layer["kind"] == "project":
+            if layer["kind"] == "project" and "read" not in layer:
                 print(f"   no glue or command extractor of {layer['file']} runs. A person runs vyd trust in a terminal, in that repository, after reading what it declares")
         for recipe in layer["recipes"]:
             print(f"   recipe {recipe['name']}  {recipe['description'] or '(description withheld)'}")
@@ -208,6 +320,9 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
             print(f"   runs extractor {run['kind']}" + (f" of domain {run['domain']}" if run["domain"] else ""))
             for key, value in run["settings"].items():
                 print(f"      {key} = {value}   ({run['sources'][key]})")
+        for item in layer.get("reads", []):
+            taken = f"; takes skills {', '.join(item['skills']) or 'none'} and recipes {', '.join(item['recipes']) or 'none'}" if item["standing"] == "reviewed" else ""
+            print(f"   reads {item['name']} at {item['commit'][:12]}, {'reviewed' if item['standing'] == 'reviewed' else 'knowledge alone'}{taken}")
         for domain, item in layer.get("specialises", {}).items():
             print(f"   specialises {domain} in {item['path']}" + ("" if item["exists"] else "   (missing)"))
         for item in layer.get("symbols", []):
@@ -646,6 +761,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--ref", help="a git ref, the working tree by default")
     p.add_argument("--json", action="store_true")
+    rd = sub.add_parser("reads", help="the projects a folder's project reads for their knowledge: status, pin and review").add_subparsers(dest="reads_command", required=True)
+    rd.add_parser("status", help="each read's pin against its source, its standing and what it may bring").add_argument("--in", dest="folder", default=".")
+    p = rd.add_parser("pin", help="pin a read to the full commit a ref names, which must be on the source's default branch")
+    p.add_argument("name")
+    p.add_argument("ref")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--dry-run", action="store_true")
+    p = rd.add_parser("review", help="a person records that they read what a read may bring at its pin, so its skills and recipes count")
+    p.add_argument("name")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("recipe", help="the named chains of queries of a folder's stack").add_subparsers(dest="recipe_command", required=True)
     p.add_parser("list", help="each recipe of the stack, its scope and when to use it").add_argument("--in", dest="folder", default=".")
     r = p.add_parser("run", help="run one recipe for a question and print its briefing")
@@ -735,7 +861,32 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--in", dest="folder", default=".", help="with --project, the folder whose project is written")
     i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings, for a client that documents a place for one")
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
+    i.add_argument("--no-git-hooks", action="store_true", help="do not set up the guard's git hooks, which are set up when a guard is configured")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
+    ct = sub.add_parser("catalogue", help="where things live in the folder's project, from its repository catalogue: areas, modules and their roles").add_subparsers(dest="catalogue_command", required=True)
+    for name, helptext in (("show", "the catalogue's modules, areas and release"), ("dump", "all of it as JSON, every path relative to the root"), ("modules", "the modules, one a line, optionally of one kind")):
+        p = ct.add_parser(name, help=helptext)
+        p.add_argument("--in", dest="folder", default=".")
+        if name == "modules":
+            p.add_argument("--kind")
+    p = ct.add_parser("area", help="the folder of a named root or documentation area")
+    p.add_argument("name")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--absolute", action="store_true", help="join the answer to the root of this checkout")
+    for name, helptext in (("path", "the folder of one role of a module"), ("paths", "the files a module's README generates for a role, in order")):
+        p = ct.add_parser(name, help=helptext)
+        p.add_argument("module")
+        p.add_argument("role")
+        p.add_argument("--in", dest="folder", default=".")
+        p.add_argument("--absolute", action="store_true", help="join each answer to the root of this checkout")
+    g = sub.add_parser("guard", help="keep the private terms of a user out of public repositories: status, check, and the hook the git hooks run").add_subparsers(dest="guard_command", required=True)
+    g.add_parser("status", help="the folder's class, the lists in force and whether the git hooks are in place").add_argument("--in", dest="folder", default=".")
+    p = g.add_parser("check", help="the lines staged for commit, or with --all every tracked file, against the lists")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--all", action="store_true", help="every tracked file, to find what a new list leaves in existing text")
+    p = g.add_parser("hook", help="run by the git hooks: pre-commit, commit-msg or pre-push")
+    p.add_argument("name", choices=guard.GUARDED_HOOKS)
+    p.add_argument("args", nargs="*")
     c = sub.add_parser("cloud", help="set up a cloud environment").add_subparsers(dest="cloud_command", required=True)
     p = c.add_parser("script", help="write the setup script for a cloud environment, holding the private domains you name and cloning the public ones")
     p.add_argument("--output", required=True, help="the file to write, owner-only. The script holds private text, so it is never printed")
@@ -789,6 +940,8 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "move":
             config, project = bind_in(load(), Path(arguments.folder))
             return moves.command(config, project, arguments.ref, arguments.json)
+        if arguments.command == "reads":
+            return reads_command(arguments)
         if arguments.command == "recipe":
             return recipe_command(arguments, parser)
         if arguments.command == "store":
@@ -832,6 +985,10 @@ def main(argv: list[str] | None = None) -> int:
 
             config, project = bind_in(load(), Path(arguments.folder))
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
+        if arguments.command == "guard":
+            return guard_command(arguments)
+        if arguments.command == "catalogue":
+            return catalogue_command(arguments)
         if arguments.command == "install":
             if arguments.project:
                 config, project = bind_in(load(), Path(arguments.folder))
@@ -842,11 +999,13 @@ def main(argv: list[str] | None = None) -> int:
             if not arguments.client:
                 if arguments.target:
                     parser.error("--target needs --client")
-                return install.install_all(load(), arguments.dry_run, arguments.hooks)
-            done = install.install(load(), arguments.client, arguments.target, arguments.dry_run)
+                configured = load()
+                return max(install.install_all(configured, arguments.dry_run, arguments.hooks), _guard_hooks(configured, arguments))
+            configured = load()
+            done = install.install(configured, arguments.client, arguments.target, arguments.dry_run)
             if arguments.hooks:
                 done = done or install.user_hook(arguments.client, arguments.target, arguments.dry_run)
-            return done
+            return max(done, _guard_hooks(configured, arguments)) if not arguments.target else done
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
         if arguments.command == "trust":

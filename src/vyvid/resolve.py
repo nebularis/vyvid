@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .config import PROJECT_FILE, Config, Family, Move, Scope, file_project, read_project_file
 from .model import normalise
+from .reads import realise
 from .registers import _cells
 
 QUALIFIED_RE = re.compile(r"^(?P<scope>[a-z][a-z0-9-]*):(?P<local>.+)$")
@@ -131,7 +132,7 @@ def rebase(config: Config, project: Scope, root: Path) -> Config:
         moves=[replace(m, source=move(m.source)) for m in project.moves],
         rules=[move(p) for p in project.rules], skills=[move(p) for p in project.skills], skill_additions=move(project.skill_additions),
         facets=[move(p) for p in project.facets], register_types=[move(p) for p in project.register_types],
-        vocabulary=[move(p) for p in project.vocabulary], specialises={k: move(p) for k, p in project.specialises.items()},
+        vocabulary=[move(p) for p in project.vocabulary], catalogue=replace(project.catalogue, file=move(project.catalogue.file)) if project.catalogue else None, specialises={k: move(p) for k, p in project.specialises.items()},
         families={k: family(f) for k, f in project.families.items()},
         identifiers=replace(project.identifiers, exceptions=move(project.identifiers.exceptions)),
         symbols=[replace(x, paths=tuple(move(p) for p in x.paths)) for x in project.symbols],
@@ -206,8 +207,15 @@ def file_scope(config: Config, file: Path) -> tuple[Scope | None, list[str]]:
 
 def bind_in(config: Config, folder: Path) -> tuple[Config, Scope | None]:
     """The configuration to answer ``folder`` from and its project: the project its repository's vyvid.toml
-    declares, else ``bind``, with the project rebased onto the folder's checkout when it is a linked one.
-    Binding the result again changes nothing."""
+    declares, else ``bind``, with the project rebased onto the folder's checkout when it is a linked one, and with
+    each project it reads replaced by its snapshot. Binding the result again changes nothing."""
+    config, project = _bind_in(config, folder)
+    if project is not None and project.reads:
+        config = realise(config, project)
+    return config, project
+
+
+def _bind_in(config: Config, folder: Path) -> tuple[Config, Scope | None]:
     folder = folder.expanduser()
     if (file := project_file(folder)) is not None and (decided := _with_file(config, folder.resolve(), file)) is not None:
         return decided
@@ -219,13 +227,14 @@ def bind_in(config: Config, folder: Path) -> tuple[Config, Scope | None]:
 
 
 def layers(config: Config, project: Scope | None) -> list[Scope]:
-    """General, then every domain the project uses and their ancestors, parents first, then the project.
+    """General, then every domain the project uses and their ancestors, parents first, then the projects it reads, then the project.
 
     Of two domains with no order between them, the one named first in the project comes first, so the
     order is the same on every run."""
     if project is None:
         return [config.general]
-    return [config.general, *(config.domains[n] for n in config.domain_order(project)), project]
+    reads = [s for n in project.reads if (s := config.projects.get(n)) is not None and s.read_of == project.name]
+    return [config.general, *(config.domains[n] for n in config.domain_order(project)), *reads, project]
 
 
 def resolve(config: Config, mention: str, scope: Scope, how: list[str] | None = None) -> str:

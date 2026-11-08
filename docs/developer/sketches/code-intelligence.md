@@ -116,7 +116,7 @@ Answered 2026-11-04:
 - **VYD-Q29.** It ships as the extra `vyvid[symbols]`.
 - **VYD-Q30.** Вивід tells the agent about a tool, and does not call it.
 - **VYD-Q31.** Definitions are not imported from a compiler index for now.
-- **VYD-Q32.** A project may name other projects it reads, for their knowledge. Exact questions across repositories belong to the compiler index.
+- **VYD-Q32.** A project may name other projects it reads, for their knowledge. Exact questions across repositories belong to the compiler index. Built 2026-11-08 as the unit [project-reads](../plans/project-reads.md): the read is a snapshot of a pinned commit, knowledge by default. The answer widened the same day so a read may bring skills and recipes by name under a person's review, and so a domain the reader uses may index it further.
 
 - **VYD-Q33.** Symbols go in SQLite per checkout, and the graph holds only an identifier string.
 - **VYD-Q34.** Every symbol is embedded, with the doc before the signature in the text, and word search ranks where there are no vectors. Measured 2026-11-04 on 16 questions in two corpora, this ties four other ways for the best hit@5, 11 of 16 (0.688), and has the best MRR, 0.623 against 0.549 with the signature first and 0.508 with instances, constructors and fields left out, at 6.2 MB and 29.6 s for 3,415 symbols. Leaving those kinds out saves 40% of the bytes and loses the one question whose answer is a field. Fusion with word search never beat vectors alone. The figures and the questions are in the [research](../plans/symbol-indexing.md) and `benchmark/symbols`.

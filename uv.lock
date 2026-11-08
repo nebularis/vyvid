@@ -850,7 +850,7 @@ wheels = [
 
 [[package]]
 name = "vyvid"
-version = "0.2.19"
+version = "0.2.23"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -858,6 +858,7 @@ dependencies = [
     { name = "onnxruntime" },
     { name = "platformdirs" },
     { name = "pyoxigraph" },
+    { name = "pyyaml" },
     { name = "regex" },
     { name = "tokenizers" },
     { name = "tomlkit" },
@@ -889,6 +890,7 @@ requires-dist = [
     { name = "pyoxigraph", specifier = "==0.5.13" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
     { name = "pytest-xdist", marker = "extra == 'test'", specifier = "==3.8.0" },
+    { name = "pyyaml", specifier = "==6.0.3" },
     { name = "regex", specifier = "==2026.9.29" },
     { name = "tokenizers", specifier = ">=0.20,<1" },
     { name = "tomlkit", specifier = "==0.15.2" },

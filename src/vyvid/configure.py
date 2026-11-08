@@ -687,6 +687,48 @@ def project_set(name: str, key: str, values: list[str], file: bool, dry_run: boo
         return _fail(refusal.problems)
 
 
+def reads_pin(project: Scope, read: str, commit: str, dry_run: bool, person: Callable[[], bool]) -> int:
+    """Write ``commit`` as the pin of ``read`` where the project declares it: its vyvid.toml, else the user's own entry."""
+    try:
+        file = project.file is not None and "reads" in project.file_keys
+        tg = Target(project.file, True) if file else target(False)
+
+        def edit(lines: list[str], data: dict):
+            if not file and project.name not in [p.get("name") for p in data.get("projects", [])]:
+                raise Refusal(f"project '{project.name}' declares its reads in neither a {cf.PROJECT_FILE} nor {tg.path}")
+            entry = _find(lines, data, "project", None, array=False) if file else _find(lines, data, "projects", project.name)
+
+            def change(d: dict) -> None:
+                item = d["project"] if file else next(p for p in d["projects"] if p.get("name") == project.name)
+                item["reads"][read]["commit"] = commit
+
+            return _set(lines, entry, ("reads", read), "commit", commit), change
+
+        return run(tg, Plan(edit, project=project.name, notes=["The index is rebuilt at the next question. A review of the old pin does not carry to the new one."]), dry_run, person)
+    except Refusal as refusal:
+        return _fail(refusal.problems)
+
+
+def reads_review(project: str, read: str, commit: str, dry_run: bool, person: Callable[[], bool]) -> int:
+    """Record, in the user's own configuration, that a person reviewed ``read`` at ``commit`` for ``project``."""
+    try:
+        tg = target(False)
+
+        def edit(lines: list[str], data: dict):
+            if project not in [p.get("name") for p in data.get("projects", [])]:
+                raise Refusal(f"project '{project}' is not in {tg.path}. A review is kept in your own configuration, so add the project there with vyd project add")
+            entry = _find(lines, data, "projects", project)
+
+            def change(d: dict) -> None:
+                next(p for p in d["projects"] if p.get("name") == project).setdefault("reviewed_reads", {})[read] = commit
+
+            return _set(lines, entry, ("reviewed_reads",), read, commit), change
+
+        return run(tg, Plan(edit, project=project, gate=f"a review lets the read of {read} bring skills and recipes into {project}"), dry_run, person)
+    except Refusal as refusal:
+        return _fail(refusal.problems)
+
+
 def project_remove(name: str, file: bool, dry_run: bool, person: Callable[[], bool]) -> int:
     try:
         if file:
