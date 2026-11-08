@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.21**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.22**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -500,7 +500,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.21"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.22"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -2557,6 +2557,41 @@ A text key must identify a subject the extractor actually emitted in its quads.
 Declared units allow register ownership columns to link to real project units.
 
 By default a term is owned by the folder of the document that declares it. When the result declares `unit_paths`, a term declared under one of those folders is owned by the mapped unit instead, and where several paths contain a term the longest one wins. A trailing slash on a path is ignored. A term under none of the paths keeps the folder of its document, so a project that declares no paths keeps folder ownership and is not forced to keep a unit catalogue. A path that names a unit which no extractor’s `units` declare is reported as a problem.
+
+### Derive architectural quanta with the built-in `quanta` kind
+
+An architectural quantum is the smallest set that must change and be released together because of its coupling, so its size is the lower bound on incremental change. The built-in kind `quanta` derives them, in two views, and the entries answer to `vyd find --kind quantum`.
+
+```toml
+[[project.extractors]]
+kind = "quanta"
+paths = ["code:ontology/**/*.ttl", "code:deploy/**/docker-compose.yml"]
+core_kind = "substrate"
+
+[[project.extractors.modules]]
+name = "foundation"
+path = "ontology/foundation"
+kind = "substrate"
+release = true
+
+[[project.extractors.modules]]
+name = "capacity"
+path = "ontology/capacity"
+kind = "applied"
+```
+
+| Setting | Meaning |
+|---|---|
+| `paths` | the ontology documents (`.ttl`) whose `owl:imports` give the data view, and the compose files that give the software view |
+| `modules` | the project’s modules, each with a `name`, a `path` inside the project, a `kind` and `release`, which says whether it is released with the core. A readme at `<path>/README.md` becomes the entry’s pointer, or name another file with `readme` |
+| `core_kind` | the kind that forms the core quantum. It is `substrate` unless you say otherwise |
+| `pointer` | the file the core quantum’s entry points at, when the first module has no readme |
+
+**Data view.** The modules of the core kind are one quantum, because they form one dependency order and one release. Any other module is its own quantum, since its coupling to the core runs one way, unless something in the core imports it, in which case the core’s quantum grows to take it in. A release member outside the core’s quantum shares its release number without being coupled to it, and the build reports it as a finding.
+
+**Software view.** Each compose file is one deployment, named by its folders below the first. Two components that use one store share state and form one quantum. A component that names another application component is taken to call it synchronously, which binds them too, although a start-up order alone would over-merge. A broker is a contract between components and never merges them, except that a shared store defeats a broker.
+
+This kind is Вивід’s own code, so a project that [reads another](#21-read-another-projects-knowledge) gets the other’s quanta from its snapshot with no review and no command. Write the modules by hand, or from a catalogue of your own.
 
 ### Handle failure honestly
 

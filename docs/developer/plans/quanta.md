@@ -2,7 +2,7 @@
 
 # Plan: architectural quanta as a built-in extractor
 
-**Status:** building 2026-11-08, at the maintainer's request.
+**Status:** built 2026-11-08, at the maintainer's request.
 **Prefix:** QU
 
 ## Scope
