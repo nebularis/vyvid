@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.22**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.23**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -500,7 +500,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.22"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.23"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -2591,7 +2591,7 @@ kind = "applied"
 
 **Software view.** Each compose file is one deployment, named by its folders below the first. Two components that use one store share state and form one quantum. A component that names another application component is taken to call it synchronously, which binds them too, although a start-up order alone would over-merge. A broker is a contract between components and never merges them, except that a shared store defeats a broker.
 
-This kind is Вивід’s own code, so a project that [reads another](#21-read-another-projects-knowledge) gets the other’s quanta from its snapshot with no review and no command. Write the modules by hand, or from a catalogue of your own.
+This kind is Вивід’s own code, so a project that [reads another](#21-read-another-projects-knowledge) gets the other’s quanta from its snapshot with no review and no command. Write the modules by hand, or [keep a catalogue](#23-say-where-things-live-with-a-repository-catalogue) and let the kind read them from it.
 
 ### Handle failure honestly
 
@@ -3416,6 +3416,102 @@ vyd guard check --all
 | `vyd guard check [--all] [--in folder]` | the staged lines, or every tracked file, against the lists. Exits 1 on a blocking finding |
 | `vyd guard hook <name> [args]` | what the hooks run |
 | `VYD_GUARD_SKIP` | the maintainer’s override, with a reason, which is logged |
+
+## 23. Say where things live with a repository catalogue
+
+Code that finds a file by a relative path or by an absolute one breaks in another checkout, another worktree or another working folder, and each tool repeats the path in its own way. A repository can say once where its modules and areas are, in a catalogue, and every tool can ask the reader for a place by name. Вивід reads the catalogue, so a script, a check or an agent does not write a path.
+
+### 23.1 Write the catalogue
+
+The catalogue is a Markdown file at the root of the repository. People read its prose, and tools read the fenced blocks tagged `toml repository-catalogue`. The blocks merge into one table, and a key defined twice is refused. Any other fence is text, so a block shown as an example inside a longer fence is not read.
+
+````markdown
+# Repository catalogue
+
+```toml repository-catalogue
+[conventions]
+roles = ["spec", "docs"]
+
+[conventions.kinds]
+core = "a layer of the dependency order"
+applied = "a module outside that order"
+
+[conventions.release]
+version = "1.2.3"
+kinds = ["core"]
+
+[catalogue]
+modules = ["foundation", "applied/capacity"]
+
+[[roots]]
+name = "ontology"
+path = "ontology/"
+owns = "semantic assets"
+
+[[docs]]
+name = "developer"
+path = "docs/developer/"
+owns = "working documents"
+
+[generated]
+paths = ["build"]
+```
+````
+
+| Block | Holds |
+|---|---|
+| `[conventions]` | `roles`, the subfolders a module may have, `kinds`, each with its meaning, and `[conventions.release]` with the `version` and the `kinds` that are released together |
+| `[catalogue] modules` | the modules by name, which also name their folders |
+| `[[roots]]`, `[[docs]]` | named areas, each with a `path` and what it `owns`. The `name` is what code asks for it by |
+| `[[tools]]` | tool packages, each with a `name`, a `path` and `import-names` |
+| `[generated] paths` | paths a check may find missing |
+
+Each module has a README at `<module_root>/<name>/README.md` with its own block:
+
+````markdown
+```toml repository-catalogue
+[module]
+kind = "core"
+roles = ["spec", "docs"]
+imports = []
+
+[module.extract]
+spec = ["spec/foundation.ttl"]
+```
+````
+
+`kind` must be one of the conventions’ kinds. `roles` are the module’s subfolders. `imports` lists the modules it may import, and `extract` lists the files its README generates for a role, in order.
+
+The reader keeps every key it does not know in an `extra` field, so a project may add its own blocks and its own checks over the shared reader without the reader refusing them.
+
+### 23.2 Name the catalogue in the project
+
+```toml
+[project.catalogue]
+file = "code:repository-catalogue.md"
+module_root = "ontology"
+```
+
+`module_root` is the folder below the catalogue’s own that holds the modules, and it is empty if the modules sit beside the catalogue. The file must lie inside the project. An edit to the catalogue or to a module’s README makes the index stale, and a project that [reads another](#21-read-another-projects-knowledge) gets the other’s catalogue from its snapshot.
+
+### 23.3 Ask for a place
+
+```bash
+vyd catalogue area developer
+vyd catalogue path foundation spec
+vyd catalogue paths foundation spec
+vyd catalogue modules --kind applied
+vyd catalogue show
+vyd catalogue dump
+```
+
+Every answer is a path relative to the catalogue’s root. Add `--absolute` to `area`, `path` or `paths` to join it to the root of the checkout the command runs in, which is the worktree you are in and not the clone that was configured. `dump` prints everything as JSON for a script that wants it.
+
+From Python, `vyvid.catalogue.load(file, module_root)` gives the same: `area(name)`, `module(name).directory(role)`, `module(name).files(role)`, `modules_of_kind(kind)` and `release_members()`. An error names the file and the key.
+
+### 23.4 Use it for quanta
+
+The built-in [`quanta` kind](#derive-architectural-quanta-with-the-built-in-quanta-kind) takes its modules from a catalogue when the project declares one. Its kind, its path and whether the release names it all come from the catalogue, so the list is written once. A `[[project.extractors.modules]]` table of the same name takes the place of the catalogue’s entry for that module.
 
 ## Daily operating pattern
 

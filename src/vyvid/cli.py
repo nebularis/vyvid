@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, cloud, configure, guard, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -178,6 +178,41 @@ def _guard_hooks(config, arguments) -> int:
     if arguments.no_git_hooks or not config.guard.on:
         return 0
     return guard.install_hooks(arguments.dry_run)
+
+
+def catalogue_command(arguments) -> int:
+    _, project = bind_in(load(), Path(arguments.folder))
+    try:
+        known = catalogue.for_scope(project)
+    except catalogue.CatalogueError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    if known is None:
+        print(f"vyd: {'this folder belongs to no project' if project is None else 'project ' + project.name + ' declares no catalogue'}. Add [project.catalogue] with a file to its vyvid.toml", file=sys.stderr)
+        return 1
+    command = arguments.catalogue_command
+    show = (lambda p: str(known.root / p)) if getattr(arguments, "absolute", False) else (lambda p: Path(p).as_posix())
+    try:
+        if command == "dump":
+            print(json.dumps(catalogue.dump(known), indent=2))
+        elif command == "area":
+            print(show(known.area(arguments.name)))
+        elif command == "path":
+            print(show(known.module(arguments.module).directory(arguments.role)))
+        elif command == "paths":
+            for path in known.module(arguments.module).files(arguments.role):
+                print(show(path))
+        elif command == "modules":
+            for m in known.modules.values():
+                if arguments.kind is None or m.kind == arguments.kind:
+                    print(f"{m.name}  {m.kind}  {m.path.as_posix()}")
+        else:
+            release = f", release {known.release_version} of {len(known.release_members())} module(s)" if known.release_version else ""
+            print(f"{known.file}: {len(known.modules)} module(s), {len(known.roots) + len(known.docs)} area(s), {len(known.tools)} tool package(s){release}")
+    except catalogue.CatalogueError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def guard_command(arguments) -> int:
@@ -828,6 +863,22 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
     i.add_argument("--no-git-hooks", action="store_true", help="do not set up the guard's git hooks, which are set up when a guard is configured")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
+    ct = sub.add_parser("catalogue", help="where things live in the folder's project, from its repository catalogue: areas, modules and their roles").add_subparsers(dest="catalogue_command", required=True)
+    for name, helptext in (("show", "the catalogue's modules, areas and release"), ("dump", "all of it as JSON, every path relative to the root"), ("modules", "the modules, one a line, optionally of one kind")):
+        p = ct.add_parser(name, help=helptext)
+        p.add_argument("--in", dest="folder", default=".")
+        if name == "modules":
+            p.add_argument("--kind")
+    p = ct.add_parser("area", help="the folder of a named root or documentation area")
+    p.add_argument("name")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--absolute", action="store_true", help="join the answer to the root of this checkout")
+    for name, helptext in (("path", "the folder of one role of a module"), ("paths", "the files a module's README generates for a role, in order")):
+        p = ct.add_parser(name, help=helptext)
+        p.add_argument("module")
+        p.add_argument("role")
+        p.add_argument("--in", dest="folder", default=".")
+        p.add_argument("--absolute", action="store_true", help="join each answer to the root of this checkout")
     g = sub.add_parser("guard", help="keep the private terms of a user out of public repositories: status, check, and the hook the git hooks run").add_subparsers(dest="guard_command", required=True)
     g.add_parser("status", help="the folder's class, the lists in force and whether the git hooks are in place").add_argument("--in", dest="folder", default=".")
     p = g.add_parser("check", help="the lines staged for commit, or with --all every tracked file, against the lists")
@@ -936,6 +987,8 @@ def main(argv: list[str] | None = None) -> int:
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
         if arguments.command == "guard":
             return guard_command(arguments)
+        if arguments.command == "catalogue":
+            return catalogue_command(arguments)
         if arguments.command == "install":
             if arguments.project:
                 config, project = bind_in(load(), Path(arguments.folder))

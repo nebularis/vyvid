@@ -18,7 +18,8 @@ synchronously, which binds them too. A broker is a contract between components a
 middleware draws a quantum boundary, but only when nothing else couples the two sides: a shared store defeats a broker.
 
 The modules are the project's data, as ``[[project.extractors.modules]]`` tables with ``name``, ``path`` (inside the project),
-``kind`` and ``release`` (whether it is released with the core). A project with a catalogue of its own can write them from it.
+``kind`` and ``release`` (whether it is released with the core), and a project that declares a repository catalogue gets its
+modules from that, a module written here taking the place of one of its name.
 Because this is Вивід's own code, a project that reads another runs it over the read.
 """
 
@@ -32,6 +33,7 @@ from pathlib import Path
 import pyoxigraph as ox
 import yaml
 
+from .. import catalogue
 from ..model import RDF_TYPE, RDFS_LABEL, ki, normalise
 from . import Context, Result
 
@@ -245,6 +247,15 @@ def extract(context: Context, settings: dict) -> Result:
     scope = context.scope.name
     graph = context.index_graph
     modules = _modules(settings.get("modules", []), root, result.problems)
+    if context.scope.catalogue is not None:  # the project's own catalogue, with a module written here taking the place of one of its name
+        try:
+            kept = {m["name"] for m in modules}
+            known = catalogue.for_scope(context.scope)
+            release = {m.name for m in known.release_members()}
+            modules += [{"name": m.name, "path": m.path.as_posix(), "kind": m.kind, "release": m.name in release, "readme": None}
+                        for m in known.modules.values() if m.name not in kept and (root / m.path).resolve().is_relative_to(root)]
+        except catalogue.CatalogueError as error:
+            result.problems.append(f"quanta: the catalogue cannot be read ({error})")
     core = str(settings.get("core_kind", "substrate"))
     files = sorted({Path(p) for pattern in settings.get("paths", []) for p in glob.glob(str(pattern), recursive=True) if Path(p).is_file()})
     by_path = sorted(((m["path"], m["name"]) for m in modules), key=lambda pair: -len(pair[0]))

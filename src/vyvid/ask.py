@@ -69,7 +69,7 @@ from typing import Callable
 
 import pyoxigraph as ox
 
-from . import anchors, audit, embed, registers
+from . import anchors, audit, catalogue, embed, registers
 from .build import NO_VECTORS, build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .credentials import private_dir, private_file
@@ -523,6 +523,7 @@ def declared_files(config: Config, stack: list[Scope]) -> list[Path]:
         for family in scope.families.values():
             places += family.paths()
         if scope.kind == "project":
+            places += catalogue.files_of(scope.catalogue)
             for run in extractor_runs(config, scope):
                 places += [*run.settings["paths"], *run.settings.get("code", ())]
     return [p for place in places for p in _expand(place) if p.is_file()]

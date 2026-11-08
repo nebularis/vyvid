@@ -65,7 +65,7 @@ PROJECT_FILE = "vyvid.toml"
 PROJECT_REFUSED = ("code", "git", "remote", "trust", "match", "reviewed_reads")
 PROJECT_KEYS = {"name", "visibility", "docs", "contract", "skills", "facets", "register_types", "vocabulary", "families", "delegates",
                 "domains", "uses", "moves", "extractors", "recipes", "specialises", "identifiers", "symbols", "code_index", "doc_share", "work",
-                "skill_values", "skill_additions", "skill_prefix", "skill_targets", "hook_clients", "reads"}
+                "skill_values", "skill_additions", "skill_prefix", "skill_targets", "hook_clients", "reads", "catalogue"}
 # What a manifest may not set, since only the user decides where a domain comes from and how it is kept.
 MANIFEST_REFUSED = ("git", "remote", "trust", "commit")
 # What a domain gives an agent: its rules, skills and recipes too (own, or reviewed at its commit), or knowledge alone.
@@ -228,6 +228,28 @@ class Move:
     copy_removed: bool = False  # the project has removed its copy, so ``vyd move check`` does not compare it
 
 
+@dataclass(frozen=True)
+class CatalogueSpec:
+    """Where a project's repository catalogue is, and where its modules have their READMEs (see ``catalogue``)."""
+
+    file: Path
+    module_root: str = ""
+
+
+def _catalogue(raw, bases: dict, where: str, problems: list[str]) -> CatalogueSpec | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"file", "module_root"} or not isinstance(raw.get("file"), str):
+        problems.append(f"{where}: catalogue is a table with a file, and optionally a module_root")
+        return None
+    root = raw.get("module_root", "")
+    if not isinstance(root, str) or Path(root).is_absolute() or ".." in Path(root).parts:
+        problems.append(f"{where}: catalogue module_root must be a folder inside the project")
+        return None
+    file = _expand(raw["file"], bases, where, problems)
+    return CatalogueSpec(file, root) if file is not None else None
+
+
 FULL_COMMIT_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 READ_KEYS = {"commit", "skills", "recipes", "domains"}
 
@@ -301,6 +323,7 @@ class Scope:
     file_keys: frozenset[str] = frozenset()  # the keys that file gave, and the user's entry did not override
     dropped: list[str] = field(default_factory=list)  # projects only: domains its vyvid.toml names that this user has not configured
     reads: dict[str, Read] = field(default_factory=dict)  # projects only: the projects it reads, by name
+    catalogue: CatalogueSpec | None = None  # projects only: its repository catalogue
     unread: list[str] = field(default_factory=list)  # projects only: reads it names that this user has not configured
     read_notes: list[str] = field(default_factory=list)  # projects only: why a read could not be made, for this run
     reviewed_reads: dict[str, str] = field(default_factory=dict)  # projects only, the user's entry alone: read -> the commit a person reviewed
@@ -1326,7 +1349,7 @@ def _project(p: dict, name: str, code: Path, kb: Path | None, set_aside: dict[st
         work=work_settings.parse(p.get("work"), lambda v: _expand(v, bases, where, problems), where, problems),
         doc_share=_share(p.get("doc_share"), None, where, problems), symbols=_symbols(p.get("symbols"), bases, where, problems), code_index=_code_index(p.get("code_index"), bases, where, problems),
         uses={d: {k: dict(v) for k, v in kinds.items()} for d, kinds in p.get("uses", {}).items() if d not in set_aside},
-        reads=reads, reviewed_reads=reviewed_reads,
+        reads=reads, reviewed_reads=reviewed_reads, catalogue=_catalogue(p.get("catalogue"), bases, where, problems),
         specialises={k: v for k, s in p.get("specialises", {}).items()
                      if k not in set_aside and (v := _expand(s, bases, where, problems)) is not None},
     )

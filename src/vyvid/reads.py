@@ -28,7 +28,7 @@ from .config import COMMAND_KEYS, Config, Read, Scope, file_project, read_projec
 RECORD = "record"
 # What of a read project's vyvid.toml survives: knowledge, and the names its skills and recipes would have.
 KEPT = ("name", "visibility", "docs", "facets", "register_types", "vocabulary", "families", "extractors", "skills", "skill_prefix",
-        "skill_values", "recipes")
+        "skill_values", "recipes", "catalogue")
 
 
 def folder(config: Config, name: str, commit: str) -> Path:

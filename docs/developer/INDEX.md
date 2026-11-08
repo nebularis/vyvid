@@ -13,7 +13,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | project-reads | RD | [plan](plans/project-reads.md) | [status](status/project-reads.md) | built 2026-11-08 |
 | guard | GD | [plan](plans/guard.md) | [status](status/guard.md) | built 2026-11-08 |
 | quanta | QU | [plan](plans/quanta.md) | [status](status/quanta.md) | built 2026-11-08 |
-| catalogue | CT | [plan](plans/catalogue.md) | [status](status/catalogue.md) | building 2026-11-08 |
+| catalogue | CT | [plan](plans/catalogue.md) | [status](status/catalogue.md) | built 2026-11-08 |
 
 ## Work
 
@@ -70,5 +70,5 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | GD-5 | guard | the guide, the registers and the release | built 2026-11-08 |
 | QU-1 | quanta | the built-in kind `quanta` | built 2026-11-08 |
 | QU-2 | quanta | quanta over a read, the guide and the release | built 2026-11-08 |
-| CT-1 | catalogue | the catalogue reader | building 2026-11-08 |
-| CT-2 | catalogue | the project setting, `vyd catalogue`, quanta from the catalogue and the release | planned |
+| CT-1 | catalogue | the catalogue reader | built 2026-11-08 |
+| CT-2 | catalogue | the project setting, `vyd catalogue`, quanta from the catalogue and the release | built 2026-11-08 |
