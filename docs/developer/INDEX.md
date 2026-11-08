@@ -61,8 +61,8 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | RD-3 | project-reads | the read scope in the stack and the index | built 2026-11-08 |
 | RD-4 | project-reads | `vyd reads status`, `pin` and `review` | built 2026-11-08 |
 | RD-5 | project-reads | the guide, the sketch note and the release | built 2026-11-08 |
-| GD-1 | guard | the configuration, the lists and the class of a repository | building 2026-11-08 |
-| GD-2 | guard | the checks | planned |
-| GD-3 | guard | the hooks and their install | planned |
-| GD-4 | guard | `vyd guard` and the context line | planned |
-| GD-5 | guard | the guide, the registers and the release | planned |
+| GD-1 | guard | the configuration, the lists and the class of a repository | built 2026-11-08 |
+| GD-2 | guard | the checks | built 2026-11-08 |
+| GD-3 | guard | the hooks and their install | built 2026-11-08 |
+| GD-4 | guard | `vyd guard` and the context line | built 2026-11-08 |
+| GD-5 | guard | the guide, the registers and the release | building 2026-11-08 |

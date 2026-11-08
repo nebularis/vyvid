@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, citations, cloud, configure, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, citations, cloud, configure, guard, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -173,6 +173,46 @@ def _layer(config, scope) -> dict:
     return out
 
 
+def _guard_hooks(config, arguments) -> int:
+    """Set up the guard's git hooks where a guard is configured, unless told not to."""
+    if arguments.no_git_hooks or not config.guard.on:
+        return 0
+    return guard.install_hooks(arguments.dry_run)
+
+
+def guard_command(arguments) -> int:
+    config = load()
+    folder = Path(getattr(arguments, "folder", "."))
+    if arguments.guard_command == "hook":
+        text = sys.stdin.read() if arguments.name == "pre-push" and not sys.stdin.isatty() else ""
+        return guard.run_hook(config, arguments.name, arguments.args, text, Path.cwd())
+    if arguments.guard_command == "status":
+        if not config.guard.on:
+            print("no guard is configured. Name domains in [framework.guard] to guard repositories")
+            return 0
+        lists = guard.read_lists(config)
+        verdict = guard.classify(config, lists, folder)
+        print(f"{folder.resolve()}: {verdict.kind}" + (f" ({verdict.repo})" if verdict.repo else ""))
+        print(f"lists: {len(lists.public)} public and {len(lists.private)} private repositories, {len(lists.deny)} terms for all, "
+              f"{len(lists.public_deny)} for public, {len(lists.warn)} warnings, {len(lists.never_track)} never-track and {len(lists.sensitive)} sensitive paths")
+        print(f"git hooks: {guard.hooks_state()}")
+        for line in guard.status_lines(config, folder):
+            print(line)
+        return 0
+    if arguments.all:
+        verdict, findings = guard.check_tree(config, folder)
+    else:
+        lists = guard.read_lists(config)
+        verdict = guard.classify(config, lists, folder)
+        lines, paths = guard.staged(folder) if verdict.kind in ("public", "private") else ([], [])
+        findings = guard.check_lines(lists, verdict.kind, lines) + guard.check_paths(lists, verdict.kind, verdict.repo, paths, None)
+    for f in findings:
+        print(f)
+    blocking = [f for f in findings if not f.warn]
+    print(f"guard check ({verdict.kind}): {len(blocking)} finding(s), {len(findings) - len(blocking)} warning(s)")
+    return 1 if blocking else 0
+
+
 def reads_command(arguments) -> int:
     config, project = bind_in(load(), Path(arguments.folder))
     if project is None:
@@ -215,6 +255,8 @@ def context(folder: Path, as_json: bool, pull: bool = True) -> int:
         return 0
     print(f"{streams.display_name()} {__version__}: the contract for {folder.resolve()}")
     print(f"project: {project.name if project else 'none, so the general scope alone'}")
+    for line in guard.status_lines(configured, folder):
+        print(line)
     if project and project.checkout:
         entry = configured.projects.get(project.name)  # a project a vyvid.toml declares alone has no configured folder
         print(f"checkout: answering from {project.checkout}" + (f", not the configured code folder {entry.code}" if entry is not None else ""))
@@ -784,7 +826,16 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--in", dest="folder", default=".", help="with --project, the folder whose project is written")
     i.add_argument("--hooks", action="store_true", help="also register the reminder hook in the client's user-level settings, for a client that documents a place for one")
     i.add_argument("--target", type=Path, help="the folder to write into, instead of the client's own")
+    i.add_argument("--no-git-hooks", action="store_true", help="do not set up the guard's git hooks, which are set up when a guard is configured")
     i.add_argument("--dry-run", action="store_true", help="say what would be written and write nothing")
+    g = sub.add_parser("guard", help="keep the private terms of a user out of public repositories: status, check, and the hook the git hooks run").add_subparsers(dest="guard_command", required=True)
+    g.add_parser("status", help="the folder's class, the lists in force and whether the git hooks are in place").add_argument("--in", dest="folder", default=".")
+    p = g.add_parser("check", help="the lines staged for commit, or with --all every tracked file, against the lists")
+    p.add_argument("--in", dest="folder", default=".")
+    p.add_argument("--all", action="store_true", help="every tracked file, to find what a new list leaves in existing text")
+    p = g.add_parser("hook", help="run by the git hooks: pre-commit, commit-msg or pre-push")
+    p.add_argument("name", choices=guard.GUARDED_HOOKS)
+    p.add_argument("args", nargs="*")
     c = sub.add_parser("cloud", help="set up a cloud environment").add_subparsers(dest="cloud_command", required=True)
     p = c.add_parser("script", help="write the setup script for a cloud environment, holding the private domains you name and cloning the public ones")
     p.add_argument("--output", required=True, help="the file to write, owner-only. The script holds private text, so it is never printed")
@@ -883,6 +934,8 @@ def main(argv: list[str] | None = None) -> int:
 
             config, project = bind_in(load(), Path(arguments.folder))
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
+        if arguments.command == "guard":
+            return guard_command(arguments)
         if arguments.command == "install":
             if arguments.project:
                 config, project = bind_in(load(), Path(arguments.folder))
@@ -893,11 +946,13 @@ def main(argv: list[str] | None = None) -> int:
             if not arguments.client:
                 if arguments.target:
                     parser.error("--target needs --client")
-                return install.install_all(load(), arguments.dry_run, arguments.hooks)
-            done = install.install(load(), arguments.client, arguments.target, arguments.dry_run)
+                configured = load()
+                return max(install.install_all(configured, arguments.dry_run, arguments.hooks), _guard_hooks(configured, arguments))
+            configured = load()
+            done = install.install(configured, arguments.client, arguments.target, arguments.dry_run)
             if arguments.hooks:
                 done = done or install.user_hook(arguments.client, arguments.target, arguments.dry_run)
-            return done
+            return max(done, _guard_hooks(configured, arguments)) if not arguments.target else done
         if arguments.command in QUESTIONS:
             return _question(arguments, parser)
         if arguments.command == "trust":

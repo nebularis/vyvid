@@ -346,6 +346,48 @@ class Scope:
         return [*(p for p in named if escapes(p, self.path)), *(p for f in self.families.values() for p in f.refused())]
 
 
+GUARD_KEYS = {"domains", "watch_owners", "terms", "public_terms"}
+OWNER_RE = re.compile(r"^[a-z0-9.-]+/[a-z0-9._-]+$")
+
+
+@dataclass(frozen=True)
+class GuardSettings:
+    """The user's guard against private terms reaching a public repository (see ``guard``). Nothing is guarded
+    unless a domain or an owner is named."""
+
+    domains: tuple[str, ...] = ()  # domains whose ``guard`` folder holds the lists
+    watch_owners: tuple[str, ...] = ()  # ``host/owner``: a repository under one that is in neither list fails closed
+    terms: tuple[Path, ...] = ()  # extra files of terms applied to every guarded repository
+    public_terms: tuple[Path, ...] = ()  # extra files of terms applied to public repositories alone
+
+    @property
+    def on(self) -> bool:
+        return bool(self.domains or self.watch_owners or self.terms or self.public_terms)
+
+
+def _guard(raw, domains: dict, set_aside: dict, problems: list[str]) -> GuardSettings:
+    where = "[framework.guard]"
+    if raw is None:
+        return GuardSettings()
+    if not isinstance(raw, dict):
+        problems.append(f"{where}: must be a table")
+        return GuardSettings()
+    if unknown := sorted(set(raw) - GUARD_KEYS):
+        problems.append(f"{where}: unknown keys {', '.join(unknown)}")
+    lists = {}
+    for key in ("domains", "watch_owners", "terms", "public_terms"):
+        value = raw.get(key, [])
+        if not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+            problems.append(f"{where}: {key} must be a list of strings")
+            value = []
+        lists[key] = value
+    problems += [f"{where}: domain '{d}' is not configured" for d in lists["domains"] if d not in domains and d not in set_aside]
+    owners = [o.strip().lower() for o in lists["watch_owners"]]
+    problems += [f"{where}: watch_owners entry '{o}' must be written host/owner, such as github.com/example" for o in owners if not OWNER_RE.match(o)]
+    return GuardSettings(tuple(d for d in lists["domains"] if d in domains), tuple(owners),
+                         tuple(Path(p).expanduser() for p in lists["terms"]), tuple(Path(p).expanduser() for p in lists["public_terms"]))
+
+
 @dataclass
 class Config:
     source: Path | None
@@ -363,6 +405,7 @@ class Config:
     files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
     trusted_repositories: tuple[str, ...] = ()  # normalised origins whose committed vyvid.toml is trusted, in the user's own configuration only
     doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
+    guard: GuardSettings = field(default_factory=GuardSettings)
 
     def scope(self, name: str) -> Scope | None:
         if name == self.general.name:
@@ -1437,7 +1480,8 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
         logs = True
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
                     Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
-                    trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems))
+                    trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems),
+                    guard=_guard(framework.get("guard"), domains, set_aside, problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():
