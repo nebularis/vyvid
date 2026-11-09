@@ -136,3 +136,71 @@ def test_a_project_set_aside_for_a_domain_nobody_configured_is_the_one_setup_men
     commit(root)
     assert cli.main(["setup", str(root)]) == 0
     assert set(load().domains) == {"lifecycle", "triple-stores", "tools"}, "a delegation's and a move's domains are named too"
+
+
+# ---- SU-4 and SU-5: skills while a domain is unreviewed ------------------------------------------
+
+
+def skills_world(tmp_path, monkeypatch, trust: str):
+    """A project with composed skills committed from an own domain, then its configuration at ``trust``. The domain is a git clone."""
+    from test_skills import world
+
+    config, code = world(tmp_path)
+    domain = tmp_path / "lifecycle-domain"
+    sh(domain, "init", "-q", "-b", "main")
+    commit(domain)
+    head = subprocess.run(["git", "-C", str(domain), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    assert cli.main(["install", "--project", "--in", str(code), "--no-git-hooks"]) == 0
+    committed = sorted(p for p in code.rglob("SKILL.md") if ".vyvid" not in p.parts)
+    assert committed
+    path = tmp_path / "config.toml"
+    path.write_text(path.read_text(encoding="utf-8").replace('trust = "own"', f'trust = "{trust}"'), encoding="utf-8")
+    monkeypatch.setenv("VYVID_CONFIG", str(path))
+    return code, domain, head, committed
+
+
+@pytest.mark.parametrize("trust", ["knowledge", "reviewed-elsewhere"])
+def test_the_skills_check_does_not_run_while_a_domain_is_unreviewed_and_names_it_and_the_line_that_reviews_it(tmp_path, monkeypatch, capsys, trust):
+    code, domain, head, committed = skills_world(tmp_path, monkeypatch, "knowledge")
+    if trust == "reviewed-elsewhere":
+        path = tmp_path / "config.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace('trust = "knowledge"', f'trust = "reviewed"\ncommit = "{"b" * 40}"'), encoding="utf-8")
+    capsys.readouterr()
+    assert cli.main(["check", "skills", str(code)]) == 2
+    out = capsys.readouterr().out
+    assert "not reviewed" in out and "lifecycle" in out and f"vyd domain trust lifecycle reviewed --commit {head}" in out
+    assert "generated and no source makes it now" not in out and "vyd install --project" not in out
+
+
+def test_install_writes_what_it_can_and_removes_no_skill_while_a_domain_is_unreviewed(tmp_path, monkeypatch, capsys):
+    code, domain, head, committed = skills_world(tmp_path, monkeypatch, "knowledge")
+    stale = code / ".claude" / "skills" / "gone" / "SKILL.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text(committed[0].read_text(encoding="utf-8").replace("name: ", "name: gone-", 1), encoding="utf-8")
+    capsys.readouterr()
+    assert cli.main(["install", "--project", "--in", str(code), "--no-git-hooks"]) == 1
+    out = capsys.readouterr().out
+    assert all(p.exists() for p in committed) and stale.exists(), "nothing is removed"
+    assert "removed" not in out and "not reviewed" in out and f"reviewed --commit {head}" in out
+
+
+def test_install_still_removes_a_stale_skill_once_every_domain_is_trusted(tmp_path, monkeypatch, capsys):
+    code, domain, head, committed = skills_world(tmp_path, monkeypatch, "knowledge")
+    path = tmp_path / "config.toml"
+    path.write_text(path.read_text(encoding="utf-8").replace('trust = "knowledge"', 'trust = "own"'), encoding="utf-8")
+    stale = code / ".claude" / "skills" / "gone" / "SKILL.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text(committed[0].read_text(encoding="utf-8").replace("name: ", "name: gone-", 1), encoding="utf-8")
+    assert cli.main(["install", "--project", "--in", str(code), "--no-git-hooks"]) == 0
+    assert not stale.exists() and all(p.exists() for p in committed)
+
+
+def test_setup_prints_each_cloned_domains_review_line_with_its_commit(tmp_path, capsys):
+    root = project(tmp_path, ["lifecycle", "tools"])
+    assert cli.main(["setup", str(root)]) == 0
+    out = capsys.readouterr().out
+    config = load()
+    for name in ("lifecycle", "tools"):
+        head = subprocess.run(["git", "-C", str(config.domains[name].path), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        assert f"vyd domain trust {name} reviewed --commit {head}" in out
+    assert "read it first" in out

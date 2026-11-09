@@ -12,6 +12,7 @@ by family and domain, and an agent reaches them through the index.
 from __future__ import annotations
 
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -184,6 +185,29 @@ def absent(config: Config, project: Scope) -> list[str]:
                    if config.domains[name].path is None or not config.domains[name].path.is_dir()]
 
 
+def head_of(domain: Scope) -> str | None:
+    """The commit a domain's clone is at, or None where its folder is not a git clone."""
+    if domain.path is None or not domain.path.is_dir():
+        return None
+    done = subprocess.run(["git", "-C", str(domain.path), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return done.stdout.strip() or None if done.returncode == 0 else None
+
+
+def review_line(domain: Scope) -> str:
+    """The command that records a review of the domain as it is now, which a person runs after reading it."""
+    return f"vyd domain trust {domain.name} reviewed --commit {head_of(domain) or '<hash>'}"
+
+
+def unreviewed(config: Config, project: Scope) -> list[Scope]:
+    """The domains the project uses whose skills cannot count: knowledge, or reviewed at a commit its folder has left."""
+    return [config.domains[n] for n in config.domain_order(project) if n in config.domains and not config.domains[n].trusted]
+
+
+def unreviewed_lines(held: list[Scope]) -> list[str]:
+    return [f"  {d.name}: {'reviewed at ' + d.commit[:12] + ', which its folder has left' if d.trust == 'reviewed' else 'trust ' + d.trust}. After reading it, a person runs: {review_line(d)}"
+            for d in held]
+
+
 def raise_hint(domain: Scope) -> str:
     """The next step for a domain that gives knowledge alone, which is the person's to take."""
     if domain.trust == "reviewed":
@@ -274,6 +298,7 @@ def install_project(config: Config, project: Scope, dry_run: bool) -> int:
             print(f"vyd: {problem}")
             failed = 1
     keep = {s.name for s in skills}
+    held = unreviewed(config, project)
     for folder in _target_folders(project):
         for skill in skills:
             if skill.problems:
@@ -287,7 +312,7 @@ def install_project(config: Config, project: Scope, dry_run: bool) -> int:
             if not dry_run:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(skill.text, encoding="utf-8", newline="\n")
-        for old in sorted(folder.glob("*/SKILL.md")) if folder.is_dir() else []:
+        for old in ([] if held else sorted(folder.glob("*/SKILL.md")) if folder.is_dir() else []):
             if old.parent.name not in keep and generated(old.read_text(encoding="utf-8", errors="replace")):
                 print(f"{'would remove' if dry_run else 'removed'} {old}")
                 if not dry_run:
@@ -296,6 +321,11 @@ def install_project(config: Config, project: Scope, dry_run: bool) -> int:
                         old.parent.rmdir()
                     except OSError:
                         pass
+    if held:
+        print("vyd: the project uses domains that are not reviewed, so what its skills compose to is not known and no generated skill was deleted:")
+        for line in unreviewed_lines(held):
+            print(line)
+        failed = 1
     return failed
 
 
@@ -339,6 +369,11 @@ def check(config: Config, project: Scope, sources: list[Path], map_path: Path | 
         return 2
     if gone := absent(config, project):
         print(f"skills check not run, since the project uses {'; '.join(gone)}")
+        return 2
+    if held := unreviewed(config, project):
+        print("skills check not run, since the project uses domains that are not reviewed, so what its skills compose to is not known:")
+        for line in unreviewed_lines(held):
+            print(line)
         return 2
     skills, notes = for_project(config, project)
     for note in notes:

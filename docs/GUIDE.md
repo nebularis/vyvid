@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.26**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.27**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -223,7 +223,7 @@ vyd setup
 
 `vyd setup` reads the domains the folder’s project names in its `vyvid.toml`. If `[framework] kb` is not set, it sets it to a `kb` folder in Вивід’s data folder. It adds each of the published domains the configuration lacks, which are `lifecycle`, `tools`, `python`, `haskell`, `triple-stores` and `rdf-modelling`, each from `https://github.com/nebularis/vyvid-<name>.git` with trust `knowledge`, and it clones them under the knowledge base. A domain it does not know is listed for you to add yourself. Pass `--no-clone` to add the domains and clone them later with `vyd kb clone`, and `--dry-run` to see the plan. A second run changes nothing, and it never overwrites a `kb` or a domain you have configured.
 
-A domain added with trust `knowledge` gives you an index and a work board and gives your agents no skills. When you have read a domain and want its skills to reach them, run `vyd domain trust <name> reviewed --commit <hash>`.
+A domain added with trust `knowledge` gives you an index and a work board and gives your agents no skills. `vyd setup` prints, for each domain it cloned, the folder and the line that reviews it at the commit you cloned, `vyd domain trust <name> reviewed --commit <hash>`. Read the domain first, then run its line. Until each domain is reviewed `vyd check skills` does not run, and `vyd install --project` deletes no skill.
 
 `vyd setup` ends by printing what is left for you. `vyd trust` asks a question, so run it yourself in a terminal, as `vyd trust` or, where mise supplies `vyd`, as `mise exec -- vyd trust`. A task runner that captures output, such as `mise run`, would hold the question until the command ends, so `vyd trust` and `vyd kb accept` refuse at once where their output is not a terminal, and print the command to run. Without `vyd setup`, `vyd domain add` says when `kb` is unset and how to set it.
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.26"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.27"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -1005,7 +1005,7 @@ Project-generated skills are intended to be committed so contributors and agents
 
 **Do not edit generated skills.** Edit the domain, project skill sources, additions, or configuration, then regenerate.
 
-`vyd install --project` writes each skill into every folder that `skill_targets` names, which is `.claude/skills` unless you say otherwise, and removes generated skills that no source produces any longer. As at user level, it leaves a file it did not generate alone and reports it. A skill with a placeholder that nobody gives a value for is not written, and the command names the value and exits 1. It registers the reminder hook only after the skills were written cleanly.
+`vyd install --project` writes each skill into every folder that `skill_targets` names, which is `.claude/skills` unless you say otherwise, and removes generated skills that no source produces any longer. It removes none while a domain the project uses is not reviewed, since the skills that domain gives cannot be composed and would look like ones no source produces. It then writes what it can, deletes nothing, names each such domain with the line that reviews it, and exits 1. As at user level, it leaves a file it did not generate alone and reports it. A skill with a placeholder that nobody gives a value for is not written, and the command names the value and exits 1. It registers the reminder hook only after the skills were written cleanly.
 
 A skill can also come from another project that yours reads. It is composed under that project’s prefix and only after a person has reviewed the read ([21.8](#218-carry-the-librarys-skills)).
 
@@ -1056,7 +1056,7 @@ The upstream documentation reports exercised integrations for Claude Code and Co
 
 If a required domain is missing, project skill installation does not silently write a reduced set.
 
-`vyd check skills` has three outcomes, and a hook or a script can tell them apart. It exits **0** when every committed skill equals what its sources compose to. It exits **1** when it found a problem, such as a skill that is missing, differs from its sources, was generated and now has no source, or lacks a value. It exits **2** when it could not perform a meaningful check, including missing domain sources, an untrusted project file, or no project claiming the folder. That is not a passing comparison, and it says that it did not run.
+`vyd check skills` has three outcomes, and a hook or a script can tell them apart. It exits **0** when every committed skill equals what its sources compose to. It exits **1** when it found a problem, such as a skill that is missing, differs from its sources, was generated and now has no source, or lacks a value. It exits **2** when it could not perform a meaningful check, including missing domain sources, an untrusted project file, no project claiming the folder, or a domain that is not reviewed, because what the skills compose to is then not known. It names each such domain and the line that reviews it. That is not a passing comparison, and it says that it did not run. A first local configuration leaves every domain at trust `knowledge`, so on a fresh machine this is the outcome until you have reviewed them.
 
 When you move skills from older files, `vyd check skills --from old/SKILL.md` also fails on any line of an old skill that appears in no composed skill, so a move loses nothing. With a single `--from` file, `--map` names a tab-separated file with `line` and `destination` columns that gives such lines a home elsewhere.
 
@@ -3008,6 +3008,7 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 | `uv tool install vyvid` fails | Use the Git-source installation, since PyPI availability must not be assumed |
 | Context shows only general scope | Check the working folder, project binding, and `vyd config`. On a new machine, `vyd setup` writes the first configuration |
 | `vyd domain add` says `kb` is not set | Set `kb` in the `[framework]` table of your configuration, or run `vyd setup` |
+| `vyd check skills` does not run and names a domain | The domain is at trust `knowledge`, or was reviewed at a commit its folder has left. Read it and run the line the message gives |
 | A task that runs `vyd trust` seems to hang | It asks a question that a task runner hides. Run `vyd trust` yourself in a terminal |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |
 | A skill-only domain has no search results | Its procedure reaches agents through skills, and it has no register to retrieve |

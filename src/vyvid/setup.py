@@ -18,7 +18,7 @@ from typing import Callable
 
 import platformdirs
 
-from . import configure, kb
+from . import configure, kb, skills
 from .config import ConfigError, load, read_project_file
 from .resolve import bind_in, project_file
 
@@ -94,18 +94,26 @@ def run(folder: Path, clone: bool, dry_run: bool, person: Callable[[], bool]) ->
     for name in others:
         print(f"{name}: not a published domain, so add it yourself with vyd domain add {name} --path <folder> or --remote <repository>")
     failed = 0
+    cloned = []
     if published and clone and not dry_run:
         config = load()
         for name in published:
             result = kb.clone(config, config.domains[name])
             print(f"{name}: {result.text}")
             failed |= not result.ok
+            if result.ok:
+                cloned.append(config.domains[name])
     elif published and not clone and not dry_run:
         print("the domains' folders are not cloned yet. Clone them with: vyd kb clone")
     print("\nNext, yourself, in a terminal:")
     print("  vyd trust                  asks a question, so run it directly and not through a task runner (or: mise exec -- vyd trust)")
     print("  vyd build                  builds the index")
     print("  vyd context                lists every layer of rules that applies here")
-    print("Domains were added with trust knowledge, which gives an index and a board and no skills. To give a domain's skills to your agents, "
-          "read it, then run: vyd domain trust <name> reviewed --commit <hash>")
+    print("Domains were added with trust knowledge, which gives an index and a board and no skills, and the skills check does not run until each is reviewed.")
+    if cloned:
+        print("To review a domain, read it first, in its folder, then run its line:")
+        for domain in cloned:
+            print(f"  {skills.review_line(domain)}      ({domain.path})")
+    else:
+        print("To review a domain, read it first, then run: vyd domain trust <name> reviewed --commit <hash>")
     return 1 if failed else 0
