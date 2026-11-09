@@ -127,3 +127,12 @@ def test_a_folder_that_belongs_to_no_project_is_said_so(tmp_path, capsys):
     empty.mkdir()
     assert cli.main(["setup", str(empty)]) == 1
     assert "no project" in capsys.readouterr().err
+
+
+def test_a_project_set_aside_for_a_domain_nobody_configured_is_the_one_setup_mends(tmp_path, capsys):
+    root = project(tmp_path, ["lifecycle"])
+    put(root, "vyvid.toml", (root / "vyvid.toml").read_text() + '\n[project.delegates]\nTSD = "triple-stores"\n\n[[project.moves]]\nfamily = "STD"\nto = "tools"\n'
+        'source = "code:README.md"\ncommit = "abc1234"\n')
+    commit(root)
+    assert cli.main(["setup", str(root)]) == 0
+    assert set(load().domains) == {"lifecycle", "triple-stores", "tools"}, "a delegation's and a move's domains are named too"
