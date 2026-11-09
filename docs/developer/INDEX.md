@@ -13,6 +13,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | project-reads | RD | [plan](plans/project-reads.md) | [status](status/project-reads.md) | built 2026-11-08 |
 | guard | GD | [plan](plans/guard.md) | [status](status/guard.md) | built 2026-11-08 |
 | quanta | QU | [plan](plans/quanta.md) | [status](status/quanta.md) | built 2026-11-09 |
+| tables | TB | [plan](plans/tables.md) | [status](status/tables.md) | building 2026-11-09 |
 | catalogue | CT | [plan](plans/catalogue.md) | [status](status/catalogue.md) | built 2026-11-08 |
 | setup | SU | [plan](plans/setup.md) | [status](status/setup.md) | built 2026-11-09 |
 
@@ -72,6 +73,10 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | QU-1 | quanta | the built-in kind `quanta` | built 2026-11-08 |
 | QU-2 | quanta | quanta over a read, the guide and the release | built 2026-11-08 |
 | QU-3 | quanta | `vyd read` and `vyd node` print a quantum, and `--kind quantum` filters to quanta | built 2026-11-09 |
+| TB-1 | tables | the renderer | building 2026-11-09 |
+| TB-2 | tables | the choice and every table through `show` | planned |
+| TB-3 | tables | the status-style commands as tables | planned |
+| TB-4 | tables | `vyd table-demo`, the guide and the release | planned |
 | CT-1 | catalogue | the catalogue reader | built 2026-11-08 |
 | CT-2 | catalogue | the project setting, `vyd catalogue`, quanta from the catalogue and the release | built 2026-11-08 |
 | SU-1 | setup | the refusal that prints the direct command, and the error for an unset `kb` | built 2026-11-09 |
