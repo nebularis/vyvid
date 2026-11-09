@@ -168,3 +168,78 @@ def test_a_project_that_reads_another_gets_its_quanta_with_no_review_and_no_comm
 def test_a_kind_can_be_skipped_and_the_core_points_at_the_catalogue_when_there_is_one():
     found, _ = quanta.data_quanta({"a": "core", "b": "scaffold", "c": "applied"}, set(), set(), {}, core="core", core_pointer="cat.md", skip=("scaffold",))
     assert [q.identifier for q in found] == ["data/core", "data/c"] and found[0].pointer == "cat.md"
+
+
+# ---- QU-3: read and node print a quantum, and --kind quantum filters to quanta ---------------------------
+
+from test_index_core import Words
+from vyvid import ask
+
+
+def asker(root: Path):
+    config, _ = bind_in(load(), root)
+    return ask.open_stack(config, root, model=Words())
+
+
+def test_read_prints_a_data_quantum_with_its_view_its_parts_and_no_pointer_that_is_not_there(tmp_path, monkeypatch, capsys):
+    root = library(tmp_path / "lib")
+    configure(tmp_path, monkeypatch, "")
+    a = asker(root)
+    capsys.readouterr()
+    assert ask.read(a, "data/substrate") == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "data/substrate  Quantum"
+    assert lines[1].startswith("Claim: The substrate's 2 layers are one data quantum")
+    assert "View: data" in lines and "Includes: foundation, ledger" in lines
+    assert not any(line.startswith("Not printed") for line in lines)
+
+
+def test_read_prints_a_software_quantum_with_its_deployment_and_the_compose_file(tmp_path, monkeypatch, capsys):
+    root = library(tmp_path / "lib")
+    configure(tmp_path, monkeypatch, "")
+    a = asker(root)
+    capsys.readouterr()
+    assert ask.read(a, "software/prod/api") == 0
+    out = capsys.readouterr().out
+    assert "software/prod/api  Quantum" in out and "View: software" in out and "Deployment: prod" in out and "Includes: api, db" in out
+    assert "Pointer: deploy/prod/docker-compose.yml:1-" in out
+
+
+def test_node_finds_a_quantum_and_an_unknown_one_is_still_nothing(tmp_path, monkeypatch, capsys):
+    root = library(tmp_path / "lib")
+    configure(tmp_path, monkeypatch, "")
+    a = asker(root)
+    capsys.readouterr()
+    assert ask.lookup(a, "node", "data/substrate") == 0
+    out = capsys.readouterr().out
+    assert "Quantum" in out and "nothing found" not in out
+    assert ask.read(a, "data/nonesuch") == 0
+    assert "nothing to read for: data/nonesuch" in capsys.readouterr().out
+
+
+def test_a_reader_reads_the_others_quantum_by_its_qualified_name_as_data_until_reviewed(tmp_path, monkeypatch, capsys):
+    lib = library(tmp_path / "lib")
+    head = __import__("subprocess").run(["git", "-C", str(lib), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    app = tmp_path / "app"
+    app.mkdir()
+    sh(app, "init", "-b", "main")
+    put(app, "vyvid.toml", f'[project]\nname = "app"\nvisibility = "private"\n\n[project.reads.lib]\ncommit = "{head}"\n')
+    put(app, "README.md", "x\n")
+    commit(app)
+    configure(tmp_path, monkeypatch, f'[[projects]]\nname = "lib"\ncode = "{lib.as_posix()}"\nvisibility = "public"\n')
+    a = asker(app)
+    capsys.readouterr()
+    assert ask.read(a, "lib:data/substrate") == 0
+    out = capsys.readouterr().out
+    assert "begin data from project lib" in out and "lib:data/substrate  Quantum" in out and "Includes: foundation, ledger" in out
+    assert ask.read(a, "data/substrate") == 0 and "begin data from project lib" in capsys.readouterr().out, "a bare name finds it in a scope the question reads"
+
+
+def test_the_kind_quantum_filters_to_quanta_alone(tmp_path, monkeypatch):
+    root = library(tmp_path / "lib")
+    configure(tmp_path, monkeypatch, "")
+    a = asker(root)
+    kinds, phases, audiences, _ = ask.filters(a, kind="quantum")
+    assert kinds == {"Quantum"}
+    ids = {r["id"] for r in ask.candidates(a, kinds, phases, audiences)}
+    assert ids == {"data/substrate", "data/capacity", "software/prod/api", "software/prod/web"}

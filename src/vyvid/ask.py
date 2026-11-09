@@ -182,6 +182,21 @@ SELECT DISTINCT ?scope ?pointer WHERE {{
 }}"""
 )
 
+# What read prints of a quantum: its view, the deployment of a software one, and the parts it includes.
+QUANTUM = (
+    PREFIXES
+    + f"""
+SELECT ?subject ?view ?deployment ?label WHERE {{
+  GRAPH ?g {{
+    ?subject a ki:Quantum .
+    OPTIONAL {{ ?subject ki:view ?v BIND (REPLACE(STR(?v), "^.*#", "") AS ?view) }}
+    OPTIONAL {{ ?subject ki:deployment ?deployment }}
+    OPTIONAL {{ ?subject ki:includes ?part . ?part rdfs:label ?label }}
+  }}
+  {IN_INDEX % "?g"}
+}}"""
+)
+
 # What read prints before the text: the entry's own fields that find does not show, then each entry
 # it is linked to by a declared edge, in either direction.
 FIELDS = (
@@ -489,7 +504,7 @@ class Asker:
 
     def kinds(self) -> dict[str, str]:
         """The kinds a question may name, from the register types the stack declares, and terms."""
-        return {**self.types.types, "term": "Term", "symbol": "Symbol"}
+        return {**self.types.types, "term": "Term", "symbol": "Symbol", "quantum": "Quantum"}
 
     def values(self, name: str) -> dict[str, str]:
         return self.types.values.get(name, {})
@@ -1009,12 +1024,25 @@ whole_file = anchors.whole_file
 
 def canonical_of(a: Asker, identifier: str) -> tuple[str, str] | None:
     """The scope and local identifier an identifier names when written in the home scope, if the
-    configuration resolves it and the scope is in the stack."""
+    configuration resolves it and the scope is in the stack. A quantum belongs to no register family, so
+    one that resolves to nothing is looked for by its identifier in the scopes the question reads."""
     try:
         scope_name, local = resolve(a.config, identifier, a.home).split(":", 1)
     except Unresolved:
-        return None
+        return quantum_named(a, identifier)
     return (scope_name, local) if any(s.name == scope_name for s in a.visible) else None
+
+
+def quantum_named(a: Asker, identifier: str) -> tuple[str, str] | None:
+    """The scope and identifier of a quantum named as ``scope:data/x`` or as ``data/x``, found in the home scope first."""
+    scope, colon, rest = identifier.partition(":")
+    visible = [s.name for s in a.visible]
+    scopes = [scope] if colon and scope in visible else [a.home.name, *reversed(visible)]
+    local = rest if colon and scope in visible else identifier
+    for name in dict.fromkeys(scopes):
+        if any(r["kind"] == "Quantum" for r in a.rows(NODE, subject=node(name, local))):
+            return name, local
+    return None
 
 
 def read(a: Asker, identifier: str) -> int:
@@ -1032,6 +1060,10 @@ def read(a: Asker, identifier: str) -> int:
     if named:
         scope_name, local = named
         subject = node(scope_name, local)
+        head = a.rows(NODE, subject=subject)
+        if head and head[0]["kind"] == "Quantum":
+            log_ask(a, "read", identifier, None, [identifier])
+            return read_quantum(a, scope_name, subject, head[0])
         pieces = read_ranges(a, scope_name, subject)
     log_ask(a, "read", identifier, None, [identifier] if pieces else [])
     if not pieces:
@@ -1067,6 +1099,28 @@ def read(a: Asker, identifier: str) -> int:
             continue
         print(f"== {where}")
         print(text)
+    if fenced:
+        print(f"----- end data from {a.config.scope(scope_name).kind} {scope_name} -----")
+    return 0
+
+
+def read_quantum(a: Asker, scope_name: str, subject: ox.NamedNode, head: dict) -> int:
+    """A quantum's fields. It is derived and has no register row to print, and its pointer is a whole file on purpose."""
+    rows = a.rows(QUANTUM, subject=subject)
+    fenced = scope_name in a.unmarked
+    if fenced:
+        print(data_note(a, scope_name, head["claim"]))
+        print(f"----- begin data from {a.config.scope(scope_name).kind} {scope_name} -----")
+    print(f"{a.label(scope_name, head['id'])}  {head['kind']}")
+    print(f"Claim: {head['claim'] or ''}")
+    if rows and rows[0]["view"]:
+        print(f"View: {rows[0]['view'].removesuffix('View').lower()}")
+    if rows and rows[0]["deployment"]:
+        print(f"Deployment: {rows[0]['deployment']}")
+    if parts := sorted({r["label"] for r in rows if r["label"]}):
+        print(f"Includes: {', '.join(parts)}")
+    if head["pointer"]:
+        print(f"Pointer: {head['pointer']}")
     if fenced:
         print(f"----- end data from {a.config.scope(scope_name).kind} {scope_name} -----")
     return 0

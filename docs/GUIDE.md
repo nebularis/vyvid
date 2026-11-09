@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.28**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.29**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.28"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.29"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -2575,7 +2575,7 @@ By default a term is owned by the folder of the document that declares it. When 
 
 ### Derive architectural quanta with the built-in `quanta` kind
 
-An architectural quantum is the smallest set that must change and be released together because of its coupling, so its size is the lower bound on incremental change. The built-in kind `quanta` derives them, in two views, and `vyd find` returns them as entries of kind Quantum, such as `data/substrate`. The `--kind` filter does not take that kind, and `vyd read` does not print one yet.
+An architectural quantum is the smallest set that must change and be released together because of its coupling, so its size is the lower bound on incremental change. The built-in kind `quanta` derives them, in two views, and `vyd find` returns them as entries of kind Quantum, such as `data/substrate`. `vyd find --kind quantum` lists quanta alone, and `vyd read data/substrate` prints one: its claim, its view, the deployment of a software one, the parts it includes and the file it points at. Write `vyd read lattice:data/substrate` for a quantum of a project you read, and `vyd node` prints its row.
 
 ```toml
 [[project.extractors]]

@@ -31,6 +31,7 @@ A module of the core kind (default `substrate`) forms one quantum with every mod
 |---|---|---|---|
 | QU-1 | the kind: the derivation, the modules as settings, the imports read from the ontology documents, the compose files, and the entries as the project's own extractor wrote them, tests first | | 90k |
 | QU-2 | a project that reads another gets its quanta, the guide, the register row and the release | QU-1 | 40k |
+| QU-3 | `vyd read` and `vyd node` print a quantum, and `--kind quantum` filters to quanta, tests first | QU-2 | 40k |
 
 ## Validation
 
