@@ -172,7 +172,7 @@ def test_a_real_command_with_no_terminal_trusts_the_listed_repository_and_trust_
     said = run("config", cwd=root).stdout
     assert f"trusted repositories: {LISTED}" in said and "trusted through trusted_repositories" in said
     refused = run("trust", cwd=root)
-    assert refused.returncode == 1 and "a person must run vyd trust" in refused.stderr
+    assert refused.returncode == 1 and "Run it yourself: vyd trust" in refused.stderr
     put(root, "vyvid.toml", (root / "vyvid.toml").read_text(encoding="utf-8") + "\n# edited\n")
     assert "not trusted" in run("config", cwd=root).stdout
 

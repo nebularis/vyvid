@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.24**, inspected on **8 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.25**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -211,6 +211,21 @@ The name prints as `Вивід` where the output can hold it and as `vyvid` wher
 What Vyvid reads is fixed, whatever the locale. Output from `git` and from the commands you register as glue or command extractors is read as UTF-8, and a byte that is not valid there is replaced rather than failing the command. The request sent to a command extractor is UTF-8. Your configuration, a `vyvid.toml`, a `domain.toml` and a register type file are read as UTF-8, with or without a byte order mark, or as UTF-16. A file in any other encoding, such as one saved in a Chinese, Japanese, Korean or Cyrillic code page, is reported as a problem that names the file. Save it as UTF-8, for example with `Set-Content -Encoding UTF8` in PowerShell. Standard input is read as UTF-8 by `vyd-hook`, which prints no decision and exits 0 for input it cannot use. A prompt that meets invalid bytes or the end of the input counts as no.
 
 A program that stops reading, as `head` does, ends the command quietly with status 141 on a POSIX system and 1 elsewhere. Notes and problems go to standard error and results to standard output, so a pipe carries only the results.
+
+### Set up a first local configuration
+
+On a machine with no configuration, run this in the repository you are setting up:
+
+```bash
+vyd setup --dry-run
+vyd setup
+```
+
+`vyd setup` reads the domains the folder’s project names in its `vyvid.toml`. If `[framework] kb` is not set, it sets it to a `kb` folder in Вивід’s data folder. It adds each of the published domains the configuration lacks, which are `lifecycle`, `tools`, `python`, `haskell`, `triple-stores` and `rdf-modelling`, each from `https://github.com/nebularis/vyvid-<name>.git` with trust `knowledge`, and it clones them under the knowledge base. A domain it does not know is listed for you to add yourself. Pass `--no-clone` to add the domains and clone them later with `vyd kb clone`, and `--dry-run` to see the plan. A second run changes nothing, and it never overwrites a `kb` or a domain you have configured.
+
+A domain added with trust `knowledge` gives you an index and a work board and gives your agents no skills. When you have read a domain and want its skills to reach them, run `vyd domain trust <name> reviewed --commit <hash>`.
+
+`vyd setup` ends by printing what is left for you. `vyd trust` asks a question, so run it yourself in a terminal, as `vyd trust` or, where mise supplies `vyd`, as `mise exec -- vyd trust`. A task runner that captures output, such as `mise run`, would hold the question until the command ends, so `vyd trust` and `vyd kb accept` refuse at once where their output is not a terminal, and print the command to run. Without `vyd setup`, `vyd domain add` says when `kb` is unset and how to set it.
 
 ### Configure the published domains
 
@@ -467,7 +482,7 @@ A person who has reviewed the configuration then runs:
 vyd trust
 ```
 
-This command requires an interactive terminal and confirmation. It first prints what the file declares that an agent would read or that would run with your privileges, such as its contract, its skill folders, its command extractors and glue, and the commands that build a registered code index. Only a typed `yes` records the trust. It is not a bootstrap step for an agent to approve on someone’s behalf.
+This command requires an interactive terminal, for its input and its output, and confirmation, so run it directly and not through a task runner that captures output. Where it cannot ask, it refuses at once and prints the command to run. It first prints what the file declares that an agent would read or that would run with your privileges, such as its contract, its skill folders, its command extractors and glue, and the commands that build a registered code index. Only a typed `yes` records the trust. It is not a bootstrap step for an agent to approve on someone’s behalf.
 
 Trust is recorded against the file’s contents. Changing `vyvid.toml` requires renewed trust. Linked worktrees of the same repository share the trust record when they contain the same configuration bytes.
 
@@ -500,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.24"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.25"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -2991,7 +3006,9 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 |---|---|
 | `vyd` is not found | Check the tool installation and uv executable path |
 | `uv tool install vyvid` fails | Use the Git-source installation, since PyPI availability must not be assumed |
-| Context shows only general scope | Check the working folder, project binding, and `vyd config` |
+| Context shows only general scope | Check the working folder, project binding, and `vyd config`. On a new machine, `vyd setup` writes the first configuration |
+| `vyd domain add` says `kb` is not set | Set `kb` in the `[framework]` table of your configuration, or run `vyd setup` |
+| A task that runs `vyd trust` seems to hang | It asks a question that a task runner hides. Run `vyd trust` yourself in a terminal |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |
 | A skill-only domain has no search results | Its procedure reaches agents through skills, and it has no register to retrieve |
 | Contract or skills are withheld | Review trust standing, since a person may need to trust the project file or review the current domain commit |

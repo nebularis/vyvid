@@ -473,6 +473,22 @@ def domain_add(name: str, path: str | None, remote: str | None, trust: str, comm
         return _fail(refusal.problems)
 
 
+def framework_set(key: str, value: str, dry_run: bool, person: Callable[[], bool]) -> int:
+    """Set one key of the user's ``[framework]`` table, writing the table where the file has none."""
+    def edit(lines: list[str], data: dict):
+        def change(d: dict) -> None:
+            d.setdefault("framework", {})[key] = value
+
+        if isinstance(data.get("framework"), dict):
+            return _set(lines, _find(lines, data, "framework", None, array=False), (), key, value), change
+        return _append(lines, _block("framework", {key: value}, array=False)), change
+
+    try:
+        return run(target(False), Plan(edit), dry_run, person)
+    except Refusal as refusal:
+        return _fail(refusal.problems)
+
+
 def domain_remove(name: str, file: bool, dry_run: bool, person: Callable[[], bool]) -> int:
     try:
         if file:

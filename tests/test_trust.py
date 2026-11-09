@@ -30,6 +30,7 @@ CODE_PROJECT = '\n[[projects]]\nname = "proj"\ncode = "CODE"\ndomains = {domains
 def at_terminal(monkeypatch, answer):
     """A person at a terminal who types ``answer``."""
     monkeypatch.setattr(cli, "_person", lambda: True)
+    monkeypatch.setattr(cli, "_output_terminal", lambda: True)
     monkeypatch.setattr(builtins, "input", lambda prompt="": answer)
 
 
@@ -204,7 +205,7 @@ def test_accept_needs_a_person_at_a_terminal_who_types_the_domains_name(world, m
     push(world, "rules.md", "new rules\n")
     kb.pull(config, [config.domains["tools"]])
     before = head(world)
-    assert cli.main(["kb", "accept", "tools"]) == 1 and "a person must run" in capsys.readouterr().err and head(world) == before
+    assert cli.main(["kb", "accept", "tools"]) == 1 and "Run it yourself: vyd kb accept" in capsys.readouterr().err and head(world) == before
     at_terminal(monkeypatch, "yes")
     assert cli.main(["kb", "accept", "tools"]) == 1 and "not accepted" in capsys.readouterr().out and head(world) == before
     at_terminal(monkeypatch, "tools")
@@ -317,7 +318,7 @@ def test_vyd_trust_refuses_without_a_terminal_and_records_nothing(tmp_path):
     env = {**os.environ, **own_folders(home), "VYVID_CONFIG": str(path)}
     done = subprocess.run([sys.executable, "-c", "import sys; from vyvid.cli import main; sys.exit(main(sys.argv[1:]))", "trust"],
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env)
-    assert done.returncode == 1 and "a person must run vyd trust" in done.stderr
+    assert done.returncode == 1 and "Run it yourself: vyd trust" in done.stderr
     assert not any(home.rglob("trusted.json")), "nothing was recorded"
 
 

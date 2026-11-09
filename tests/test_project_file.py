@@ -417,7 +417,7 @@ def test_vyd_trust_without_a_terminal_records_nothing(tmp_path):
     env = {**os.environ, **own_folders(home), "VYVID_CONFIG": str(tmp_path / "absent.toml")}
     done = subprocess.run([sys.executable, "-c", "import sys; from vyvid.cli import main; sys.exit(main(sys.argv[1:]))", "trust"],
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, cwd=root)
-    assert done.returncode == 1 and "a person must run vyd trust" in done.stderr
+    assert done.returncode == 1 and "Run it yourself: vyd trust" in done.stderr
     assert not any(home.rglob("trusted.json")), "nothing was recorded"
     assert not configuration.file_trusted(root / "vyvid.toml")
 

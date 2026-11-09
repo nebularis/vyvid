@@ -2,7 +2,7 @@
 
 # Plan: a first local setup that a person can follow
 
-**Status:** building 2026-11-09, at the maintainer's request, from a contributor's report of setting up on a Windows laptop.
+**Status:** built 2026-11-09, at the maintainer's request, from a contributor's report of setting up on a Windows laptop.
 **Prefix:** SU
 
 ## Scope

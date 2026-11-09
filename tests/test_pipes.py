@@ -139,7 +139,7 @@ def test_trust_from_a_pipe_is_refused_and_records_nothing(how, tmp_path):
     env = environment(tmp_path)
     given = {"said yes": b"yes\n", "bom yes": b"\xef\xbb\xbfyes\n", "invalid": b"\xff\xfe\n", "nothing": b""}[how]
     ran = vyd(env, "trust", cwd=root, stdin=given)
-    assert ran.code == 1 and b"a person must run vyd trust" in ran.err and ran.clean(), ran
+    assert ran.code == 1 and b"Run it yourself: vyd trust" in ran.err and ran.clean(), ran
     assert not list(tmp_path.rglob("trusted.json"))
 
 

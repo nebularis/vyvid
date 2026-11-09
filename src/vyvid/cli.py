@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -360,10 +360,27 @@ def kb_status(config) -> int:
     return 0
 
 
+def _output_terminal() -> bool:
+    try:
+        return sys.stdout is not None and sys.stdout.isatty()
+    except ValueError:  # closed
+        return False
+
+
+def _can_ask(command: str) -> bool:
+    """Whether a question can be put to a person: they are at a terminal and the question will be seen there. A task runner that
+    captures output holds the question until the command ends, so the task looks hung. Where it cannot, say at once what to run."""
+    if _person() and _output_terminal():
+        return True
+    print(f"vyd: {command} asks a question, so it needs a person at a terminal with its output on that terminal. A task runner that "
+          f"captures output, such as mise run, would hide the question and look hung. Run it yourself: {command}, "
+          f"or, where mise supplies vyd, mise exec -- {command}", file=sys.stderr)
+    return False
+
+
 def kb_accept(config, name: str) -> int:
     """Fast-forward a held domain, once a person has seen what changed and typed its name."""
-    if not _person():
-        print("vyd: a person must run vyd kb accept, in a terminal", file=sys.stderr)
+    if not _can_ask(f"vyd kb accept {name}"):
         return 1
     try:
         [scope] = kb.select(config, [name])
@@ -416,8 +433,7 @@ def _typed(prompt: str) -> str:
 def trust_command(path: Path | None) -> int:
     """Record the hash of a configuration, or of a repository's vyvid.toml, once a person has seen what it
     runs and typed yes. With no path it is the vyvid.toml of the current folder's repository if there is one."""
-    if not _person():
-        print("vyd: a person must run vyd trust, in a terminal", file=sys.stderr)
+    if not _can_ask("vyd trust"):
         return 1
     file = None
     if path is None or path.is_dir() or path.name == configuration.PROJECT_FILE:
@@ -879,6 +895,10 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("role")
         p.add_argument("--in", dest="folder", default=".")
         p.add_argument("--absolute", action="store_true", help="join each answer to the root of this checkout")
+    s = sub.add_parser("setup", help="set up a first local configuration: the knowledge base, and the published domains the folder's project names")
+    s.add_argument("folder", nargs="?", default=".")
+    s.add_argument("--no-clone", action="store_true", help="add the domains and leave their folders to vyd kb clone")
+    s.add_argument("--dry-run", action="store_true", help="say what would be done and write nothing")
     g = sub.add_parser("guard", help="keep the private terms of a user out of public repositories: status, check, and the hook the git hooks run").add_subparsers(dest="guard_command", required=True)
     g.add_parser("status", help="the folder's class, the lists in force and whether the git hooks are in place").add_argument("--in", dest="folder", default=".")
     p = g.add_parser("check", help="the lines staged for commit, or with --all every tracked file, against the lists")
@@ -985,6 +1005,8 @@ def main(argv: list[str] | None = None) -> int:
 
             config, project = bind_in(load(), Path(arguments.folder))
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
+        if arguments.command == "setup":
+            return first_setup.run(Path(arguments.folder), not arguments.no_clone, arguments.dry_run, _person)
         if arguments.command == "guard":
             return guard_command(arguments)
         if arguments.command == "catalogue":

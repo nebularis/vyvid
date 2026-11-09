@@ -795,7 +795,8 @@ def _expand(value: str, bases: dict[str, Path | None], where: str, problems: lis
     for token, base in bases.items():
         if value.startswith(token + ":"):
             if base is None:
-                problems.append(f"{where}: '{value}' needs '{token}', which is not set")
+                hint = ". Set kb in the [framework] table of your configuration, or run vyd setup" if token == "kb" else ""
+                problems.append(f"{where}: '{value}' needs '{token}', which is not set{hint}")
                 return None
             return _nameable((base / value[len(token) + 1 :]).expanduser(), value, where, problems)
     own = next((bases[t] for t in ("self", "code", "kb") if bases.get(t) is not None), None)
