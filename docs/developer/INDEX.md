@@ -73,9 +73,9 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | QU-1 | quanta | the built-in kind `quanta` | built 2026-11-08 |
 | QU-2 | quanta | quanta over a read, the guide and the release | built 2026-11-08 |
 | QU-3 | quanta | `vyd read` and `vyd node` print a quantum, and `--kind quantum` filters to quanta | built 2026-11-09 |
-| TB-1 | tables | the renderer | building 2026-11-09 |
-| TB-2 | tables | the choice and every table through `show` | planned |
-| TB-3 | tables | the status-style commands as tables | planned |
+| TB-1 | tables | the renderer | built 2026-11-09 |
+| TB-2 | tables | the choice and every table through `show` | built 2026-11-09 |
+| TB-3 | tables | the status-style commands as tables | building 2026-11-09 |
 | TB-4 | tables | `vyd table-demo`, the guide and the release | planned |
 | CT-1 | catalogue | the catalogue reader | built 2026-11-08 |
 | CT-2 | catalogue | the project setting, `vyd catalogue`, quanta from the catalogue and the release | built 2026-11-08 |

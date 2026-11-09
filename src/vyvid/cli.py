@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, table, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -692,11 +692,51 @@ def _doc_share(text: str) -> float:
     return value
 
 
+def _take_table_flag(argv: list[str]) -> tuple[str | None, list[str]]:
+    """``--table <style>`` or ``--table=<style>`` taken out of the arguments wherever it stands, before any `--`. The last one wins."""
+    flag, kept, index = None, [], 0
+    while index < len(argv):
+        token = argv[index]
+        if token == "--":
+            kept += argv[index:]
+            break
+        if token == "--table":
+            flag = argv[index + 1] if index + 1 < len(argv) else ""
+            index += 2
+            continue
+        if token.startswith("--table="):
+            flag = token.split("=", 1)[1]
+        else:
+            kept.append(token)
+        index += 1
+    return flag, kept
+
+
+def _choose_table(flag: str | None) -> int:
+    """Set the style tables print in: the flag, the environment, the configuration, else plain. 2 where the choice is not a style."""
+    env = table.from_environment()
+    configured = None
+    if not flag and not env:
+        try:
+            configured = load().table
+        except Exception:  # a configuration that cannot be read is reported by the command that needs it
+            configured = None
+    try:
+        table.configure(table.choose(flag, env, configured, _output_terminal()))
+    except ValueError as error:
+        print(f"vyd: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # A git hook exports these, and under them `git -C <folder> rev-parse --show-toplevel` answers the folder itself. GIT_INDEX_FILE stays, as a partial commit's temporary index is what --staged reads.
     for name in ("GIT_DIR", "GIT_WORK_TREE"):
         os.environ.pop(name, None)
-    parser = argparse.ArgumentParser(prog="vyd", description=f"{streams.display_name()}: the contract and knowledge for the folder an agent is in")
+    flag, argv = _take_table_flag(list(sys.argv[1:] if argv is None else argv))
+    parser = argparse.ArgumentParser(prog="vyd", description=f"{streams.display_name()}: the contract and knowledge for the folder an agent is in",
+                                     epilog="A command that prints a table takes --table plain|pretty|md|auto anywhere on the line. The VYD_TABLE variable and "
+                                            "[framework] table in your configuration say the same, and plain is the default.")
     parser.add_argument("--version", action="version", version=f"{streams.version_text()} {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     c = sub.add_parser("context", help="the contract that applies in a folder, general first and the project last")
@@ -917,6 +957,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
     sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
+    if (bad := _choose_table(flag)) != 0:
+        return bad
     arguments = parser.parse_args(argv)
     streams.clean_arguments(arguments)
     try:

@@ -69,7 +69,7 @@ from typing import Callable
 
 import pyoxigraph as ox
 
-from . import anchors, audit, catalogue, embed, registers
+from . import anchors, audit, catalogue, embed, registers, table
 from .build import NO_VECTORS, build, store_dir
 from .config import LINK_EDGES, Config, Scope, extractor_runs
 from .credentials import private_dir, private_file
@@ -1310,19 +1310,9 @@ def misses(a: Asker, limit: int, near: bool = False, again: bool = False) -> int
 
 
 def show(rows: list, columns: tuple[str, ...], below=None) -> None:
-    """A table whose cells are cut at 90 characters, with ``below(row)`` printed under each row,
-    indented, where it is given and returns text. An identifier is never cut, since it is what an
-    agent passes to ``read``."""
-    widths = {c: max(len(c), *(len(str(r.get(c) or "")) for r in rows)) for c in columns}
-    for c in columns:
-        if c != "id":
-            widths[c] = min(widths[c], 90)
-    print("  ".join(c.ljust(widths[c]) for c in columns).rstrip())
-    print("  ".join("-" * widths[c] for c in columns))
-    for row in rows:
-        print("  ".join(str(row.get(c) or "")[: widths[c]].ljust(widths[c]) for c in columns).rstrip())
-        if below and (text := below(row)):
-            print("    " + text)
+    """A table in the style the user chose, plain by default: cells cut at 90 characters, with ``below(row)`` printed under each
+    row, indented, where it is given and returns text. An identifier is never cut, since it is what an agent passes to ``read``."""
+    table.show(rows, columns, below)
 
 
 def rows_of(solutions) -> list[dict]:

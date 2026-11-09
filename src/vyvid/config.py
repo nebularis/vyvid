@@ -388,6 +388,13 @@ class GuardSettings:
         return bool(self.domains or self.watch_owners or self.terms or self.public_terms)
 
 
+def _table_style(value, problems: list[str]) -> str | None:
+    if value is not None and value not in ("plain", "pretty", "md", "auto"):
+        problems.append("[framework]: table must be plain, pretty, md or auto")
+        return None
+    return value
+
+
 def _guard(raw, domains: dict, set_aside: dict, problems: list[str]) -> GuardSettings:
     where = "[framework.guard]"
     if raw is None:
@@ -428,6 +435,7 @@ class Config:
     files_aside: dict[str, list[str]] = field(default_factory=dict)  # vyvid.toml path -> why the project it declares is set aside
     trusted_repositories: tuple[str, ...] = ()  # normalised origins whose committed vyvid.toml is trusted, in the user's own configuration only
     doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
+    table: str | None = None  # how a table prints when no flag or environment variable says: plain, pretty, md or auto
     guard: GuardSettings = field(default_factory=GuardSettings)
 
     def scope(self, name: str) -> Scope | None:
@@ -1505,7 +1513,7 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
                     Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
                     trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems),
-                    guard=_guard(framework.get("guard"), domains, set_aside, problems))
+                    guard=_guard(framework.get("guard"), domains, set_aside, problems), table=_table_style(framework.get("table"), problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():
