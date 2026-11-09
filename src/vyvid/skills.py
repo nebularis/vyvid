@@ -198,14 +198,20 @@ def review_line(domain: Scope) -> str:
     return f"vyd domain trust {domain.name} reviewed --commit {head_of(domain) or '<hash>'}"
 
 
-def unreviewed(config: Config, project: Scope) -> list[Scope]:
-    """The domains the project uses whose skills cannot count: knowledge, or reviewed at a commit its folder has left."""
-    return [config.domains[n] for n in config.domain_order(project) if n in config.domains and not config.domains[n].trusted]
+def unreviewed(config: Config, project: Scope) -> list[tuple[str, str, str]]:
+    """What the project's skills depend on that no person has reviewed, as ``(name, why, the line that reviews it)``: a domain at
+    knowledge, or reviewed at a commit its folder has left, and a read whose skills the project names and whose pin has no review."""
+    out = [(d.name, f"reviewed at {d.commit[:12]}, which its folder has left" if d.trust == "reviewed" else f"trust {d.trust}", review_line(d))
+           for n in config.domain_order(project) if n in config.domains and not (d := config.domains[n]).trusted]
+    for name, read in project.reads.items():
+        taken = config.projects.get(name)
+        if read.skills and taken is not None and taken.read_of == project.name and not taken.trusted:
+            out.append((name, f"a read at {read.commit[:12]} that no person has reviewed", f"vyd reads review {name}"))
+    return out
 
 
-def unreviewed_lines(held: list[Scope]) -> list[str]:
-    return [f"  {d.name}: {'reviewed at ' + d.commit[:12] + ', which its folder has left' if d.trust == 'reviewed' else 'trust ' + d.trust}. After reading it, a person runs: {review_line(d)}"
-            for d in held]
+def unreviewed_lines(held: list[tuple[str, str, str]]) -> list[str]:
+    return [f"  {name}: {why}. After reading it, a person runs: {line}" for name, why, line in held]
 
 
 def raise_hint(domain: Scope) -> str:

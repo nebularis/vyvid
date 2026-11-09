@@ -2,7 +2,7 @@
 
 # Status: setup
 
-**Status:** built 2026-11-09, released as 0.2.27
+**Status:** built 2026-11-09, released as 0.2.28
 **Plan:** [setup](../plans/setup.md)
 
 ## Board
@@ -22,3 +22,5 @@
 - 2026-11-09: 0.2.25 was tagged before `vyd setup` was tried on a real project with an empty configuration. It bound the project through its `vyvid.toml`, and a project that names a domain nobody configured is set aside, which is the state setup is for, so it found no project. 0.2.26 reads the file as written and counts a delegation's and a move's domains, and holds back each edit's diff. Run for real against the published repositories from an empty configuration, it set `kb`, added and cloned the five domains that project names, and a second run changed nothing. 12 tests in `tests/test_setup.py`.
 - 2026-11-09: SU-4 and SU-5 added at the maintainer's word, after a guide for a first local setup found that `vyd check skills` fails on a fresh configuration and advises the command that removes the committed skills (BL-11, BL-10). SU-4 marked building before any edit.
 - 2026-11-09: SU-4 and SU-5 built. While a domain the project uses is at trust `knowledge`, or was reviewed at a commit its folder has left, `vyd check skills` exits 2 naming each domain and the line that reviews it, and `vyd install --project` writes what it can, deletes no generated skill and exits 1, saying why. `vyd setup` prints each cloned domain's folder and review line at the commit it cloned. 5 tests added to `tests/test_setup.py`, the guide and CAP-35, BL-10 and BL-11 built. The version is 0.2.27.
+
+- 2026-11-09: 0.2.27 covered a domain that is not reviewed and not a read that lost its review when its pin moved, which a project that carries a read's skills meets at its next pin. The check and `vyd install --project` now treat that read the same way, naming `vyd reads review <name>`. One test in `tests/test_reads.py`. The version is 0.2.28.

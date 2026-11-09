@@ -456,3 +456,20 @@ def test_what_an_unreviewed_read_says_is_labelled_as_data_and_a_reviewed_one_is_
     down, _, _ = read_of(tmp_path / "r", monkeypatch, up, head, review=head)
     a = ask.open_stack(*bind_in(load(), down)[:1], down, model=Words())
     assert ask.data_note(a, "up", "claim") == ""
+
+
+def test_a_read_that_lost_its_review_skips_the_skills_check_and_install_deletes_no_skill(tmp_path, monkeypatch, capsys):
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head, review=head, read='skills = ["architecture"]\n')
+    assert run_cli("install", "--project", "--in", str(down), "--no-git-hooks") == 0
+    skill = down / ".claude" / "skills" / "up-architecture" / "SKILL.md"
+    assert skill.is_file() and run_cli("check", "skills", str(down)) == 0
+    sh(up, "commit", "--allow-empty", "-q", "-m", "next")
+    new = subprocess.run(["git", "-C", str(up), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    put(down, "vyvid.toml", (down / "vyvid.toml").read_text().replace(head, new))
+    capsys.readouterr()
+    assert run_cli("check", "skills", str(down)) == 2
+    out = capsys.readouterr().out
+    assert "up: a read at" in out and "vyd reads review up" in out and "generated and no source" not in out
+    assert run_cli("install", "--project", "--in", str(down), "--no-git-hooks") == 1
+    assert skill.is_file(), "the committed skill is left"
