@@ -48,8 +48,8 @@ def test_plain_is_the_table_as_it_always_was():
 
 
 def test_pretty_fits_the_terminal_wraps_what_is_long_and_loses_nothing():
-    lines = table.render(ROWS, COLUMNS, style="pretty", width=60)
-    assert all(width_of(line) <= 60 for line in lines)
+    lines = table.render(ROWS, COLUMNS, style="pretty", width=100)
+    assert all(width_of(line) <= 100 for line in lines)
     assert lines[0].split() == ["id", "kind", "claim", "pointer"] and set(lines[1].replace(" ", "")) == {"─"}
     text = " ".join(lines)
     assert "PRI-22" in text and "STD-1" in text, "an id is never cut"
@@ -81,9 +81,14 @@ def test_pretty_counts_a_wide_character_as_two_columns():
 
 def test_pretty_breaks_a_long_path_where_a_slash_allows_and_never_loses_a_character():
     rows = [{"id": "A", "pointer": "docs/architecture/decisions/ADR-A01-layer-dependency-order-and-more.md:1-145"}]
-    lines = table.render(rows, ("id", "pointer"), style="pretty", width=24)
+    lines = table.render(rows, ("id", "pointer"), style="pretty", width=34)
     body = "".join(line[3:].strip() for line in lines[2:] if line.strip())
-    assert body == rows[0]["pointer"] and all(width_of(line) <= 24 for line in lines)
+    assert body == rows[0]["pointer"] and all(width_of(line) <= 34 for line in lines)
+
+
+def test_pretty_stacks_rather_than_squeeze_the_text_columns_to_slivers():
+    lines = table.render(ROWS, COLUMNS, style="pretty", width=60)
+    assert lines[0] == "id: STD-1" and not any(set(line) == {"─"} for line in lines)
 
 
 def test_pretty_stacks_each_row_as_a_block_when_the_columns_cannot_fit_even_at_their_least():
@@ -328,3 +333,15 @@ def test_the_demonstration_shows_each_style_and_the_facts_about_the_terminal(cap
     assert "A cell with a \\| pipe" in md and "| note |" in md
     pretty = out[out.index("== pretty =="):out.index("== md ==")]
     assert all(table.dwidth(line) <= 70 for line in pretty.splitlines())
+
+
+def test_find_does_not_repeat_a_claim_under_its_row_where_the_table_keeps_it_whole(capsys):
+    from vyvid import ask
+
+    row = {"claim": "Be careful with the ledger.", "debts": "TD-1"}
+    table.configure("plain")
+    assert ask.under(row) == "Be careful with the ledger. Open debt: TD-1."
+    for style in ("pretty", "md"):
+        table.configure(style)
+        assert ask.under(row) == "Open debt: TD-1.", style
+    table.configure("plain")

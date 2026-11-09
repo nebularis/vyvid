@@ -21,7 +21,7 @@ CHOICES = (*STYLES, "auto")
 ENV = "VYD_TABLE"
 RULE = "─"
 CELL = 90  # where plain cuts a cell
-LEAST = 10  # the least a wrappable column is squeezed to, or its header if that is wider
+LEAST = 24  # the least a wrappable column is squeezed to, or its header if that is wider. Below that a row is better stacked
 GAP = 2
 
 _style = "plain"

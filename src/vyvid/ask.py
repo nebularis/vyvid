@@ -766,8 +766,9 @@ def flags(r: dict) -> str:
 
 
 def under(r: dict) -> str:
-    """The line find prints under a row: the whole claim, then each signpost the flags mark."""
-    return " ".join([r["claim"].rstrip(), *notes(r)])
+    """The line find prints under a row: the whole claim, then each signpost the flags mark. A table that keeps the claim whole in its
+    own column, pretty or Markdown, prints the signposts alone."""
+    return " ".join([*([] if table.tabular() else [r["claim"].rstrip()]), *notes(r)])
 
 
 def notes(r: dict) -> list[str]:
