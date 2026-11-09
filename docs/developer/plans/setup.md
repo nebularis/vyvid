@@ -24,7 +24,13 @@ The published domains are `lifecycle`, `tools`, `python`, `haskell`, `triple-sto
 | SU-1 | the refusal that prints the direct command, and the error for an unset `kb`, tests first | | 40k |
 | SU-2 | `vyd setup` | SU-1 | 70k |
 | SU-3 | the guide, the register row and the release | SU-2 | 30k |
+| SU-4 | the skills check skips and says why while a domain is unreviewed, and `vyd install --project` removes no skill then, tests first | SU-3 | 50k |
+| SU-5 | `vyd setup` prints each cloned domain's review line, the guide and the release | SU-4 | 20k |
 
 ## Validation
 
 `mise run check`. The tests write their own configuration and git configuration under a temporary folder and clone from local repositories, never the network.
+
+## Added 2026-11-09
+
+A first local setup leaves every domain at trust `knowledge`, so the skills a project commits cannot be composed. `vyd check skills` then reported each committed skill as one no source makes, and advised `vyd install --project`, which removes them. While a domain the project uses is not reviewed, or was reviewed at a commit its folder has left, the check exits 2 as it does for an untrusted `vyvid.toml`, naming each such domain and the line that reviews it, and `vyd install --project` still writes the skills it can compose and removes none, saying why. `vyd setup` prints that line for each domain it cloned.
