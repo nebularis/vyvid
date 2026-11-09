@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.31**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.32**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.31"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.32"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -935,6 +935,35 @@ The choice is the flag, else the `VYD_TABLE` environment variable, else `table =
 `pretty` counts a wide character, such as Chinese or Japanese text, as two columns. It draws its rule with a box-drawing character only where the stream's encoding can write it, and with `-` where it cannot, as in a legacy Windows code page. Where even the narrowest columns do not fit, it prints each row as a block of `column: value` lines.
 
 These commands give tables: `find`, `exists`, `node`, `reaches`, `sparql`, `misses`, `gap`, `board`, `recipe list` and the symbol searches, as columns, and the status commands `config`, `guard status`, `guard check`, `reads status`, `catalogue show`, `catalogue modules` and `kb status` as a table of item and value or of rows. `vyd table-demo` prints one sample in every style, with the width and encoding of your terminal, to see how they look there.
+
+#### Colour
+
+A `pretty` table can be painted. `plain` and `md` never are, since `plain` is what an agent reads and `md` is a document, so no escape code ever reaches them. Colour is chosen apart from the style, and widths are worked out before the codes are added, so a coloured table lines up exactly as an uncoloured one.
+
+| Choice | Meaning |
+|---|---|
+| `--colour auto` | paint when standard output is a terminal and `TERM` is not `dumb`. This is the default. `--color` is accepted too |
+| `--colour always` | paint whatever the output is |
+| `--colour never` | do not paint |
+
+The choice is the flag, else the `VYD_COLOUR` variable, else `NO_COLOR` (any non-empty value turns colour off) or `FORCE_COLOR` (any value but `0` turns it on), else `colour = "always"` (or `never`, or `auto`) in the `[framework]` table of your configuration, else `auto`.
+
+The roles that are painted are `header`, `rule`, `id`, `item` (the first column of a status table such as `vyd config`) and `note`. Their defaults are bold, dim, cyan, bold and dim. To change one, give it a spec in `[framework.colours]`:
+
+```toml
+[framework]
+colour = "auto"
+
+[framework.colours]
+header = "bold magenta"
+id = "bright_green"
+note = "dim italic"
+rule = "none"
+```
+
+A spec is words separated by spaces or commas. The words are the attributes `bold`, `dim`, `italic`, `underline` and `reverse`, a colour (`black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, each also as `bright_<name>`, or `color0` to `color255` for the 256-colour palette), and a background written with `on_`, such as `on_yellow` or `on_color17`. `none` turns a role off. A word that is none of these, or a role that does not exist, is refused when the configuration loads, with the word named.
+
+On Windows `vyd` asks the console to read escape codes. Where it does not, as in a legacy console, `auto` leaves colour off. `vyd table-demo` says whether colour is on and paints its `pretty` sample.
 
 ### Ask another scope deliberately
 
@@ -3031,6 +3060,7 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 | Context shows only general scope | Check the working folder, project binding, and `vyd config`. On a new machine, `vyd setup` writes the first configuration |
 | `vyd domain add` says `kb` is not set | Set `kb` in the `[framework]` table of your configuration, or run `vyd setup` |
 | `vyd check skills` does not run and names a domain | The domain is at trust `knowledge`, or was reviewed at a commit its folder has left. Read it and run the line the message gives |
+| A table shows `[1m` or `^[[` in the text | The terminal does not read escape codes. Use `--colour never`, or set `colour = "never"` |
 | A table has odd characters or boxes on Windows | Use `--table plain`, or `--table pretty`, which draws with `-` where the encoding cannot write a box. `vyd table-demo` shows the encoding in use |
 | A task that runs `vyd trust` seems to hang | It asks a question that a task runner hides. Run `vyd trust` yourself in a terminal |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |

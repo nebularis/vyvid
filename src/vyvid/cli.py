@@ -726,40 +726,49 @@ def _doc_share(text: str) -> float:
     return value
 
 
-def _take_table_flag(argv: list[str]) -> tuple[str | None, list[str]]:
-    """``--table <style>`` or ``--table=<style>`` taken out of the arguments wherever it stands, before any `--`. The last one wins."""
-    flag, kept, index = None, [], 0
+def _take_flags(argv: list[str]) -> tuple[dict[str, str | None], list[str]]:
+    """``--table <style>`` and ``--colour <choice>`` (or ``--color``), and their ``=`` forms, taken out of the arguments wherever they stand,
+    before any `--`. The last of each wins."""
+    names = {"--table": "table", "--colour": "colour", "--color": "colour"}
+    flags: dict[str, str | None] = {"table": None, "colour": None}
+    kept, index = [], 0
     while index < len(argv):
         token = argv[index]
         if token == "--":
             kept += argv[index:]
             break
-        if token == "--table":
-            flag = argv[index + 1] if index + 1 < len(argv) else ""
+        if token in names:
+            flags[names[token]] = argv[index + 1] if index + 1 < len(argv) else ""
             index += 2
             continue
-        if token.startswith("--table="):
-            flag = token.split("=", 1)[1]
+        head, equals, value = token.partition("=")
+        if equals and head in names:
+            flags[names[head]] = value
         else:
             kept.append(token)
         index += 1
-    return flag, kept
+    return flags, kept
 
 
-def _choose_table(flag: str | None) -> int:
-    """Set the style tables print in: the flag, the environment, the configuration, else plain. 2 where the choice is not a style."""
-    env = table.from_environment()
-    configured = None
-    if not flag and not env:
+def _choose_output(flags: dict[str, str | None]) -> int:
+    """Set how tables print: their style and their colour, each from the flag, the environment, the configuration and a default. 2 where a choice is not one."""
+    env_table, env_colour = table.from_environment(), os.environ.get("VYD_COLOUR") or None
+    config = None
+    if not (flags["table"] or env_table) or not (flags["colour"] or env_colour):
         try:
-            configured = load().table
+            config = load()
         except Exception:  # a configuration that cannot be read is reported by the command that needs it
-            configured = None
+            config = None
+    tty = _output_terminal()
     try:
-        table.configure(table.choose(flag, env, configured, _output_terminal()))
+        style = table.choose(flags["table"], env_table, config.table if config else None, tty)
+        on = table.choose_colour(flags["colour"], env_colour, os.environ.get("NO_COLOR"), os.environ.get("FORCE_COLOR"),
+                                 config.colour if config else None, tty, os.environ.get("TERM"))
+        colours = table.palette(config.colours if config else {}) if on and table._enable_virtual_terminal() else None
     except ValueError as error:
         print(f"vyd: {error}", file=sys.stderr)
         return 2
+    table.configure(style, colours)
     return 0
 
 
@@ -767,10 +776,12 @@ def main(argv: list[str] | None = None) -> int:
     # A git hook exports these, and under them `git -C <folder> rev-parse --show-toplevel` answers the folder itself. GIT_INDEX_FILE stays, as a partial commit's temporary index is what --staged reads.
     for name in ("GIT_DIR", "GIT_WORK_TREE"):
         os.environ.pop(name, None)
-    flag, argv = _take_table_flag(list(sys.argv[1:] if argv is None else argv))
+    flags, argv = _take_flags(list(sys.argv[1:] if argv is None else argv))
     parser = argparse.ArgumentParser(prog="vyd", description=f"{streams.display_name()}: the contract and knowledge for the folder an agent is in",
                                      epilog="A command that prints a table takes --table plain|pretty|md|auto anywhere on the line. The VYD_TABLE variable and "
-                                            "[framework] table in your configuration say the same, and plain is the default.")
+                                            "[framework] table in your configuration say the same, and plain is the default. A pretty table is painted "
+                                            "where --colour auto|always|never, VYD_COLOUR, NO_COLOR, FORCE_COLOR or [framework] colour say so, "
+                                            "and [framework.colours] changes a role's colour.")
     parser.add_argument("--version", action="version", version=f"{streams.version_text()} {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     c = sub.add_parser("context", help="the contract that applies in a folder, general first and the project last")
@@ -992,7 +1003,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("config", help="where the configuration is read from, whether it is sound and trusted, the domains set aside, and the folder's vyvid.toml").add_argument("folder", nargs="?", default=".")
     sub.add_parser("trust", help="a person trusts a configuration outside their own folder, or a repository's vyvid.toml, by its hash").add_argument("path", nargs="?", type=Path)
     _questions(sub)
-    if (bad := _choose_table(flag)) != 0:
+    if (bad := _choose_output(flags)) != 0:
         return bad
     arguments = parser.parse_args(argv)
     streams.clean_arguments(arguments)

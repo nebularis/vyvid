@@ -345,3 +345,142 @@ def test_find_does_not_repeat_a_claim_under_its_row_where_the_table_keeps_it_who
         table.configure(style)
         assert ask.under(row) == "Open debt: TD-1.", style
     table.configure("plain")
+
+
+# ---- TB-5 and TB-6: colour ---------------------------------------------------------------------------------
+
+import re
+
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+ESC = "\x1b"
+
+
+@pytest.mark.parametrize("spec,codes", [
+    ("bold", "1"), ("dim", "2"), ("italic", "3"), ("underline", "4"), ("reverse", "7"),
+    ("red", "31"), ("cyan", "36"), ("bright_blue", "94"), ("on_yellow", "43"), ("on_bright_black", "100"),
+    ("color208", "38;5;208"), ("on_color17", "48;5;17"),
+    ("bold red", "1;31"), ("bold, cyan, on_black", "1;36;40"), ("  dim   white ", "2;37"),
+])
+def test_a_colour_spec_becomes_its_escape_code(spec, codes):
+    assert table.parse_spec(spec) == f"\x1b[{codes}m"
+
+
+@pytest.mark.parametrize("spec", ["", "none", " NONE "])
+def test_none_or_nothing_turns_a_role_off(spec):
+    assert table.parse_spec(spec) == ""
+
+
+@pytest.mark.parametrize("spec,why", [("sparkly", "sparkly"), ("bold purple", "purple"), ("color300", "color300"), ("on_nonesuch", "on_nonesuch"), ("#ff0000", "#ff0000")])
+def test_a_spec_that_is_not_one_is_refused_naming_the_word(spec, why):
+    with pytest.raises(ValueError, match=why):
+        table.parse_spec(spec)
+
+
+def test_the_palette_has_a_default_for_each_role_and_a_user_override_replaces_it():
+    palette = table.palette({})
+    assert set(palette) == set(table.ROLES) and palette["header"] == "\x1b[1m" and palette["id"] == "\x1b[36m"
+    assert table.palette({"id": "red", "note": "none"})["id"] == "\x1b[31m" and table.palette({"note": "none"})["note"] == ""
+    with pytest.raises(ValueError, match="role 'headline'"):
+        table.palette({"headline": "red"})
+
+
+def test_pretty_in_colour_lines_up_as_it_does_without_and_stripping_the_codes_gives_the_same_text():
+    plain = table.render(ROWS, COLUMNS, lambda r: "careful" if r["id"] == "STD-1" else "", style="pretty", width=140)
+    coloured = table.render(ROWS, COLUMNS, lambda r: "careful" if r["id"] == "STD-1" else "", style="pretty", width=140, palette=table.palette({}))
+    assert [ANSI.sub("", line) for line in coloured] == plain
+    text = "\n".join(coloured)
+    assert f"{ESC}[1mid{ESC}[0m" in text and f"{ESC}[36mSTD-1{ESC}[0m" in text and f"{ESC}[2m" in text
+    assert all(width_of(ANSI.sub("", line)) <= 140 for line in coloured)
+
+
+def test_colour_fits_a_wrapped_and_a_stacked_table_too():
+    for width in (60, 100, 14):
+        plain = table.render(ROWS, COLUMNS, style="pretty", width=width)
+        coloured = table.render(ROWS, COLUMNS, style="pretty", width=width, palette=table.palette({}))
+        assert [ANSI.sub("", line) for line in coloured] == plain, width
+
+
+def test_plain_and_markdown_never_hold_an_escape_code_whatever_the_palette():
+    for style in ("plain", "md"):
+        assert ESC not in "\n".join(table.render(ROWS, COLUMNS, lambda r: "n", style=style, palette=table.palette({})))
+
+
+def test_a_role_set_to_none_adds_no_code_for_it():
+    lines = table.render(ROWS, COLUMNS, style="pretty", width=200, palette=table.palette({"id": "none", "header": "none", "rule": "none"}))
+    assert ESC not in "\n".join(lines)
+
+
+@pytest.mark.parametrize("flag,env,no_color,force,configured,tty,term,expected", [
+    (None, None, None, None, None, True, "xterm", True),
+    (None, None, None, None, None, False, "xterm", False),
+    (None, None, None, None, None, True, "dumb", False),
+    (None, None, None, None, None, True, None, True),
+    ("never", None, None, None, "always", True, "xterm", False),
+    ("always", None, "1", None, None, False, "dumb", True),
+    ("auto", None, None, None, "never", True, "xterm", True),
+    (None, "never", None, "1", None, True, "xterm", False),
+    (None, "always", None, None, None, False, "xterm", True),
+    (None, None, "1", None, "always", True, "xterm", False),
+    (None, None, "", None, None, True, "xterm", True),
+    (None, None, None, "1", None, False, "xterm", True),
+    (None, None, None, None, "always", False, "xterm", True),
+    (None, None, None, None, "never", True, "xterm", False),
+])
+def test_the_flag_beats_the_environment_beats_no_color_and_force_color_beat_the_configuration(flag, env, no_color, force, configured, tty, term, expected):
+    assert table.choose_colour(flag, env, no_color, force, configured, tty, term) is expected
+
+
+def test_a_colour_choice_that_is_not_one_is_refused_naming_the_choices():
+    with pytest.raises(ValueError, match="auto, always or never"):
+        table.choose_colour("rainbow", None, None, None, None, True, "xterm")
+
+
+# ---- colour in the configuration and on the command line ----------------------------------------------------------
+
+
+def test_the_configuration_checks_the_colour_choice_and_the_roles(tmp_path, monkeypatch):
+    from vyvid.config import ConfigError, load
+
+    configure(tmp_path, monkeypatch, '[framework]\ncolour = "always"\n\n[framework.colours]\nid = "bold red"\nnote = "none"\n')
+    config = load()
+    assert config.colour == "always" and config.colours == {"id": "bold red", "note": "none"}
+    for text, why in (('[framework]\ncolour = "rainbow"\n', "colour must be auto, always or never"),
+                      ('[framework.colours]\nheadline = "red"\n', "role 'headline'"),
+                      ('[framework.colours]\nid = "sparkly"\n', "sparkly"),
+                      ('[framework]\ncolours = "red"\n', "colours must be a table")):
+        configure(tmp_path, monkeypatch, text)
+        with pytest.raises(ConfigError) as error:
+            load()
+        assert any(why in p for p in error.value.problems), (text, error.value.problems)
+
+
+def test_the_colour_flag_in_both_spellings_paints_pretty_and_never_plain_or_markdown(folder, capsys):
+    for flag in (("--colour", "always"), ("--color", "always"), ("--colour=always",)):
+        code, out, _ = run_table(capsys, folder, "--table", "pretty", *flag)
+        assert code == 0 and ESC in out, flag
+    assert ESC not in run_table(capsys, folder, "--table", "plain", "--colour", "always")[1]
+    assert ESC not in run_table(capsys, folder, "--table", "md", "--colour", "always")[1]
+    assert ESC not in run_table(capsys, folder, "--table", "pretty", "--colour", "never")[1]
+    assert ESC not in run_table(capsys, folder, "--table", "pretty")[1], "not a terminal, so auto is off"
+
+
+def test_the_environment_and_the_configuration_choose_colour_and_the_roles_are_overridable(folder, capsys, tmp_path, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    configure(tmp_path, monkeypatch, '[framework]\ncolour = "always"\n\n[framework.colours]\nheader = "bold magenta"\n')
+    out = run_table(capsys, folder, "--table", "pretty")[1]
+    assert f"{ESC}[1;35mname{ESC}[0m" in out
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert ESC not in run_table(capsys, folder, "--table", "pretty")[1]
+    monkeypatch.setenv("VYD_COLOUR", "always")
+    assert ESC in run_table(capsys, folder, "--table", "pretty")[1]
+    assert run_table(capsys, folder, "--table", "pretty", "--colour", "rainbow")[0] == 2
+
+
+def test_the_demonstration_says_whether_colour_is_on(capsys, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "100")
+    assert cli.main(["table-demo", "--colour", "always"]) == 0
+    out = capsys.readouterr().out
+    assert "colour on" in out.splitlines()[0] and ESC in out[out.index("== pretty =="):out.index("== md ==")]
+    assert cli.main(["table-demo", "--colour", "never"]) == 0
+    assert "colour off" in capsys.readouterr().out.splitlines()[0]

@@ -2,7 +2,7 @@
 
 # Plan: tables a person can read, and tables a document can hold
 
-**Status:** building 2026-11-09, at the maintainer's request, and extended the same day with colour.
+**Status:** built 2026-11-09, at the maintainer's request, and extended the same day with colour.
 **Prefix:** TB
 
 ## Scope

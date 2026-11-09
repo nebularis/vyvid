@@ -395,6 +395,30 @@ def _table_style(value, problems: list[str]) -> str | None:
     return value
 
 
+def _colour_choice(value, problems: list[str]) -> str | None:
+    if value is not None and value not in ("auto", "always", "never"):
+        problems.append("[framework]: colour must be auto, always or never")
+        return None
+    return value
+
+
+def _colours(raw, problems: list[str]) -> dict[str, str]:
+    """The user's colour specs by role, each checked against the grammar of ``table.parse_spec``."""
+    from . import table
+
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not all(isinstance(v, str) for v in raw.values()):
+        problems.append("[framework]: colours must be a table of a role and a colour spec")
+        return {}
+    try:
+        table.palette(raw)
+    except ValueError as error:
+        problems.append(f"[framework.colours]: {error}")
+        return {}
+    return dict(raw)
+
+
 def _guard(raw, domains: dict, set_aside: dict, problems: list[str]) -> GuardSettings:
     where = "[framework.guard]"
     if raw is None:
@@ -436,6 +460,8 @@ class Config:
     trusted_repositories: tuple[str, ...] = ()  # normalised origins whose committed vyvid.toml is trusted, in the user's own configuration only
     doc_share: float = 0.4  # the share of find --kind symbol's places documentation may take
     table: str | None = None  # how a table prints when no flag or environment variable says: plain, pretty, md or auto
+    colour: str | None = None  # whether a pretty table is painted when nothing else says: auto, always or never
+    colours: dict[str, str] = field(default_factory=dict)  # a colour spec for a role of a pretty table, in place of the default
     guard: GuardSettings = field(default_factory=GuardSettings)
 
     def scope(self, name: str) -> Scope | None:
@@ -1513,7 +1539,8 @@ def load(path: Path | None = None, text: str | None = None) -> Config:
     config = Config(path if path.exists() else None, kb, general, domains, projects, _embedding(raw.get("embedding", {}), problems),
                     Path(framework["store"]).expanduser() if "store" in framework else None, tuple(trailers), glue, logs, set_aside, entries,
                     trusted_repositories=tuple(granted), doc_share=_share(framework.get("doc_share"), 0.4, "[framework]", problems),
-                    guard=_guard(framework.get("guard"), domains, set_aside, problems), table=_table_style(framework.get("table"), problems))
+                    guard=_guard(framework.get("guard"), domains, set_aside, problems), table=_table_style(framework.get("table"), problems),
+                    colour=_colour_choice(framework.get("colour"), problems), colours=_colours(framework.get("colours"), problems))
     problems += _check(config)
     if not problems:  # the stacks are only walked once the graph is known to be acyclic
         for project in projects.values():
