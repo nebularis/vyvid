@@ -2,7 +2,7 @@
 
 # Plan: tables a person can read, and tables a document can hold
 
-**Status:** built 2026-11-09, at the maintainer's request.
+**Status:** building 2026-11-09, at the maintainer's request, and extended the same day with colour.
 **Prefix:** TB
 
 ## Scope
@@ -35,6 +35,24 @@ A command that gives a table to a person prints plain columns separated by two s
 | TB-2 | the choice (`--table`, the environment, the configuration) and every table that goes through `show` | TB-1 | 30k |
 | TB-3 | the status-style commands as tables: `config`, `guard status`, `reads status`, `catalogue show` and `modules`, `kb status` | TB-2 | 40k |
 | TB-4 | `vyd table-demo` for looking at the three styles, the guide, the register row and the release | TB-3 | 25k |
+
+## Colour
+
+Added 2026-11-09 at the maintainer's request. Colour is for `pretty` alone. `plain` is what an agent reads and `md` is a document, so neither ever holds an escape code. It is chosen apart from the style.
+
+| Choice | Rule |
+|---|---|
+| `--colour auto\|always\|never` (also `--color`) | anywhere on the line, then the `VYD_COLOUR` variable, then `NO_COLOR` (off) or `FORCE_COLOR` (on), then `[framework] colour`, then `auto` |
+| `auto` | on when standard output is a terminal, `TERM` is not `dumb`, and on Windows the console accepts virtual terminal sequences |
+| roles | `header`, `rule`, `id`, `item` (the first column of a status table), `note`. The defaults are bold, dim, cyan, bold and dim |
+| `[framework.colours]` | a role set to a spec of attributes (`bold`, `dim`, `italic`, `underline`, `reverse`), a colour (`red`, `bright_blue`, `color208`), a background (`on_yellow`, `on_color17`) or `none` |
+
+Widths are counted on the text and the escape codes are added after, so a coloured table lines up as an uncoloured one.
+
+| Slice | Content | Depends on | Estimate |
+|---|---|---|---|
+| TB-5 | the palette, the spec grammar, painting the roles in `pretty`, and the width left unchanged, tests first | TB-4 | 40k |
+| TB-6 | the choice (flag, environment, configuration), the roles in the configuration, enabling virtual terminal sequences on Windows, the guide and the release | TB-5 | 40k |
 
 ## Validation
 
