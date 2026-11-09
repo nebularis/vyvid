@@ -203,12 +203,24 @@ def catalogue_command(arguments) -> int:
             for path in known.module(arguments.module).files(arguments.role):
                 print(show(path))
         elif command == "modules":
-            for m in known.modules.values():
-                if arguments.kind is None or m.kind == arguments.kind:
+            chosen = [m for m in known.modules.values() if arguments.kind is None or m.kind == arguments.kind]
+            if table.tabular():
+                table.show([{"name": m.name, "kind": m.kind, "path": m.path.as_posix()} for m in chosen], ("name", "kind", "path")) if chosen else None
+            else:
+                for m in chosen:
                     print(f"{m.name}  {m.kind}  {m.path.as_posix()}")
         else:
             release = f", release {known.release_version} of {len(known.release_members())} module(s)" if known.release_version else ""
-            print(f"{known.file}: {len(known.modules)} module(s), {len(known.roots) + len(known.docs)} area(s), {len(known.tools)} tool package(s){release}")
+            if table.tabular():
+                report = table.Report()
+                report.say("file", str(known.file))
+                report.say("modules", str(len(known.modules)))
+                report.say("areas", ", ".join(a.name or a.path for a in (*known.roots, *known.docs)) or "none")
+                report.say("tool packages", str(len(known.tools)))
+                report.say("release", f"{known.release_version} of {len(known.release_members())} module(s)" if known.release_version else "none")
+                report.done()
+            else:
+                print(f"{known.file}: {len(known.modules)} module(s), {len(known.roots) + len(known.docs)} area(s), {len(known.tools)} tool package(s){release}")
     except catalogue.CatalogueError as error:
         print(f"vyd: {error}", file=sys.stderr)
         return 1
@@ -227,12 +239,15 @@ def guard_command(arguments) -> int:
             return 0
         lists = guard.read_lists(config)
         verdict = guard.classify(config, lists, folder)
-        print(f"{folder.resolve()}: {verdict.kind}" + (f" ({verdict.repo})" if verdict.repo else ""))
-        print(f"lists: {len(lists.public)} public and {len(lists.private)} private repositories, {len(lists.deny)} terms for all, "
-              f"{len(lists.public_deny)} for public, {len(lists.warn)} warnings, {len(lists.never_track)} never-track and {len(lists.sensitive)} sensitive paths")
-        print(f"git hooks: {guard.hooks_state()}")
+        report = table.Report()
+        where = f"{verdict.kind}" + (f" ({verdict.repo})" if verdict.repo else "")
+        report.say("folder", f"{folder.resolve()}: {where}", f"{folder.resolve()}: {where}")
+        report.say("lists", f"{len(lists.public)} public and {len(lists.private)} private repositories, {len(lists.deny)} terms for all, "
+                            f"{len(lists.public_deny)} for public, {len(lists.warn)} warnings, {len(lists.never_track)} never-track and {len(lists.sensitive)} sensitive paths")
+        report.say("git hooks", guard.hooks_state())
         for line in guard.status_lines(config, folder):
-            print(line)
+            report.say("note", line, line)
+        report.done()
         return 0
     if arguments.all:
         verdict, findings = guard.check_tree(config, folder)
@@ -241,8 +256,12 @@ def guard_command(arguments) -> int:
         verdict = guard.classify(config, lists, folder)
         lines, paths = guard.staged(folder) if verdict.kind in ("public", "private") else ([], [])
         findings = guard.check_lines(lists, verdict.kind, lines) + guard.check_paths(lists, verdict.kind, verdict.repo, paths, None)
-    for f in findings:
-        print(f)
+    if table.tabular() and findings:
+        table.show([{"where": f"{f.path}:{f.line}" if f.line else f.path, "level": "warning" if f.warn else "blocks", "finding": f.what} for f in findings],
+                   ("where", "level", "finding"))
+    elif not table.tabular():
+        for f in findings:
+            print(f)
     blocking = [f for f in findings if not f.warn]
     print(f"guard check ({verdict.kind}): {len(blocking)} finding(s), {len(findings) - len(blocking)} warning(s)")
     return 1 if blocking else 0
@@ -341,6 +360,21 @@ def _report(results: list[kb.Result]) -> int:
 
 
 def kb_status(config) -> int:
+    if table.tabular():
+        rows = []
+        for scope in kb.managed(config):
+            s = kb.inspect(config, scope)
+            if not s.exists:
+                state = f"missing, run vyd kb clone {s.name}"
+            elif not s.clone:
+                state = f"exists and is not a clone of {s.remote or 'a remote (none is configured)'}"
+            else:
+                upstream = "no upstream" if s.ahead is None else f"ahead {s.ahead} behind {s.behind}"
+                state = f"branch {s.branch or 'detached'}, {upstream}, {f'{s.changes} uncommitted' if s.changes else 'clean'}"
+            rows.append({"domain": s.name, "folder": str(s.folder), "state": state, "policy": f"pull={s.policy.pull} commit={s.policy.commit} push={s.policy.push}",
+                         "trust": scope.trust, "held": ", ".join(s.held)})
+        table.show(rows, ("domain", "folder", "state", "policy", "trust", "held")) if rows else print("no managed domains")
+        return 0
     for scope in kb.managed(config):
         s = kb.inspect(config, scope)
         print(f"{s.name}  {s.folder}")
@@ -935,6 +969,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("role")
         p.add_argument("--in", dest="folder", default=".")
         p.add_argument("--absolute", action="store_true", help="join each answer to the root of this checkout")
+    sub.add_parser("table-demo", help=argparse.SUPPRESS)
     s = sub.add_parser("setup", help="set up a first local configuration: the knowledge base, and the published domains the folder's project names")
     s.add_argument("folder", nargs="?", default=".")
     s.add_argument("--no-clone", action="store_true", help="add the domains and leave their folders to vyd kb clone")
@@ -1047,6 +1082,8 @@ def main(argv: list[str] | None = None) -> int:
 
             config, project = bind_in(load(), Path(arguments.folder))
             return handoff.command(project, store_dir(config, project), arguments.name, arguments.module, arguments.unit)
+        if arguments.command == "table-demo":
+            return table.demo()
         if arguments.command == "setup":
             return first_setup.run(Path(arguments.folder), not arguments.no_clone, arguments.dry_run, _person)
         if arguments.command == "guard":
@@ -1076,38 +1113,43 @@ def main(argv: list[str] | None = None) -> int:
             return trust_command(arguments.path)
         configured = load()
         config, project = bind_in(configured, Path(arguments.folder))
-        print(f"configuration: {config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
-        print("configuration trust: " + ("trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal"))
+        report = table.Report()
+        say = report.say
+
+        say("configuration", f"{config.source or config_path()}" + ("" if config.source else " (absent, so the general scope alone)"))
+        say("configuration trust", "trusted" if configuration.trusted(config) else "not trusted, so no glue or command extractor runs. A person runs vyd trust in a terminal")
         for line in install.missing(config):
-            print(f"NOTE: {line}")
+            say("note", line, f"NOTE: {line}")
         for line in install.out_of_date(config):
-            print(line)
+            say("out of date", line, line)
         if config.trusted_repositories:
             own = config.source is not None and config.source.resolve() == configuration.own_config().resolve()
-            print(f"trusted repositories: {', '.join(config.trusted_repositories)}")
+            say("trusted repositories", ", ".join(config.trusted_repositories))
             if not own:
-                print("NOTE: trusted_repositories is ignored here, since only the user's own configuration "
-                      f"at {configuration.own_config()} may grant it")
-        print(f"domains: {', '.join(config.domains) or 'none'}")
-        print(f"projects: {', '.join(config.projects) or 'none'}")
+                text = f"trusted_repositories is ignored here, since only the user's own configuration at {configuration.own_config()} may grant it"
+                say("note", text, f"NOTE: {text}")
+        say("domains", ", ".join(config.domains) or "none")
+        say("projects", ", ".join(config.projects) or "none")
         for name, why in config.set_aside.items():
-            print(f"set aside: {name}")
+            say("set aside", name)
             for problem in why:
-                print(f"  {problem}")
+                say("", problem, f"  {problem}")
         file = project_file(Path(arguments.folder))
         if file is not None:
-            print(f"project file: {file}")
+            say("project file", str(file))
         for path, why in config.files_aside.items():
-            print(f"set aside: the project declared in {path}")
+            say("set aside", f"the project declared in {path}")
             for problem in why:
-                print(f"  {problem}")
+                say("", problem, f"  {problem}")
         if project is not None and project.work is not None:
             w = project.work
-            print(f"work: records in {w.status}, plans in {w.plans}, levels {' > '.join(w.levels)}, ladder {' > '.join(w.ladder)}, aside {', '.join(w.aside)}, trunk {w.main}"
-                  + "".join(f", {k} {getattr(w, k)}" for k in ("index", "roadmap") if getattr(w, k) is not None))
+            say("work", f"records in {w.status}, plans in {w.plans}, levels {' > '.join(w.levels)}, ladder {' > '.join(w.ladder)}, aside {', '.join(w.aside)}, trunk {w.main}"
+                + "".join(f", {k} {getattr(w, k)}" for k in ("index", "roadmap") if getattr(w, k) is not None))
         if project is not None and project.file is not None:
-            print(f"project {project.name} is declared in {project.file}, which is " + (("trusted" if configuration.file_recorded(project.file) else "trusted through trusted_repositories, as it is committed at HEAD") if project.trusted
-                                                                                     else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file"))
+            standing = (("trusted" if configuration.file_recorded(project.file) else "trusted through trusted_repositories, as it is committed at HEAD") if project.trusted
+                        else "not trusted, so it gives knowledge alone and runs nothing. A person runs vyd trust in a terminal, in that repository, or lists the repository's origin in trusted_repositories and commits the file")
+            say(f"project {project.name}", f"is declared in {project.file}, which is {standing}", f"project {project.name} is declared in {project.file}, which is {standing}")
+        report.done()
         return 1 if config.set_aside or config.files_aside else 0
     except ConfigError as error:
         print(f"the configuration at {config_path()} cannot be used:", file=sys.stderr)

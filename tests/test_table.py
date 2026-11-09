@@ -242,3 +242,89 @@ def test_a_query_prints_its_rows_and_its_count_on_standard_output_whatever_the_s
         out = capsys.readouterr()
         assert out.err == "" or "building" in out.err, style
     table.configure("plain")
+
+
+# ---- TB-3: the status-style commands as tables --------------------------------------------------------------
+
+
+def rows_of_md(out: str) -> list[list[str]]:
+    return [[c.strip() for c in line.strip().strip("|").split(" | ")] for line in out.splitlines() if line.startswith("|")]
+
+
+def test_config_is_a_table_of_item_and_value_on_request_and_the_same_lines_otherwise(folder, capsys):
+    code, plain, _ = run_table(capsys, folder)  # a recipe list, to prove the folder binds
+    capsys.readouterr()
+    cli.main(["config", str(folder)])
+    lines = capsys.readouterr().out
+    assert lines.startswith("configuration: ") and "projects: proj" in lines
+    cli.main(["config", str(folder), "--table", "md"])
+    rows = rows_of_md(capsys.readouterr().out)
+    assert rows[0] == ["item", "value"] and ["projects", "proj"] in rows and any(r[0] == "configuration" for r in rows)
+
+
+def test_guard_status_and_check_are_tables_on_request(tmp_path, monkeypatch, capsys):
+    from test_guard import guarded, machine, put as gput, repo as grepo, run as grun  # noqa: F401
+
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    (tmp_path / "gitconfig").write_text("[user]\n\tname = t\n\temail = t@example.com\n", encoding="utf-8")
+    guarded(tmp_path, monkeypatch)
+    root = grepo(tmp_path, "open", "git@github.com:example-org/open.git")
+    capsys.readouterr()
+    assert cli.main(["guard", "status", "--in", str(root), "--table", "md"]) == 0
+    rows = rows_of_md(capsys.readouterr().out)
+    assert rows[0] == ["item", "value"] and any(r[0] == "git hooks" for r in rows) and any(r[0] == "lists" for r in rows)
+    gput(root, "a.md", "about secret-project\n")
+    grun(root, "add", "-A")
+    assert cli.main(["guard", "check", "--in", str(root), "--table", "md"]) == 1
+    out = capsys.readouterr().out
+    assert rows_of_md(out)[0] == ["where", "level", "finding"] and "| a.md:1 | blocks | matches public-deny-terms:1 |" in out
+    assert "guard check (public): 1 finding(s)" in out, "the count stays on standard output"
+
+
+def test_catalogue_show_and_modules_are_tables_on_request(tmp_path, monkeypatch, capsys):
+    from test_catalogue import project as cproject
+
+    monkeypatch.setenv("VYVID_CONFIG", str(tmp_path / "absent.toml"))
+    root = cproject(tmp_path / "p")
+    capsys.readouterr()
+    assert cli.main(["catalogue", "modules", "--in", str(root), "--table", "md"]) == 0
+    rows = rows_of_md(capsys.readouterr().out)
+    assert rows[0] == ["name", "kind", "path"] and ["applied/cap", "applied", "ontology/applied/cap"] in rows
+    assert cli.main(["catalogue", "show", "--in", str(root), "--table", "md"]) == 0
+    rows = rows_of_md(capsys.readouterr().out)
+    assert ["modules", "2"] in rows and any(r[0] == "release" and r[1].startswith("1.2.3") for r in rows)
+
+
+def test_reads_status_is_a_table_on_request(tmp_path, monkeypatch, capsys):
+    from test_reads import read_of, upstream
+
+    up, head = upstream(tmp_path)
+    down, _, _ = read_of(tmp_path, monkeypatch, up, head, read='skills = ["architecture"]\n')
+    capsys.readouterr()
+    assert cli.main(["reads", "status", "--in", str(down), "--table", "md"]) == 0
+    rows = rows_of_md(capsys.readouterr().out)
+    assert rows[0][:3] == ["read", "pinned", "against source"] and rows[2][0] == "up" and rows[2][1] == head[:12] and "architecture" in rows[2]
+
+
+def test_kb_status_is_a_table_on_request(tmp_path, monkeypatch, capsys):
+    kb = tmp_path / "kb"
+    (kb / "domains" / "d").mkdir(parents=True)
+    configure(tmp_path, monkeypatch, f'[framework]\nkb = "{kb.as_posix()}"\n\n[[domains]]\nname = "d"\npath = "{(kb / "domains" / "d").as_posix()}"\n')
+    capsys.readouterr()
+    assert cli.main(["kb", "status", "--table", "md"]) == 0
+    rows = rows_of_md(capsys.readouterr().out)
+    assert rows[0][:3] == ["domain", "folder", "state"] and rows[2][0] == "d" and "not a clone" in rows[2][2]
+
+
+# ---- TB-4: the demonstration ------------------------------------------------------------------------------
+
+
+def test_the_demonstration_shows_each_style_and_the_facts_about_the_terminal(capsys, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "70")
+    assert cli.main(["table-demo"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("terminal: 70 columns") and "== plain ==" in out and "== pretty ==" in out and "== md ==" in out
+    md = out[out.index("== md =="):]
+    assert "A cell with a \\| pipe" in md and "| note |" in md
+    pretty = out[out.index("== pretty =="):out.index("== md ==")]
+    assert all(table.dwidth(line) <= 70 for line in pretty.splitlines())

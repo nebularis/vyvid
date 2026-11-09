@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.29**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.30**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.29"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.30"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -913,6 +913,28 @@ vyd resolve tools:NOTE-1
 ```
 
 Bare identifiers resolve through the current scope’s own families and configured delegations or moves. Do not assume a bare domain identifier will be found just because that domain is in the retrieval stack.
+
+### Choose how a table prints
+
+A command that gives back a table prints it plain by default: columns separated by two spaces, a cell cut at 90 characters and an identifier never cut. That is the form an agent reads. Two more forms are chosen with `--table`, which may stand anywhere on the command line.
+
+| Value | Prints |
+|---|---|
+| `plain` | the default, unchanged |
+| `pretty` | columns fitted to the terminal, a long cell wrapped onto continuation lines and never cut, a header with one rule under it, and no box |
+| `md` | a Markdown pipe table with every cell whole, `\|` escaped, a newline written as `<br>`, and a `note` column where a row has a note |
+| `auto` | `pretty` at a terminal and `plain` otherwise |
+
+```bash
+vyd find "request validation" --table pretty
+vyd guard check --all --table md
+```
+
+The choice is the flag, else the `VYD_TABLE` environment variable, else `table = "pretty"` (or any value) in the `[framework]` table of your configuration, else `plain`. A table is always on standard output, with its notes and its row count, because standard error is for errors. In `md` only the table and the count line are printed, so the output pastes into a pull request.
+
+`pretty` counts a wide character, such as Chinese or Japanese text, as two columns. It draws its rule with a box-drawing character only where the stream's encoding can write it, and with `-` where it cannot, as in a legacy Windows code page. Where even the narrowest columns do not fit, it prints each row as a block of `column: value` lines.
+
+These commands give tables: `find`, `exists`, `node`, `reaches`, `sparql`, `misses`, `gap`, `board`, `recipe list` and the symbol searches, as columns, and the status commands `config`, `guard status`, `guard check`, `reads status`, `catalogue show`, `catalogue modules` and `kb status` as a table of item and value or of rows. `vyd table-demo` prints one sample in every style, with the width and encoding of your terminal, to see how they look there.
 
 ### Ask another scope deliberately
 
@@ -3009,6 +3031,7 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 | Context shows only general scope | Check the working folder, project binding, and `vyd config`. On a new machine, `vyd setup` writes the first configuration |
 | `vyd domain add` says `kb` is not set | Set `kb` in the `[framework]` table of your configuration, or run `vyd setup` |
 | `vyd check skills` does not run and names a domain | The domain is at trust `knowledge`, or was reviewed at a commit its folder has left. Read it and run the line the message gives |
+| A table has odd characters or boxes on Windows | Use `--table plain`, or `--table pretty`, which draws with `-` where the encoding cannot write a box. `vyd table-demo` shows the encoding in use |
 | A task that runs `vyd trust` seems to hang | It asks a question that a task runner hides. Run `vyd trust` yourself in a terminal |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |
 | A skill-only domain has no search results | Its procedure reaches agents through skills, and it has no register to retrieve |

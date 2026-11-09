@@ -164,6 +164,28 @@ def status(config: Config, project: Scope) -> int:
     """For each read of ``project``: its pin against the source's default branch, its standing, what it is allowed to bring and whether its
     snapshot is here. 1 when a read could not be made."""
     failed = bool(project.read_notes)
+    from . import table
+
+    if table.tabular() and (project.reads or project.unread or project.read_notes):
+        rows = []
+        for name, read in project.reads.items():
+            source = source_of(config, name)
+            trunk = default_branch(source) if source is not None else None
+            against = ""
+            if trunk is not None:
+                count = _git(source, "rev-list", "--count", f"{read.commit}..{trunk}").stdout.strip()
+                against = f"{count} behind {trunk}" if count not in ("", "0") else f"at the tip of {trunk}"
+            taken = config.projects.get(name)
+            rows.append({"read": name, "pinned": read.commit[:12], "against source": against,
+                         "standing": "reviewed at this pin" if read.standing(project) == "reviewed" else "knowledge alone",
+                         "skills": ", ".join(read.skills) or "none", "recipes": ", ".join(read.recipes) or "none", "domains": ", ".join(read.domains) or "none",
+                         "snapshot": "present" if taken is not None and taken.read_of == project.name else "absent"})
+        if rows:
+            table.show(rows, ("read", "pinned", "against source", "standing", "skills", "recipes", "domains", "snapshot"))
+        notes = [{"note": note} for note in project.read_notes] + [{"note": f"{name} is not configured here, so it is left out"} for name in project.unread]
+        if notes:
+            table.show(notes, ("note",))
+        return 1 if failed else 0
     for name, read in project.reads.items():
         source = source_of(config, name)
         trunk = default_branch(source) if source is not None else None
