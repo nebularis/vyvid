@@ -2,7 +2,7 @@
 
 # Plan: links between code and documents, and the index behind a protocol
 
-**Status:** building 2026-11-10, at the maintainer's request.
+**Status:** built 2026-11-10, at the maintainer's request.
 **Prefix:** LK
 
 ## Scope

@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, table, handoff, identifiers, install, kb, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, table, handoff, identifiers, install, kb, links, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -857,6 +857,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--json", action="store_true")
     p.add_argument("--all", action="store_true", help="also list each variant, each removable entry no longer defined and each stale exception")
+    p = c.add_parser("links", help="fail on a backlink in code that no register defines, or a pointer of an entry that names a file or line that is not there")
+    p.add_argument("folder", nargs="?", default=".")
+    p.add_argument("--require", action="append", default=[], metavar="FAMILY", help="also fail on an entry of this family that no backlink in code names. May be given more than once")
+    p = sub.add_parser("refs", help="every tracked line that defines, backlinks or mentions an identifier")
+    p.add_argument("identifier")
+    p.add_argument("--in", dest="folder", default=".")
+    p = sub.add_parser("expand", help="a prompt, followed by the claim and pointer of every identifier it mentions")
+    p.add_argument("words", nargs="*", help="the prompt, read from standard input when none is given")
+    p.add_argument("--in", dest="folder", default=".")
+    sub.add_parser("mcp", help="serve find, node, read, reaches, refs, expand and context to an editor as Model Context Protocol tools, over standard input and output").add_argument(
+        "--in", dest="folder", default=".")
     p = sub.add_parser("move", help="what a project moved to a domain").add_subparsers(dest="move_command", required=True)
     p = p.add_parser("check", help="compare each moved source file at its commit with a ref, by identifier")
     p.add_argument("folder", nargs="?", default=".")
@@ -1040,6 +1051,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"vyd: no project claims {arguments.folder}, so there are no skills to check")
                 return 2
             return skills.check(config, project, arguments.sources, arguments.map)
+        if arguments.command == "check" and arguments.check_command == "links":
+            config, project = bind_in(load(), Path(arguments.folder))
+            return links.check(config, project, Path(arguments.folder), arguments.require)
+        if arguments.command == "refs":
+            config, project = bind_in(load(), Path(arguments.folder))
+            return links.refs(config, project, arguments.identifier)
+        if arguments.command == "expand":
+            return links.expand(load(), Path(arguments.folder), " ".join(arguments.words) if arguments.words else sys.stdin.read())
+        if arguments.command == "mcp":
+            return links.serve(Path(arguments.folder))
         if arguments.command == "check":
             if arguments.check_command == "identifiers":
                 config, project = bind_in(load(), Path(arguments.folder))

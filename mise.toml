@@ -4,8 +4,8 @@ python = "3.14.7"
 uv = "0.13.4"
 
 [tasks.check]
-description = "Every check: the tests, the writing and publication rules, and the identifiers"
-depends = ["check:tests", "check:writing", "check:identifiers"]
+description = "Every check: the tests, the writing and publication rules, the identifiers and the links"
+depends = ["check:tests", "check:writing", "check:identifiers", "check:links"]
 
 [tasks."check:tests"]
 description = "Run the test suite"
@@ -18,6 +18,10 @@ run = "uv run python tools/check_writing.py"
 [tasks."check:identifiers"]
 description = "Fail on an identifier the tracked Markdown mentions and nothing defines, or one a family defines twice (vyvid.toml declares the families)"
 run = "uv run vyd check identifiers ."
+
+[tasks."check:links"]
+description = "Fail on a backlink in code that no register defines, or a pointer of an entry that names a file or line that is not there"
+run = "uv run vyd check links ."
 
 [tasks."bench:lattice"]
 description = "Score find against LATTICE's own on its bake-off questions, never part of check: mise run bench:lattice -- --config <configuration>"

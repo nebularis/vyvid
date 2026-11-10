@@ -182,7 +182,7 @@ sequenceDiagram
 - **One rule file** under `~/.claude/rules/`, and its equivalents for other clients, which `vyd install` writes. It says to run `vyd context`, and that the index is more current than the agent's memory of how to do a task.
 - **Skills** are generated per domain into the client's skill folder, each naming the recipes for its work, such as writing Haskell, querying a graph database or authoring an ontology. A project's skills stay where the project keeps them, `.claude/skills/` for LATTICE, or its private documents folder for a project that keeps them out of its repository.
 - **A recipe** is a project's or a domain's named chain of index queries, with an optional glue script between steps, declared in the domain or project manifest. It narrows the answer until it is specific to the work. For example LATTICE's recipe for the studio's SPARQL asks for the query-writing standards with `--tech sparql`, reads the decisions they name, and adds the persistence compiler's capability, which only LATTICE's scope holds.
-- **An MCP server** exposing the same commands is a later step. It is the same tool behind a protocol, and it would let a client call `find` without a shell (VYD-Q3).
+- **An MCP server** exposing the same commands was a later step, built 2026-11-10 as `vyd mcp` (CAP-40). It is the same tool behind a protocol, and it lets a client call `find` without a shell (VYD-Q3).
 
 ## 5. Git, by where an asset lives
 

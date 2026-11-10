@@ -49,6 +49,10 @@ vyd work parse <record>                # a status record's board as read
 vyd work rename | normalise | adopt [--apply] # move older boards and identifiers onto the board's shape. Each reports without --apply
 vyd here [--role build|review|read] [--model m] [--on ids] [--leave] # who else is working in this checkout
 vyd check identifiers [--json] [--all] [folder] # fail on an identifier the tracked Markdown mentions and nothing defines, or one a family defines twice
+vyd check links [folder] [--require <family>] # fail on a backlink in code that no register defines, or a pointer of an entry that names a file or line that is not there
+vyd refs <identifier> [--in folder]    # every tracked line that defines, backlinks or mentions an identifier
+vyd expand [words] [--in folder]       # a prompt, from the words or standard input, followed by the claim and pointer of every identifier it mentions
+vyd mcp [--in folder]                  # serve context, find, node, read, reaches, refs and expand to an editor as Model Context Protocol tools, over standard input and output
 vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
 vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
 vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
@@ -164,6 +168,20 @@ A project that gave a family, or some rows of one, to a domain declares it with 
 `vyd check identifiers` reads the Markdown that `git ls-files` lists in the project's repository, never a folder walk, so an ignored folder is not read. A mention resolves on a normalised key, so another spelling of a defined identifier is a variant and is reported. A family with `removable = true` has its unresolved mentions reported and never failed. A family's `exceptions` file, or `identifiers.exceptions` for the project, lists identifiers mentioned and defined nowhere, one per line with a reason after `#`, and an entry nothing needs any longer is reported as stale. An identifier a family defines twice fails, and the line committed earlier keeps the number. A mention covered by a move resolves only if the domain defines it. A family with `defined_only = true` reads a bare match of its pattern as a mention only where its source defines the identifier, so a loose pattern does not read `UTF-8` as an entry. The exit code is 1 on an unresolved or twice-defined identifier and 0 otherwise, and `--json` prints everything found.
 
 A register type declared with `shown = "asked"` is left out of `find` unless `--kind` names it or the question names an entry by its identifier, as declared terms are. The packaged `slice` type is one, and reads a board of `Slice`, `Deliverable`, `State` and `Blocked on`.
+
+A backlink ties code to the entry it implements. It is a comment in a tracked file that is not Markdown, holding `@vyd:` and then identifiers separated by commas, to the end of the line, for example `# @vyd: STD-1, tools:TOOL-2`. `vyd check links` reads the files `git ls-files` lists and fails on a backlink that no register defines, and on a pointer of one of the project's own entries that names a file that is not there or a line past its end. Only a marked line is checked, since code and its tests hold text that merely looks like an identifier. `--require <family>` also fails on an entry of that family that no backlink names, so every capability, for example, can be held to a place in the code. `vyd refs <identifier>` lists every tracked line that writes an identifier and says whether it defines, backlinks or mentions it. `vyd expand` prints a prompt followed by the kind, status, claim and pointer of every identifier it mentions, so an agent is handed what the identifiers mean and not only their names.
+
+`vyd mcp` serves the same questions to an editor or an agent client over standard input and output, as the Model Context Protocol tools `context`, `find`, `node`, `read`, `reaches`, `refs` and `expand`. Register it as a command, for example `claude mcp add vyvid -- vyd mcp`. Each call runs `vyd` as a process of its own in the folder the server was started in, or the one `--in` names.
+
+The repository is also a GitHub Action that runs the identifier and link checks with no Python set up by you. It installs `vyd` from the tag you name, builds the index without vectors, and fails the job where a check fails.
+
+```yaml
+- uses: actions/checkout@v4
+- uses: nebularis/vyvid@<tag>
+  with:
+    checks: identifiers links   # the default
+    require: CAP                # optional, families whose every entry needs a backlink
+```
 
 ## Code
 

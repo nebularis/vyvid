@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT
+# @vyd: CAP-41
+name: Vyvid check
+description: Check a repository's identifiers and the links between its code and its documents with vyd, with no Python or project setup of your own
+inputs:
+  folder:
+    description: The folder whose project is checked. Its repository commits a vyvid.toml
+    default: "."
+  checks:
+    description: The checks to run, separated by spaces, of identifiers and links
+    default: "identifiers links"
+  require:
+    description: Families, separated by spaces, whose every entry must have a backlink in code, for the links check
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+    - shell: bash
+      env:
+        VYD_FOLDER: ${{ inputs.folder }}
+        VYD_CHECKS: ${{ inputs.checks }}
+        VYD_REQUIRE: ${{ inputs.require }}
+      run: |
+        uv tool install --quiet "$GITHUB_ACTION_PATH"
+        vyd build "$VYD_FOLDER" --no-embed
+        failed=0
+        for check in $VYD_CHECKS; do
+          case "$check" in
+            identifiers) vyd check identifiers "$VYD_FOLDER" || failed=1 ;;
+            links)
+              required=()
+              for family in $VYD_REQUIRE; do required+=(--require "$family"); done
+              vyd check links "$VYD_FOLDER" "${required[@]}" || failed=1 ;;
+            *) echo "::error::no check is named $check"; failed=1 ;;
+          esac
+        done
+        exit "$failed"

@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.32**, inspected on **9 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.33**, inspected on **10 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.32"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.33"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -2756,6 +2756,57 @@ Useful family controls include:
 Current defaults already recognise standard generated regions beginning with `<!-- BEGIN GENERATED` and ending with `<!-- END GENERATED`. Do not suppress an entire roadmap merely because an older integration lacked region handling.
 
 Duplicate register identifiers must be resolved, not hidden. The check reports definition sites and can identify the earlier committed row that keeps its identifier.
+
+### Link code to the entries it implements
+
+An identifier check tells you that every identifier your documents mention is defined. It does not tell you where in the code a standard is enforced or a capability is built. A backlink does. Write a comment that holds `@vyd:` and the identifiers the code implements, separated by commas, in any tracked file that is not Markdown.
+
+```python
+# @vyd: STD-1, STD-2
+def validate(order): ...
+```
+
+Then check the links in both directions.
+
+```bash
+vyd check links
+vyd check links --require STD
+```
+
+The check fails on a backlink that no register defines, so renumbering or withdrawing an entry shows up in the code that named it. It also fails on a pointer of one of your project's entries that names a file that is gone or a line past the file's end. Only marked lines are read, because code and tests are full of text that merely looks like an identifier. With `--require`, every entry of the family you name must have at least one backlink, which is how you hold each test specification or capability to a place in the code.
+
+To navigate the other way, ask where an identifier is written.
+
+```bash
+vyd refs STD-1
+```
+
+Each line of the answer is a `file:line` and one word, `defines`, `backlinks` or `mentions`.
+
+When you hand a prompt to an agent, the identifiers in it are only names. `vyd expand` prints the prompt and then the kind, status, claim and pointer of every identifier it mentions, from the words on the command line or from standard input.
+
+```bash
+vyd expand "Does this change respect STD-1?"
+```
+
+### Serve the index to an editor
+
+`vyd mcp` is a Model Context Protocol server over standard input and output. It offers `context`, `find`, `node`, `read`, `reaches`, `refs` and `expand` as tools, each answering exactly as the command of the same name does. Register it with your client as a command, for example `claude mcp add vyvid -- vyd mcp`, and start it in your project's folder or name the folder with `--in`.
+
+### Run the checks in GitHub Actions
+
+The vyvid repository is itself an action, so a workflow needs no Python of its own. Name a released tag.
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: nebularis/vyvid@<tag>
+    with:
+      checks: identifiers links
+      require: STD
+```
+
+It installs `vyd`, builds the index without vectors, runs the checks you name against the `vyvid.toml` your repository commits, and fails the job where one fails. `checks` defaults to both and `require` to none.
 
 ### Move reusable knowledge into a domain
 
