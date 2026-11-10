@@ -35,6 +35,7 @@ A comparison with a tool that keeps a graph of Markdown sections and source symb
 | LK-1 | the backlink marker, `vyd check links` with `--require`, `vyd refs` and `vyd expand`, with tests | | 40k |
 | LK-2 | `vyd mcp`, the server and its tools, with tests | LK-1 | 20k |
 | LK-3 | the GitHub Action, the link check in `mise run check`, backlinks in this repository's own code, the guide, the register rows and the release | LK-2 | 30k |
+| LK-4 | the tools of `vyd mcp` answer plain whatever the table and colour settings, and the guide follows the links release, tests first | LK-3 | 15k |
 
 ## Validation
 

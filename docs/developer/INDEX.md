@@ -16,7 +16,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | tables | TB | [plan](plans/tables.md) | [status](status/tables.md) | built 2026-11-09 |
 | catalogue | CT | [plan](plans/catalogue.md) | [status](status/catalogue.md) | built 2026-11-08 |
 | setup | SU | [plan](plans/setup.md) | [status](status/setup.md) | built 2026-11-09 |
-| links | LK | [plan](plans/links.md) | [status](status/links.md) | built 2026-11-10 |
+| links | LK | [plan](plans/links.md) | [status](status/links.md) | building 2026-11-10 |
 
 ## Work
 
@@ -90,3 +90,4 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | LK-1 | links | backlinks, `vyd check links`, `vyd refs` and `vyd expand` | built 2026-11-10 |
 | LK-2 | links | `vyd mcp` | built 2026-11-10 |
 | LK-3 | links | the GitHub Action, the link check in `mise run check`, the guide, the register rows and the release | built 2026-11-10 |
+| LK-4 | links | the tools of `vyd mcp` answer plain, and the guide follows the links release | building 2026-11-10 |
