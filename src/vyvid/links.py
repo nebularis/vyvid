@@ -207,7 +207,10 @@ def _call(folder: Path, name: str, given: dict) -> dict:
     except (KeyError, TypeError, ValueError) as error:
         return {"content": [{"type": "text", "text": f"{name} was called with arguments it cannot read: {error!r}"}], "isError": True}
     where = [str(folder)] if verb == "context" else ["--in", str(folder)]  # context takes its folder by position
-    done = subprocess.run([sys.executable, "-m", "vyvid.cli", verb, *where, *rest], capture_output=True, text=True,
+    # A client is an agent, so it reads the plain table whatever table or colour the user chose for their own terminal. The flags come before
+    # `--`, after which every value is a client's.
+    plain = ["--table", "plain", "--colour", "never"]
+    done = subprocess.run([sys.executable, "-m", "vyvid.cli", verb, *where, *plain, *rest], capture_output=True, text=True,
                           encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
     return {"content": [{"type": "text", "text": (done.stdout + done.stderr).strip() or "no output"}], "isError": done.returncode != 0}
 

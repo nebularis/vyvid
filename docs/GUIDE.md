@@ -11,7 +11,7 @@ The essential division is:
 - **Domains provide reusable knowledge and procedures.** A project selects domains and adds its own specialisations.
 - **The lifecycle domain provides a development procedure.** Vyvid’s work-board commands support that procedure, but do not autonomously implement, verify, or deliver your software.
 
-This guide describes the implementation at version **0.2.33**, inspected on **10 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
+This guide describes the implementation at version **0.2.34**, inspected on **10 November 2026**. Examples use a fictional project named `example-service`. Replace its paths, commands, and identifiers with your own.
 
 ---
 
@@ -515,7 +515,7 @@ A script like this one installs the tool at a tag, writes the configuration, clo
 #!/bin/bash
 exec >/tmp/vyd-setup.log 2>&1
 set -x
-uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.33"
+uv tool install "git+https://github.com/nebularis/vyvid.git@v0.2.34"
 export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/vyvid
 cat > ~/.config/vyvid/config.toml <<'EOF2'
@@ -902,6 +902,8 @@ Use:
 
 `reaches` is not a compiler call graph or a proof of all downstream impact.
 
+To find where in the code and the documents an identifier is written, use `vyd refs STD-1`. To hand an agent a prompt together with what every identifier in it means, use `vyd expand`. Both are described with [backlinks](#link-code-to-the-entries-it-implements).
+
 ### Qualify identifiers from domains
 
 A project and several domains may all contain `NOTE-1`. Use the scope to disambiguate:
@@ -934,7 +936,7 @@ The choice is the flag, else the `VYD_TABLE` environment variable, else `table =
 
 `pretty` counts a wide character, such as Chinese or Japanese text, as two columns. It draws its rule with a box-drawing character only where the stream's encoding can write it, and with `-` where it cannot, as in a legacy Windows code page. Where even the narrowest columns do not fit, it prints each row as a block of `column: value` lines.
 
-These commands give tables: `find`, `exists`, `node`, `reaches`, `sparql`, `misses`, `gap`, `board`, `recipe list` and the symbol searches, as columns, and the status commands `config`, `guard status`, `guard check`, `reads status`, `catalogue show`, `catalogue modules` and `kb status` as a table of item and value or of rows. `vyd table-demo` prints one sample in every style, with the width and encoding of your terminal, to see how they look there.
+These commands give tables: `find`, `exists`, `node`, `reaches`, `refs`, `sparql`, `misses`, `gap`, `board`, `recipe list` and the symbol searches, as columns, and the status commands `config`, `guard status`, `guard check`, `reads status`, `catalogue show`, `catalogue modules` and `kb status` as a table of item and value or of rows. `vyd table-demo` prints one sample in every style, with the width and encoding of your terminal, to see how they look there.
 
 #### Colour
 
@@ -1070,6 +1072,8 @@ User-level installation supports:
 Project skill destinations are configurable with `skill_targets`.
 
 Reminder-hook configuration supports `claude-code`, `copilot`, and `codex`. This does not mean `vyd install --client codex` is supported.
+
+A client that speaks the Model Context Protocol can also use the index without skills, through `vyd mcp` ([Serve the index to an editor](#serve-the-index-to-an-editor)).
 
 Claude Code receives a user-level rule file. Copilot does not receive an equivalent always-on personal rule file from this integration, so put essential project guidance in the instruction file your client actually loads.
 
@@ -2773,7 +2777,7 @@ vyd check links
 vyd check links --require STD
 ```
 
-The check fails on a backlink that no register defines, so renumbering or withdrawing an entry shows up in the code that named it. It also fails on a pointer of one of your project's entries that names a file that is gone or a line past the file's end. Only marked lines are read, because code and tests are full of text that merely looks like an identifier. With `--require`, every entry of the family you name must have at least one backlink, which is how you hold each test specification or capability to a place in the code.
+The check fails on a backlink that no register defines, so renumbering or withdrawing an entry shows up in the code that named it. It also fails on a pointer of one of your project's entries that names a file that is gone or a line past the file's end. Only marked lines are read, because code and tests are full of text that merely looks like an identifier. With `--require`, every entry of the family you name must have at least one backlink, which is how you hold each test specification or capability to a place in the code. The check exits 0 when it passes and 1 when it fails, and it prints each failure with its file and line, so a script or a hook can use it.
 
 To navigate the other way, ask where an identifier is written.
 
@@ -2781,7 +2785,7 @@ To navigate the other way, ask where an identifier is written.
 vyd refs STD-1
 ```
 
-Each line of the answer is a `file:line` and one word, `defines`, `backlinks` or `mentions`.
+The answer is a table of `where`, a `file:line`, and `as`, which is `defines`, `backlinks` or `mentions`, followed by a count. It follows `--table` like any table, so `vyd refs STD-1 --table md` gives a Markdown table. A backlink is found only in code, a definition in a register, and a mention anywhere else in your tracked text.
 
 When you hand a prompt to an agent, the identifiers in it are only names. `vyd expand` prints the prompt and then the kind, status, claim and pointer of every identifier it mentions, from the words on the command line or from standard input.
 
@@ -2791,7 +2795,7 @@ vyd expand "Does this change respect STD-1?"
 
 ### Serve the index to an editor
 
-`vyd mcp` is a Model Context Protocol server over standard input and output. It offers `context`, `find`, `node`, `read`, `reaches`, `refs` and `expand` as tools, each answering exactly as the command of the same name does. Register it with your client as a command, for example `claude mcp add vyvid -- vyd mcp`, and start it in your project's folder or name the folder with `--in`.
+`vyd mcp` is a Model Context Protocol server over standard input and output. It offers `context`, `find`, `node`, `read`, `reaches`, `refs` and `expand` as tools, each answering exactly as the command of the same name does. Register it with your client as a command, for example `claude mcp add vyvid -- vyd mcp`, and start it in your project's folder or name the folder with `--in`. The server keeps no state. Each call runs `vyd` as a process of its own, so an index that is stale is rebuilt by the call that finds it. A client is an agent, so every tool answers with the plain table whatever `--table`, `VYD_TABLE`, `--colour` or your configuration say for your own terminal.
 
 ### Run the checks in GitHub Actions
 
@@ -3069,6 +3073,7 @@ A useful baseline is:
 
 ```bash
 vyd check identifiers
+vyd check links
 vyd check skills
 vyd work check
 ```
@@ -3085,6 +3090,7 @@ Keep their meanings distinct:
 | Check | Establishes |
 |---|---|
 | `check identifiers` | Tracked Markdown references and definitions are consistent |
+| `check links` | Every backlink in code names an entry a register defines, every pointer of your project's entries names a file and line that exist, and with `--require` every entry of a family has a backlink |
 | `check skills` | Committed generated skills match their available sources |
 | `work check` | Status records follow configured grammar and the generated work index agrees |
 | `check citations` | Supplied public text does not cite recognised private entries |
@@ -3096,7 +3102,7 @@ These checks do not replace one another.
 
 `vyd` works when Git runs it from a hook. Git exports `GIT_DIR` and `GIT_WORK_TREE` to a hook, and under them a request for the repository’s top level answers with the folder itself, so `vyd` clears both when it starts and finds the repository from the folder it is given. It keeps `GIT_INDEX_FILE`, because a partial commit gives the hook a temporary index and `--staged` should read that one. Only the names of the staged records come from it, as the previous paragraph says.
 
-For CI, supply all required domain sources at the intended revisions. For local hook integration, ensure generated files and their source changes are reviewed and staged together.
+For CI, supply all required domain sources at the intended revisions. A repository that needs only the identifier and link checks can run them with the [GitHub Action](#run-the-checks-in-github-actions) and no setup of its own. For local hook integration, ensure generated files and their source changes are reviewed and staged together.
 
 A lifecycle skill describing a hook does not mean the hook exists. Implement project Git hooks and CI gates explicitly, and distinguish a skipped or unavailable check from a successful one.
 
@@ -3112,6 +3118,9 @@ A lifecycle skill describing a hook does not mean the hook exists. Implement pro
 | `vyd domain add` says `kb` is not set | Set `kb` in the `[framework]` table of your configuration, or run `vyd setup` |
 | `vyd check skills` does not run and names a domain | The domain is at trust `knowledge`, or was reviewed at a commit its folder has left. Read it and run the line the message gives |
 | A table shows `[1m` or `^[[` in the text | The terminal does not read escape codes. Use `--colour never`, or set `colour = "never"` |
+| `vyd check links` says a backlink names nothing | The identifier is not defined in any register of the project's scopes, or was renumbered. Fix the comment, or define the entry |
+| `vyd check links --require STD` fails on an entry | No backlink in code names it. Add `@vyd: <ID>` in the comment where the code implements it |
+| The GitHub Action fails with `no check is named` | `checks` lists words other than `identifiers` and `links`, separated by spaces |
 | A table has odd characters or boxes on Windows | Use `--table plain`, or `--table pretty`, which draws with `-` where the encoding cannot write a box. `vyd table-demo` shows the encoding in use |
 | A task that runs `vyd trust` seems to hang | It asks a question that a task runner hides. Run `vyd trust` yourself in a terminal |
 | A domain contributes nothing | Check its local folder, manifest, set-aside diagnostics, and project selection |

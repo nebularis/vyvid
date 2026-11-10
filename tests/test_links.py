@@ -65,3 +65,20 @@ def test_the_server_lists_its_tools_and_answers_no_notification():
     assert {t["name"] for t in listed} == set(links.TOOLS)
     assert links.answer(Path("."), {"jsonrpc": "2.0", "id": 2, "method": "nope"})["error"]["code"] == -32601
     assert links._call(Path("."), "find", {})["isError"]  # words is required, and nothing is run without it
+
+
+def test_a_tool_runs_vyd_plain_and_uncoloured_before_any_value_a_client_gave(monkeypatch):
+    """A client is an agent. It reads the plain table, whatever table or colour the user chose for their own terminal."""
+    seen = []
+
+    class Done:
+        stdout, stderr, returncode = "ok", "", 0
+
+    monkeypatch.setattr(links.subprocess, "run", lambda args, **kw: (seen.append(list(args)), Done())[1])
+    monkeypatch.setenv("VYD_TABLE", "md")
+    for name, given in (("refs", {"identifier": "STD-1"}), ("find", {"words": "--table md"}), ("context", {}), ("node", {"identifier": "STD-1"})):
+        assert links._call(Path("."), name, given)["isError"] is False
+    for args in seen:
+        flags = args.index("--table")
+        assert args[flags:flags + 4] == ["--table", "plain", "--colour", "never"]
+        assert "--" not in args[:flags], "the flags come before any value that a client gave"
