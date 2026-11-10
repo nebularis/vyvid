@@ -26,6 +26,7 @@ import platformdirs
 VECTORS = "vectors.npz"
 
 
+# @vyd: CAP-42
 @dataclass(frozen=True)
 class ModelSpec:
     """A pinned embedding model, and the scores measured for it. The thresholds belong to a model,
