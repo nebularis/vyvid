@@ -3505,7 +3505,7 @@ If your work has a rule about which content may be published, make the commit sa
 Placement: T1, public applied
 ```
 
-The guard checks that the trailer is present. A person checks that it is right, when the change is reviewed. A repository where no path is sensitive never needs the trailer.
+The guard checks that the trailer is present. A person checks that it is right, when the change is reviewed. The values belong to the project. The guard never reads them, so a project that uses tiers defines each one in its contract, where an agent writing a trailer can find it. A repository where no path is sensitive never needs the trailer.
 
 ### 22.6 A repository nobody has classified
 
