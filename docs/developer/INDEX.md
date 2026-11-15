@@ -17,6 +17,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | catalogue | CT | [plan](plans/catalogue.md) | [status](status/catalogue.md) | built 2026-11-08 |
 | setup | SU | [plan](plans/setup.md) | [status](status/setup.md) | built 2026-11-09 |
 | links | LK | [plan](plans/links.md) | [status](status/links.md) | built 2026-11-10 |
+| pointer-limits | PL | [plan](plans/pointer-limits.md) | [status](status/pointer-limits.md) | building 2026-11-15 |
 
 ## Work
 
@@ -91,3 +92,7 @@ Every unit and every slice, one row each. Written by hand until Вивід gener
 | LK-2 | links | `vyd mcp` | built 2026-11-10 |
 | LK-3 | links | the GitHub Action, the link check in `mise run check`, the guide, the register rows and the release | built 2026-11-10 |
 | LK-4 | links | the tools of `vyd mcp` answer plain, and the guide follows the links release | built 2026-11-10 |
+| PL-1 | pointer-limits | the Turtle term anchor | building 2026-11-15 |
+| PL-2 | pointer-limits | the anchor hint on the whole-file note | planned |
+| PL-3 | pointer-limits | `vyd check registers` with the baseline | planned |
+| PL-4 | pointer-limits | the guide, the register rows and this repository's baseline | planned |
