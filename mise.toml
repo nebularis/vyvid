@@ -21,6 +21,7 @@ run = "uv run vyd check identifiers ."
 
 [tasks."check:registers"]
 description = "Fail on a claim over its limit or a pointer at a whole long file in a row the baseline does not list"
+depends = ["check:tests"]
 run = "uv run vyd check registers ."
 
 [tasks."check:links"]

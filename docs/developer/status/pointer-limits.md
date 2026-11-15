@@ -2,7 +2,7 @@
 
 # Status: pointer limits
 
-**Status:** built 2026-11-15, not yet released
+**Status:** built 2026-11-15, released as 0.2.35
 **Plan:** [pointer-limits](../plans/pointer-limits.md)
 
 ## Board
