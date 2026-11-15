@@ -17,3 +17,6 @@ low = "LowSeverity"
 
 [types.security-finding]
 class = "SecurityFinding"
+
+[limits]
+baseline = "register-limits-baseline.txt"

@@ -422,7 +422,9 @@ def register_rows(ctx: Context) -> None:
         root = scope.code or scope.path or Path.cwd()
         for where in row.pointer:
             if (total := anchors.whole_file(root, where)) is not None:
-                out.problems.append(f"{here} has a pointer at the whole of {anchors.parse_range(where)[0]}, {total} lines, which read refuses")
+                named = anchors.parse_range(where)[0]
+                offer = anchors.hint(root, named)
+                out.problems.append(f"{here} has a pointer at the whole of {named}, {total} lines, which read refuses" + (f". Name a part, for example {offer}" if offer else ""))
         for prop, cells in row.values.items():
             column = columns[prop]
             for cell in cells:

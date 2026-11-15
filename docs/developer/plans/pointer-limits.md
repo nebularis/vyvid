@@ -2,7 +2,7 @@
 
 # Plan: pointer and claim limits that bite when a row is added
 
-**Status:** building 2026-11-15, at the maintainer's request.
+**Status:** built 2026-11-15, at the maintainer's request.
 **Prefix:** PL
 
 ## Scope

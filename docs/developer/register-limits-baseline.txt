@@ -1,0 +1,22 @@
+# Rows already over a limit when `vyd check registers` was added, 2026-11-15. Each line is an identifier and a kind, claim or pointer.
+# The check fails on a row that is not listed here and on a line here that is no longer a defect, so this file only shrinks.
+CAP-24 pointer  # recorded 2026-11-15
+CAP-26 pointer  # recorded 2026-11-15
+CAP-27 pointer  # recorded 2026-11-15
+CAP-28 pointer  # recorded 2026-11-15
+CAP-29 pointer  # recorded 2026-11-15
+CAP-30 pointer  # recorded 2026-11-15
+CAP-31 pointer  # recorded 2026-11-15
+CAP-32 pointer  # recorded 2026-11-15
+CAP-33 pointer  # recorded 2026-11-15
+CAP-35 pointer  # recorded 2026-11-15
+CAP-36 pointer  # recorded 2026-11-15
+CAP-7 pointer  # recorded 2026-11-15
+CAP-8 pointer  # recorded 2026-11-15
+CAP-9 pointer  # recorded 2026-11-15
+SEC-24 claim  # recorded 2026-11-15
+SEC-27 claim  # recorded 2026-11-15
+SEC-28 claim  # recorded 2026-11-15
+SEC-33 claim  # recorded 2026-11-15
+SEC-36 claim  # recorded 2026-11-15
+STD-25 pointer  # recorded 2026-11-15

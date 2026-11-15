@@ -79,7 +79,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, table, handoff, identifiers, install, kb, links, moves, newdomain, reads, recipes, skills, streams
+from . import __version__, ask, audit, board, catalogue, citations, cloud, configure, guard, setup as first_setup, table, handoff, identifiers, install, kb, limits, links, moves, newdomain, reads, recipes, skills, streams
 from . import config as configuration
 from .config import ConfigError, command_line, config_path, extractor_runs, load, timeouts
 from .facets import RegisterError
@@ -857,6 +857,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--json", action="store_true")
     p.add_argument("--all", action="store_true", help="also list each variant, each removable entry no longer defined and each stale exception")
+    p = c.add_parser("registers", help="fail on a claim over its limit or a pointer at a whole long file, in a row the baseline of limits.baseline does not list")
+    p.add_argument("folder", nargs="?", default=".")
     p = c.add_parser("links", help="fail on a backlink in code that no register defines, or a pointer of an entry that names a file or line that is not there")
     p.add_argument("folder", nargs="?", default=".")
     p.add_argument("--require", action="append", default=[], metavar="FAMILY", help="also fail on an entry of this family that no backlink in code names. May be given more than once")
@@ -1051,6 +1053,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"vyd: no project claims {arguments.folder}, so there are no skills to check")
                 return 2
             return skills.check(config, project, arguments.sources, arguments.map)
+        if arguments.command == "check" and arguments.check_command == "registers":
+            config, project = bind_in(load(), Path(arguments.folder))
+            return limits.check(config, project, Path(arguments.folder))
         if arguments.command == "check" and arguments.check_command == "links":
             config, project = bind_in(load(), Path(arguments.folder))
             return links.check(config, project, Path(arguments.folder), arguments.require)

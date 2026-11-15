@@ -17,8 +17,12 @@ Anchor forms, comma-separated when there are several:
     a top-level ``def`` or ``class`` of a Python file, over its ``ast`` span, or the module
     docstring as ``path::__doc__``. In a TOML file, the table whose last key is ``Name``, so a
     ``mise`` task is ``mise.toml::check:knowledge``.
+``path.ttl::Name``
+    a Turtle term, as a prefixed name (``mork:Chaining``) or a local name that one subject has. The range is the
+    statement that describes it, from its subject at the start of a line to the line before the next thing that
+    starts a line.
 ``path``
-    a whole file, for Turtle, a manifest and anything without a structure to anchor to.
+    a whole file, for a manifest and anything without a structure to anchor to.
 
 An anchor that does not resolve is an error and never a guessed range.
 """
@@ -161,13 +165,62 @@ def _toml(rel: str, lines: list[str], name: str) -> tuple[int, int]:
     raise Unresolved(f"{rel} has no table '{name}'")
 
 
+SUBJECT_RE = re.compile(r"^([^\s@#][^\s]*)\s")
+
+
+def _turtle(rel: str, lines: list[str], name: str) -> tuple[int, int]:
+    """The statement of a subject written at the start of a line, matched by prefixed name or by local name."""
+    hits = []
+    for i, line in enumerate(lines):
+        match = SUBJECT_RE.match(line)
+        if not match or match.group(1).upper() in ("PREFIX", "BASE"):
+            continue
+        subject = match.group(1).strip("<>")
+        local = re.split(r"[:#/]", subject)[-1]
+        if subject == name or (":" not in name and local == name):
+            hits.append(i)
+    if not hits:
+        raise Unresolved(f"{rel} has no statement for '{name}', which must start a line")
+    if len(hits) > 1:
+        raise Unresolved(f"{rel} describes '{name}' more than once, so the anchor is ambiguous. Use a prefixed name")
+    start = hits[0]
+    end = start + 1
+    while end < len(lines) and (not lines[end] or lines[end][0].isspace()):
+        end += 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    return start + 1, end
+
+
+# @vyd: CAP-44
+def hint(root: Path, rel: str) -> str:
+    """An anchor the file offers, for the note on a pointer at its whole, or an empty string where it offers none."""
+    try:
+        lines = _read(root, rel)
+        if rel.endswith(".md"):
+            found = sections(lines)
+            parts = [s for s in found if s[1] - s[0] + 1 < len(lines)]
+            small = [s for s in parts if s[1] - s[0] + 1 <= WHOLE_FILE]
+            pick = (small or parts or found)[0] if found else None
+            return f"{rel}#{pick[2]}" if pick else ""
+        if rel.endswith(".py"):
+            first = next((n.name for n in ast.parse("\n".join(lines)).body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))), None)
+            return f"{rel}::{first}" if first else ""
+        if rel.endswith(".ttl"):
+            first = next((m.group(1) for m in map(SUBJECT_RE.match, lines) if m and ":" in m.group(1) and not m.group(1).startswith("<")), None)
+            return f"{rel}::{first}" if first else ""
+    except (Unresolved, SyntaxError):
+        pass
+    return ""
+
+
 def resolve_part(root: Path, part: str) -> str:
     """One anchor resolved to ``path:start-end`` against the files as they are now."""
     part = part.strip().strip("`")
     if "::" in part:
         rel, name = part.split("::", 1)
         lines = _read(root, rel)
-        start, end = (_toml if rel.endswith(".toml") else _python)(rel, lines, name)
+        start, end = (_toml if rel.endswith(".toml") else _turtle if rel.endswith(".ttl") else _python)(rel, lines, name)
     elif "#" in part:
         rel, slug = part.split("#", 1)
         lines = _read(root, rel)

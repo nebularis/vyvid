@@ -736,7 +736,23 @@ Good entries have:
 
 Do not turn every paragraph into a register entry. Register durable answers that someone should find again.
 
-An entry can name the part of a file that explains it in a `Pointer` column, as a path with a line range such as `docs/request-contract.md:40-60` or with a heading slug such as `docs/request-contract.md#partial-updates`. `vyd read` then prints that part beneath the row. A pointer at the whole of a file longer than 200 lines is a defect. The build reports it as a note and `read` declines to print the file, so point at a section instead.
+An entry can name the part of a file that explains it in a `Pointer` column, as a path with a line range such as `docs/request-contract.md:40-60` or with a heading slug such as `docs/request-contract.md#partial-updates`. `vyd read` then prints that part beneath the row. A pointer at the whole of a file longer than 200 lines is a defect. The build reports it as a note and `read` declines to print the file, so point at a section instead. The note names one, for example `docs/guide.md#install`. A Python file is pointed at by a top-level name, as `src/app.py::build`, a TOML file by a table, and a Turtle file by a term it describes, as `ontology/spec.ttl::ex:Chaining` or `ontology/spec.ttl::Chaining` where one subject has that local name. The term's range is its statement, from the subject at the start of a line to the next thing that starts a line.
+
+To make the limits bite when a row is added, run the register check.
+
+```bash
+vyd check registers
+```
+
+It fails on a claim over the limit and on a pointer at the whole of a long file, for a row that a baseline does not list. Name the baseline in a `register-types.toml` of the project.
+
+```toml
+[limits]
+claim = 200
+baseline = "register-limits-baseline.txt"
+```
+
+The baseline lists a row already over a limit, as `STD-25 pointer  # reason`, one per line, with the kind `claim` or `pointer`. The check also fails on a baseline line that no longer matches a defect, so the file only shrinks. Only rows in the project's own files count, since a domain's rows are the domain's to fix. The check builds the index without vectors to find them, so it takes seconds and needs no model.
 
 ### Use the packaged register types
 

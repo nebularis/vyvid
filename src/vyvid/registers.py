@@ -60,6 +60,7 @@ class RegisterTypes:
     shown: dict[str, str] = field(default_factory=dict)  # type name -> "asked", for a type find leaves out unless asked for
     unmapped: set[str] = field(default_factory=set)
     claim_limit: int = 200
+    baselines: list[Path] = field(default_factory=list)  # files listing the rows already over a limit, from limits.baseline
 
     @property
     def asked(self) -> set[str]:
@@ -85,6 +86,8 @@ def declarations(sources: list[tuple[str, str]]) -> RegisterTypes:
             problems.append(f"{name}: {error}")
             continue
         out.claim_limit = raw.get("limits", {}).get("claim", out.claim_limit)
+        if listed := raw.get("limits", {}).get("baseline"):
+            out.baselines.append(Path(name).parent / listed)
         out.values.update({k: dict(v) for k, v in raw.get("values", {}).items()})
         out.unmapped |= set(raw.get("unmapped", {}).get("columns", []))
         for header, spec in raw.get("columns", {}).items():
