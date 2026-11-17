@@ -240,17 +240,42 @@ def commit_data(folder: Path, sha: str) -> tuple[str, list[tuple[str, int, str]]
     return message, lines, _split(git(folder, *show, "--name-only", "-z", sha))
 
 
-def pushed(folder: Path, remote: str, stdin: str) -> list[str]:
-    """The commits a push would send, from the lines git gives a pre-push hook."""
+def published(folder: Path, remote: str, url: str) -> list[str]:
+    """The commits the push's destination already holds, as this machine last fetched or pushed them: the tips of the
+    remote-tracking refs of every remote that names the same repository, so ``origin`` counts for a push to ``origin-ssh``.
+    Another repository's refs never count, since a commit on a private remote is not published by being there."""
+    target = normalise_remote(url or remote)
+    try:  # git exits 1 when no remote is configured, which holds nothing
+        configured = git(folder, "config", "--get-regexp", r"^remote\..*\.url$").splitlines()
+    except GitError:
+        configured = []
+    names = [key[len("remote."):-len(".url")] for key, _, value in (line.partition(" ") for line in configured)
+             if normalise_remote(value) == target]
+    if remote and not url:
+        names.append(remote)
+    tips: list[str] = []
+    for name in dict.fromkeys(names):
+        tips += git(folder, "for-each-ref", "--format=%(objectname)", f"refs/remotes/{name}/").split()
+    return list(dict.fromkeys(tips))
+
+
+def _present(folder: Path, sha: str) -> bool:
+    return subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], cwd=folder, capture_output=True).returncode == 0
+
+
+def pushed(folder: Path, remote: str, url: str, stdin: str) -> list[str]:
+    """The commits a push would send that its destination does not already hold, from the lines git gives a pre-push hook.
+    A commit the destination holds is published already, so a branch that merged the remote's main is not stopped for
+    main's commits."""
+    held = published(folder, remote, url)
     shas: list[str] = []
     for line in stdin.splitlines():
         parts = line.split()
         if len(parts) != 4 or parts[1] == NO_COMMIT:
             continue
         local, old = parts[1], parts[3]
-        span = f"{old}..{local}" if old != NO_COMMIT else local
-        extra = [] if old != NO_COMMIT else ["--not", f"--remotes={remote}" if remote else "--remotes"]
-        shas += git(folder, "rev-list", "--reverse", span, *extra).split()
+        known = [old] if old != NO_COMMIT and _present(folder, old) else []  # a tip this machine never fetched excludes nothing
+        shas += git(folder, "rev-list", "--reverse", local, "--not", *known, *held).split()
     return list(dict.fromkeys(shas))
 
 
@@ -290,7 +315,7 @@ def run_hook(config: Config, hook: str, args: list[str], stdin: str, folder: Pat
             _, paths = staged(folder)
             findings = check_message(lists, verdict.kind, text) + check_paths(lists, verdict.kind, verdict.repo, paths, text)
         elif hook == "pre-push":
-            for sha in pushed(folder, args[0] if args else "", stdin):
+            for sha in pushed(folder, args[0] if args else "", args[1] if len(args) > 1 else "", stdin):
                 message, lines, paths = commit_data(folder, sha)
                 found = (check_message(lists, verdict.kind, message) + check_lines(lists, verdict.kind, lines)
                          + check_paths(lists, verdict.kind, verdict.repo, paths, message))

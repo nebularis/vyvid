@@ -385,3 +385,74 @@ def test_nothing_is_guarded_and_no_hook_is_set_up_where_no_guard_is_configured(t
     folder = repo(tmp_path, "open", "git@github.com:example-org/open.git")
     capsys.readouterr()
     assert cli.main(["guard", "status", "--in", str(folder)]) == 0 and "no guard is configured" in capsys.readouterr().out
+
+
+def _bare(tmp_path: Path, name: str) -> Path:
+    bare = tmp_path / f"{name}.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    return bare
+
+
+def _held_back(folder: Path) -> None:
+    """A commit on main that the guard stops, pushed to the shared remote at the maintainer's word."""
+    put(folder, "a.md", "about secret-project\n")
+    run(folder, "add", "-A")
+    assert run(folder, "commit", "-n", "-m", "Add a").returncode == 0
+
+
+def test_a_branch_that_merged_the_remotes_main_is_not_stopped_for_mains_commits(tmp_path, monkeypatch, machine):
+    installed(tmp_path, monkeypatch, machine)
+    folder = repo(tmp_path, "open", "git@github.com:example-org/open.git")
+    run(folder, "remote", "add", "shared", str(_bare(tmp_path, "shared")))
+    run(folder, "branch", "feature")
+    _held_back(folder)
+    assert run(folder, "push", "shared", "main", **{guard.SKIP_ENV: "reviewed"}).returncode == 0
+    run(folder, "checkout", "-q", "feature")
+    put(folder, "b.md", "fine\n")
+    run(folder, "add", "-A")
+    run(folder, "commit", "-m", "Add b")
+    assert run(folder, "push", "shared", "feature").returncode == 0
+    assert run(folder, "merge", "-q", "--no-edit", "main").returncode == 0
+    done = run(folder, "push", "shared", "feature")
+    assert done.returncode == 0, done.stderr
+    put(folder, "c.md", "about secret-project\n")
+    run(folder, "add", "-A")
+    run(folder, "commit", "-n", "-m", "Add c")
+    done = run(folder, "push", "shared", "feature")
+    assert done.returncode != 0 and "c.md:1" in done.stderr and "a.md" not in done.stderr, "the branch's own commit is still checked"
+
+
+def test_another_remote_naming_the_same_repository_counts_as_holding_its_commits(tmp_path, monkeypatch, machine):
+    installed(tmp_path, monkeypatch, machine)
+    folder = repo(tmp_path, "open", "git@github.com:example-org/open.git")
+    shared = _bare(tmp_path, "shared")
+    run(folder, "remote", "add", "shared", str(shared))
+    run(folder, "remote", "add", "shared-again", str(shared))
+    _held_back(folder)
+    assert run(folder, "push", "shared", "main", **{guard.SKIP_ENV: "reviewed"}).returncode == 0
+    run(folder, "checkout", "-q", "-b", "feature")
+    done = run(folder, "push", "shared-again", "feature")
+    assert done.returncode == 0, done.stderr
+
+
+def test_a_commit_only_another_repository_holds_is_still_checked(tmp_path, monkeypatch, machine):
+    installed(tmp_path, monkeypatch, machine)
+    folder = repo(tmp_path, "open", "git@github.com:example-org/open.git")
+    run(folder, "remote", "add", "private", str(_bare(tmp_path, "private")))
+    run(folder, "remote", "add", "public", str(_bare(tmp_path, "public")))
+    _held_back(folder)
+    assert run(folder, "push", "private", "main", **{guard.SKIP_ENV: "reviewed"}).returncode == 0
+    run(folder, "checkout", "-q", "-b", "feature")
+    for branch in ("feature", "main"):
+        done = run(folder, "push", "public", branch)
+        assert done.returncode != 0 and "a.md:1" in done.stderr, f"{branch}: a commit on the private remote is not published by being there"
+
+
+def test_a_push_by_url_skips_nothing_another_repository_holds(tmp_path, monkeypatch, machine):
+    installed(tmp_path, monkeypatch, machine)
+    folder = repo(tmp_path, "open", "git@github.com:example-org/open.git")
+    run(folder, "remote", "add", "private", str(_bare(tmp_path, "private")))
+    _held_back(folder)
+    assert run(folder, "push", "private", "main", **{guard.SKIP_ENV: "reviewed"}).returncode == 0
+    done = run(folder, "push", str(_bare(tmp_path, "by-url")), "main:refs/heads/new")
+    assert done.returncode != 0 and "a.md:1" in done.stderr

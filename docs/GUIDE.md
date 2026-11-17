@@ -3498,9 +3498,9 @@ To remove the hooks, run `git config --global --unset core.hooksPath`.
 |---|---|
 | `pre-commit` | each line the commit adds, and each path it adds or changes |
 | `commit-msg` | the message, and, in a public repository, that a commit touching a sensitive path carries a `Placement:` trailer |
-| `pre-push` | every commit the push would send, by message, added lines and paths. A commit made with `--no-verify` is caught here |
+| `pre-push` | every commit the push would send that the destination does not already hold, by message, added lines and paths. A commit made with `--no-verify` is caught here |
 
-Merge commits are checked by message alone. Only added lines are read, so text that is already in a repository is never blocked until someone edits it. To find what a new list leaves in existing text, run `vyd guard check --all`.
+A push skips each commit the destination repository already holds, since it is published already, so a branch that merged the remote's `main` is not stopped for `main`'s commits. What the destination holds is read from the remote-tracking refs of every remote whose URL names that repository, so `origin` counts for a push to a second remote such as `origin-ssh`, as of the last fetch or push. Another repository's refs never count, so a commit that is only on a private remote is still checked when it goes to a public one. Merge commits are checked by message alone. Only added lines are read, so text that is already in a repository is never blocked until someone edits it. To find what a new list leaves in existing text, run `vyd guard check --all`.
 
 Three built-in patterns ship with the code and need no list. `home-path` finds a personal home folder such as `/Users/<name>/` in a public repository. `private-key` and `token` find a private key block and the common token shapes in every guarded repository. Switch one off by naming it in `allow`.
 
