@@ -30,57 +30,990 @@
 
 ## Using it
 
+Each command below has a section with its form, what it is for, its options and what to watch for. [docs/GUIDE.md](docs/GUIDE.md) walks through the same commands in the order a project adopts them. Every command prints results on standard output and notes and problems on standard error, so a pipe carries only the results. Most commands take `--in <folder>` or a `folder` argument, which defaults to the folder you are in and decides which project's stack answers.
+
+### Installing and global options
+
+#### Installing `vyd`
+
 ```bash
-mise run install                       # uv tool install --editable, so vyd runs this working tree
-vyd config [folder]                    # where the configuration is read from, whether it is sound, and the folder's own vyvid.toml
-vyd context ~/work/lattice             # the layers of rules that apply there, the project's last
-vyd resolve TSD-41 --in ~/work/lattice # the canonical scope:LOCAL an identifier names
-vyd kb status                          # each managed domain: clone, branch, ahead and behind, changes, last pull, policy
-vyd kb clone [domain ...]              # clone the named domains, or every managed one whose folder is missing
-vyd kb pull [domain ...] [--due]       # fast-forward pull, only the domains whose policy says one is due with --due
-vyd kb record <path> ... -m <message>  # stage changed register files, then commit and push as the domain's policy says
-vyd check citations [--staged] [--message <file>] [paths ...] # refuse lines a public project adds, or a commit message or pull request text, that cite an entry of a private scope or of the project's private documents
-vyd docs record <path> ... -m <message> [--in folder] # stage paths in the project's documents folder, outside its code repository, then commit and push as its git.docs policy says
-vyd board [folder] [--all] [--fetch] [--measure] [--commits] [--here] [--state <word>] # where every record and slice is, across every local and remote branch, once the project declares work settings. --here reads the families of type slice in the one checkout
-vyd work build [--check]               # write the index's generated region from the status records, or fail if it is stale
-vyd work roadmap [--check] [--fetch]   # write the roadmap's generated regions from every branch a remote knows, read from its refs, so a branch never pushed is left out
-vyd work check [--staged]              # hold the status records to the ladder and the grammar and the index's region to the records, as a hook runs it
-vyd work parse <record>                # a status record's board as read
-vyd work rename | normalise | adopt [--apply] # move older boards and identifiers onto the board's shape. Each reports without --apply
-vyd here [--role build|review|read] [--model m] [--on ids] [--leave] # who else is working in this checkout
-vyd check identifiers [--json] [--all] [folder] # fail on an identifier the tracked Markdown mentions and nothing defines, or one a family defines twice
-vyd check links [folder] [--require <family>] # fail on a backlink in code that no register defines, or a pointer of an entry that names a file or line that is not there
-vyd refs <identifier> [--in folder]    # every tracked line that defines, backlinks or mentions an identifier
-vyd expand [words] [--in folder]       # a prompt, from the words or standard input, followed by the claim and pointer of every identifier it mentions
-vyd mcp [--in folder]                  # serve context, find, node, read, reaches, refs and expand to an editor as Model Context Protocol tools, over standard input and output
-vyd recipe list [--in folder]          # the recipes of the folder's stack, with when to use each
-vyd recipe run <name> "<question>" [--in folder] [--all] [--json] # run a recipe and print its briefing, within its budget unless --all
-vyd recipe run <name> "<question>" --stop-at-glue # stop at each glue step and print its command for your client to run, then vyd recipe run --resume <state> --glue-output <file>
-vyd kb accept <domain>                 # a person fast-forwards a domain whose pull was held, after reading what changed
-vyd trust [path]                       # a person trusts a configuration outside their own folder, or this repository's vyvid.toml, by its hash, so its glue and command extractors run
-vyd cloud script --output <file> [--domain name[=~/path]] [--grant remote] [--dry-run] # write the setup script for a cloud environment, embedding the private domains you name and cloning the public ones. The script holds private text, so it goes to a file and is never printed
-vyd store prune [--dry-run]            # remove the index stores of linked git worktrees that no longer exist
-vyd install [--client name] [--project] [--in folder] [--hooks] [--target folder] [--dry-run] # set up each client found, its rule file and the skills of private domains
-vyd domain new <name> [--registers <type>] [--path <folder>] # write a new domain folder with a manifest, a facet stub, an empty register and a skill stub, and print the lines to add to your configuration, which it does not change (`vyd domain add` adds a domain)
-vyd domain trust <name> own|reviewed|knowledge [--commit <hash>] [--dry-run] # change the trust of a configured domain, keeping your comments. Raising it, or moving a reviewed commit, needs a person at a terminal
-vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge] [--commit <hash>] [--dry-run] # add a domain to your configuration, keeping your comments. A trust of own or reviewed needs a person at a terminal. A remote is cloned later by vyd kb clone
-vyd domain remove <name> [--dry-run]   # take a domain out of your configuration, refused while a project uses it. Its folder is left alone
-vyd project add <name> [--code <folder>] [--docs <folder>] [--contract <path>] [--remote <url>] [--domain <name>] [--visibility public|private] [--file] [--dry-run] # declare a project. In a git checkout its code folder and remotes are read from it
-vyd project set <name> <key> <value> ... [--file] [--dry-run] # set a plain key of a project, such as docs, visibility or domains
-vyd project remove <name> [--dry-run]  # take a project out of your configuration. Its index store, logs and folders are left alone
-vyd project scan <name> [--apply] [--file] [--dry-run] # read the tables of the project's documents and propose a family for each register. A table it cannot place is named, never guessed
-vyd family add <project> <name> --defined <path> --type <type> [--pattern <regex>] [--removable] [--file] [--dry-run] # declare an identifier family and the register that defines it
-vyd family remove <project> <name> [--file] [--dry-run] # remove a family. Its register is left alone
-vyd domain audit <folder> [--json] [--allow <scope>] # list the links, files, paths, hidden text, commands and qualified mentions of other scopes in a domain you did not write, running nothing from it
-vyd find <words> --kind symbol [--in folder] # the project's functions, types and classes ranked by meaning, with the comments and module headers its authors wrote around the code, from source parsed apart from the graph. Needs vyvid[symbols]
-vyd read <package:Module.name>         # the source lines of a symbol or of a section of prose around the code, read inside the repository
-vyd handoff <name> [--module M] [--unit U] [--in folder] # the exact commands for the compiler index a project registers, printed and never run
-vyd move check [--ref <git ref>] [--json] [folder] # compare what the project moved to a domain, as it stood at the move's commit, with the source at a ref, by identifier. Exits 1 on a difference
+uv tool install "git+https://github.com/nebularis/vyvid.git@<tag>"
+uv tool install "vyvid[symbols] @ git+https://github.com/nebularis/vyvid.git@<tag>"
+mise run install
 ```
+
+The first line installs the tool at a released tag, and the second adds the grammars that source search needs. In a clone of this repository, `mise run install` installs it editable, so `vyd` runs that working tree.
+
+- Вивід is not on PyPI, so install from the Git source.
+- An editable install follows the working tree, so a branch you check out or a file you edit changes the `vyd` every project runs.
+- Reinstalling with other extras needs `--force`.
+- The same install provides `vyd-hook`, which the reminder hooks run, described at the end of this section.
+- The first question downloads the embedding model into the platform cache, and everything after it runs locally.
+
+#### Global options
+
+```bash
+vyd --version
+vyd <command> ... --table plain|pretty|md|auto --colour auto|always|never
+vyd table-demo
+```
+
+`--version` prints the name and the version, always ending in the bare version number. `--table` and `--colour` may stand anywhere on the line of any command that prints a table.
+
+| Option | Meaning |
+|---|---|
+| `--table plain` | the default, columns separated by two spaces with a cell cut at 90 characters and an identifier never cut. This is the form an agent reads |
+| `--table pretty` | columns fitted to the terminal, a long cell wrapped and never cut |
+| `--table md` | a Markdown pipe table with every cell whole, to paste into a pull request |
+| `--table auto` | `pretty` at a terminal and `plain` otherwise |
+| `--colour auto\|always\|never` | whether a `pretty` table is painted. `--color` is accepted too |
+
+- The flag wins, then `VYD_TABLE` or `VYD_COLOUR`, then `NO_COLOR` and `FORCE_COLOR` for colour, then `table` and `colour` in `[framework]`.
+- `plain` and `md` are never painted, so no escape code reaches an agent or a document.
+- `vyd table-demo`, which `--help` does not list, prints a sample in every style with the width and encoding of your terminal, to see what they look like there.
+- Output keeps the encoding of the stream it goes to. A character the stream cannot hold is written as an escape such as `і` and never ends the command. Set `PYTHONIOENCODING=utf-8` when a program needs exact UTF-8.
+
+### Setting up a machine
+
+#### `vyd setup`
+
+```bash
+vyd setup [folder] [--no-clone] [--dry-run]
+```
+
+Writes a first configuration on a machine that has none. It sets `[framework] kb` to a folder in Вивід's data folder when it is not set, adds each published domain the folder's project names in its `vyvid.toml`, from `https://github.com/nebularis/vyvid-<name>.git` with trust `knowledge`, and clones them.
+
+| Option | Meaning |
+|---|---|
+| `folder` | the repository whose `vyvid.toml` names the domains, the current folder by default |
+| `--no-clone` | add the domains and leave the cloning to `vyd kb clone` |
+| `--dry-run` | print the plan and write nothing |
+
+- It knows only the published domains `lifecycle`, `tools`, `python`, `haskell`, `triple-stores` and `rdf-modelling`. Any other domain is listed for you to add with `vyd domain add`.
+- Running it again changes nothing, and it never overwrites a `kb` or a domain you configured.
+- Every domain it adds gives knowledge alone, so agents get no skills from it until you review it. It prints `vyd domain trust <name> reviewed --commit <hash>` for each, to run once you have read the domain.
+- It ends by listing what is left for you, such as `vyd trust`, which a person runs in a terminal.
+
+#### `vyd config`
+
+```bash
+vyd config [folder]
+```
+
+Says where the configuration is read from, whether it is sound, and what applies in the folder. It prints the configuration's path and whether it is trusted, the domains and projects, any domain set aside with the reason, the repositories listed in `trusted_repositories`, the project the folder binds to and whether its `vyvid.toml` is trusted, and whether what `vyd install` wrote is out of date.
+
+- The configuration is the file `VYVID_CONFIG` names, else `config.toml` in the platform's configuration folder. Use the path this prints rather than guessing the folder.
+- The `configuration trust:` line is about your configuration and the `project` line about the repository's `vyvid.toml`. They are separate standings.
+- A file saved with a byte order mark or as UTF-16 is read all the same. A file in any other encoding is reported as a problem that names it.
+- Run it first whenever `vyd context` shows only the general scope.
+
+#### `vyd trust`
+
+```bash
+vyd trust [path]
+```
+
+A person trusts a configuration outside their own folder, or the `vyvid.toml` of the repository they stand in, by the hash of its bytes, so its glue and command extractors run and its contract and skills reach agents. It prints what the file declares that an agent would read or that would run as you, and records the trust only on a typed `yes`.
+
+- It needs a terminal for its input and its output. Under a task runner that captures output, such as `mise run`, it refuses at once and prints the command to run yourself, for example `mise exec -- vyd trust`.
+- Any change to the file lapses the trust, so trust again after editing it, after `vyd project set --file` or after `vyd reads pin`.
+- Linked worktrees share the record while their file holds the same bytes. A worktree whose `vyvid.toml` differs replaces the record for the whole repository, so switching between them needs trusting again. Listing the repository in `[framework] trusted_repositories` avoids that.
+- An agent must never answer it on a person's behalf.
+
+#### `vyd install`
+
+```bash
+vyd install [--client claude-code|copilot] [--hooks] [--target folder] [--no-git-hooks] [--dry-run]
+vyd install --project [--in folder] [--dry-run]
+```
+
+Without `--project` it sets up each agent client at user level. For each client it writes the skill that reviews a domain someone else wrote, and for Claude Code a rule file telling the agent to ask the index first and a read-only reviewer agent. It adds the skills of private domains and of domains whose entry says `user_skills = true`, and puts a domain's `always_rules` where Claude Code loads rules in every session. With `--project` it composes the folder's project's skills into its checkout, under each folder `skill_targets` names, to be committed, and registers the reminder hook for each client in `hook_clients`.
+
+| Option | Meaning |
+|---|---|
+| `--client` | only this client. Without it every client whose folder exists, `~/.claude` and `~/.copilot` |
+| `--hooks` | also register the reminder hook in the client's user-level settings, where the client documents a place for one |
+| `--target folder` | write into this folder instead of the client's own, to inspect the result. Needs `--client` |
+| `--no-git-hooks` | leave out the guard's git hooks, which are set up whenever a guard is configured |
+| `--project` | compose the project's skills and hooks into its checkout |
+| `--in folder` | with `--project`, the folder whose project is written |
+| `--dry-run` | say what would be written and write nothing |
+
+- With no client folder present it writes nothing and exits 1, so name one with `--client`.
+- A file that `vyd install` did not write is never overwritten. It is reported and the command exits 1.
+- Generated files whose source is gone are removed, except that `--project` removes none while a domain or a read the project uses is not reviewed, since their skills could not be composed. It then writes what it can, names each such domain with the line that reviews it, and exits 1.
+- A skill with a placeholder nobody gives a value for is not written, and the command names the value and exits 1.
+- A knowledge domain gives no skills, and a private domain's skills never go into a checkout.
+- Copilot documents no user-level hook file, so `--hooks` with `--client copilot` writes nothing and exits 1. Register its hook with `--project`.
+- Do not edit generated skills. Change their sources and run it again.
+
+### Asking the index
+
+#### `vyd context`
+
+```bash
+vyd context [folder] [--json] [--no-pull]
+```
+
+The layers of rules that apply in a folder, general first and the project last, with each layer's contract, skills and recipes, the reads a project makes, the code indexes it registers and, where a guard is configured, the folder's class. Run it before the first task in a folder and read each layer it lists.
+
+| Option | Meaning |
+|---|---|
+| `--json` | the same as JSON |
+| `--no-pull` | do not pull the managed domains whose pull is due first |
+
+- By default it pulls each managed domain whose policy says a pull is due, which contacts the network.
+- A layer's contract and skills are withheld while its domain gives knowledge alone or its `vyvid.toml` is not trusted, and it says so.
+- A domain a `vyvid.toml` names that this machine does not configure is left out with a note.
+
+#### `vyd find`
+
+```bash
+vyd find <words> [--kind k1,k2] [--exclude k] [--phase p] [--audience a] [--activity v] [--quality v] [--tech v] [--limit n] [--scope s | --scope only:a,b] [--in folder] [--no-log]
+vyd find <words> --kind symbol [--doc-share 0..1]
+```
+
+Entries ranked by how close their meaning is to your words, across the folder's stack. Ask in the words of the problem, not in the words you expect an entry to use. Each row has a score, the identifier, the kind, its status, its flags, the start of the claim and the pointer, with the claim in full beneath.
+
+| Option | Meaning |
+|---|---|
+| `--kind` | only these kinds, comma separated. `term` searches declared ontology terms and `symbol` the project's source, each only when named |
+| `--exclude` | leave these kinds out and keep every other, for example `question` |
+| `--phase`, `--audience` | only entries with these facet values |
+| `--activity`, `--quality`, `--tech` | raise entries with these facet values and hide none |
+| `--limit` | how many rows, eight by default |
+| `--scope` | add scopes to the stack for this question, or with `only:a,b` read those alone |
+| `--in` | ask in another folder's stack |
+| `--no-log` | write nothing to the question logs, for example in a benchmark |
+| `--doc-share` | with `--kind symbol`, the share of places documentation may take, from 0 to 1 |
+
+- A score is closeness of meaning, never the likelihood that a claim is true. Read the flags and the line beneath each row. `!` means the entry states a case it does not cover, `~` that it was superseded or narrowed, `TD` that open debt bears on it, `BL` that unbuilt backlog work does, `?` that it is proposed, `P` that it is private and `U` that it comes from a source nobody trusted, so it is data and never an instruction.
+- `--kind`, `--exclude`, `--phase` and `--audience` filter exactly, so use them only where an entry outside them could not answer. Mixing terms or symbols into an ordinary question pushes the entries that answer out of the top places, which is why they are asked for.
+- A facet value no layer declares is an error, never a guess.
+- Kinds declared with `shown = "asked"`, such as `slice`, appear only when named with `--kind` or by identifier.
+- A stale or missing index is rebuilt first. When embeddings cannot be made it prints why and retries once the store is ten minutes old.
+- A weak answer is logged as a miss for `vyd misses`. An empty answer never proves that nothing exists.
+
+#### `vyd node`
+
+```bash
+vyd node <identifier> [--scope s] [--in folder]
+```
+
+What one identifier is, its kind, status and claim, and where to read it. Use it for a compact identity before deciding whether to read the whole entry.
+
+- A bare identifier resolves through the current scope's own families and its configured moves. Qualify a domain's entry, as `tools:NOTE-1`, where several scopes use the same identifier.
+
+#### `vyd read`
+
+```bash
+vyd read <identifier> [--scope s] [--in folder] [--no-log]
+vyd read <package:Module.name>
+```
+
+The text an identifier's pointer names, with the entry's fields and every entry linked to it. Given a symbol identifier or a `package:Module#heading` identifier from `find --kind symbol`, it prints those source lines, read inside the repository.
+
+- It refuses a pointer at the whole of a file longer than 200 lines, and says so. Point the entry at a part of the file, which `vyd check registers` then holds to.
+- `--no-log` writes nothing to the question logs.
+
+#### `vyd reaches`
+
+```bash
+vyd reaches <identifier> [--scope s] [--in folder]
+```
+
+What an identifier touches through the relations registers declare, such as `supports`, `decidedBy` or `dependsOn`.
+
+- It follows declared relations alone. It is not a call graph, and it does not prove the full reach of a change.
+
+#### `vyd exists`
+
+```bash
+vyd exists <word> [--scope s] [--in folder]
+```
+
+Whether a term of that name already exists, by text, across the ontology modules of the stack and selected kinds of entry. Run it before declaring a name, so the same thing is not declared twice.
+
+- It matches text and does not rank by meaning, so it complements `find` and never replaces it.
+- Finding nothing is logged as a miss, which brings a gap in the vocabulary to light.
+
+#### `vyd resolve`
+
+```bash
+vyd resolve <identifier> [--in folder]
+```
+
+The canonical `scope:LOCAL` an identifier names from the folder's scope, following families, delegations and moves. A notice explaining how it resolved goes to standard error.
+
+- An identifier a project moved to a domain prints the domain's identifier, so the project's text need not be rewritten.
+
+#### `vyd refs`
+
+```bash
+vyd refs <identifier> [--in folder]
+```
+
+Every tracked line that writes an identifier, as `file:line`, and whether it `defines`, `backlinks` or `mentions` it. Use it to find where a standard is enforced or what cites an entry before you change it.
+
+- A definition is found only in a register and a backlink only in code, in an `@vyd:` comment. Everywhere else is a mention.
+- Only files `git ls-files` lists are read.
+
+#### `vyd expand`
+
+```bash
+vyd expand [words] [--in folder]
+```
+
+A prompt, from the words or from standard input, followed by the kind, status, claim and pointer of every identifier it mentions, so an agent is handed what the identifiers mean and not only their names.
+
+- Pipe a prepared prompt in, for example `vyd expand < prompt.md`.
+
+#### `vyd sparql`
+
+```bash
+vyd sparql '<query>' [--scope s] [--in folder]
+```
+
+Runs a SPARQL query against the graphs of the folder's stack, for a question the other commands do not cover.
+
+- It sees the stack's graphs, not every configured project.
+- The store is derived, so fix a wrong fact in its source register and never in the store.
+
+#### `vyd build`
+
+```bash
+vyd build [folder] [--all] [--no-embed]
+```
+
+Builds the index of the folder's project and its stack, parsing changed source symbols into the symbol store too. A question rebuilds a stale index by itself, so run this to see the build's notes or to build ahead of time.
+
+| Option | Meaning |
+|---|---|
+| `--all` | every configured scope, not only the folder's stack |
+| `--no-embed` | build the store without vectors, which is enough to inspect extraction and leaves semantic search unavailable |
+
+- Read every note it prints, even when it exits 0. A note names a register cell it could not read, a claim cut at 200 characters or a pointer at a whole long file, and a usable partial index can hide them.
+- The first build downloads the embedding model.
+- A linked worktree gets a store of its own, so one checkout's code never answers in another.
+
+#### `vyd mcp`
+
+```bash
+vyd mcp [--in folder]
+```
+
+Serves `context`, `find`, `node`, `read`, `reaches`, `refs` and `expand` as Model Context Protocol tools over standard input and output, for an editor or an agent client. Register it as a command, for example `claude mcp add vyvid -- vyd mcp`.
+
+- Each call runs `vyd` as its own process in the folder the server started in, or the one `--in` names, so the server keeps no state and a stale index is rebuilt by the call that finds it.
+- Every tool answers with the plain table, whatever your table and colour settings say.
+
+#### `vyd handoff`
+
+```bash
+vyd handoff <name> [--module M] [--unit U] [--in folder]
+```
+
+The exact commands to ask a compiler's index that a project registers, printed and never run. Given a definition's name, with `--module` naming its module, it prints the commands that find its definition and references. Given a module, it prints the commands that list what that module calls, and `--unit` keeps those to units whose name starts with the text you give.
+
+- `hiedb` is the only kind with command templates so far.
+- It checks that the database exists and holds rows, and says when its sources are newer than it. It never builds the database.
+- The registered build command is shown as text and withheld until the `vyvid.toml` is trusted.
+
+### Recipes
+
+#### `vyd recipe list`
+
+```bash
+vyd recipe list [--in folder]
+```
+
+The recipes of the folder's stack, each with its scope and when to use it. Check here for one that fits the work before assembling a briefing by hand.
+
+- A recipe in a narrower scope replaces one of the same name in a wider scope, so the list shows which one runs.
+
+#### `vyd recipe run`
+
+```bash
+vyd recipe run <name> "<question>" [--in folder] [--all] [--json] [--dry-run]
+vyd recipe run <name> "<question>" --stop-at-glue
+vyd recipe run --resume <state> --glue-output <file>
+```
+
+Runs a recipe, a named chain of `find`, `linked`, `include`, `take` and `glue` steps, for a question, and prints the briefing within the recipe's budget.
+
+| Option | Meaning |
+|---|---|
+| `--in` | the folder whose stack the recipe comes from |
+| `--all` | every entry, ignoring the budget |
+| `--json` | the entries as JSON |
+| `--dry-run` | print each step and each glue command with its folder, and run nothing |
+| `--stop-at-glue` | stop at a glue step and print its command, folder, input and output files for your client to run |
+| `--resume state` | carry on from the state file a stopped run printed |
+| `--glue-output file` | with `--resume`, the file holding the glue command's output |
+
+- The budget is an estimate at four characters a token, and the last entries are dropped when the briefing runs over it.
+- A run that stops at glue exits 3, so automation must tell that apart from success. `[framework] glue = "stop"` makes every run stop at glue, so each command passes through your client's own permission checks.
+- Glue runs only for a trusted project, in its code folder with a minimal environment and a time limit. A command you run yourself after a stop gets your shell's environment instead.
+- Glue replaces the accumulated entries, so a faulty glue command can drop context as well as add it.
+
+### Closing the knowledge loop
+
+#### `vyd misses`
+
+```bash
+vyd misses [--limit n] [--near] [--in folder]
+```
+
+The questions the folder's project asked that were answered weakly or not at all, newest first, then the gaps recorded with `vyd gap`. With `--near` it also lists the questions answered between the weak and the near score. Report it at each handoff, with the column or edge that would have carried each answer.
+
+- It first asks each logged question again and removes those the index now answers, so it loads the embedding model.
+- Questions are logged per project, under `logs/<project>` in the store, so another project's misses never show.
+- Nothing is logged with `[framework] logs = false`.
+- `--limit` defaults to 20.
+
+#### `vyd gap`
+
+```bash
+vyd gap "<what was found>" [<ID>] [<path:line>] [--in folder]
+```
+
+Records, as soon as you find it, what reading a file told you that the index did not, with the entry it qualifies and the line it was read from. The question asked just before is kept with it.
+
+- An argument holding `/` or a line number is taken as the place, and anything else as an entry.
+- Write the missing signpost into the register, then run `vyd close`.
+
+#### `vyd close`
+
+```bash
+vyd close <ID> ... [--in folder]
+```
+
+Closes the gaps recorded against these entries once their signpost is written, and removes the related lines of the logs, the gap and the miss of the question asked before it.
+
+- Rebuild and run `vyd check identifiers` before closing, so the signpost is in the index.
+
+### Checks
+
+Each check exits 0 when it passes and 1 when it fails. Where it could not run, it says so and exits 2, so a hook or a script can tell a check that did not run from one that passed.
+
+#### `vyd check identifiers`
+
+```bash
+vyd check identifiers [folder] [--all] [--json]
+```
+
+Fails on an identifier that the tracked Markdown mentions and nothing defines, and on one a family defines twice.
+
+| Option | Meaning |
+|---|---|
+| `--all` | also list each spelling variant, each removable entry no longer defined and each stale exception |
+| `--json` | everything found, as JSON |
+
+- It reads the files `git ls-files` lists and never walks folders, so an ignored file is not read.
+- A passing run prints one line. What it reports and never fails is counted after "Reported, never failed".
+- A family with `removable = true` reports its unresolved mentions without failing, `defined_only = true` stops a loose pattern reading ordinary text as identifiers, and an `exceptions` file lists identifiers defined nowhere on purpose, each with a reason.
+- When an identifier is defined twice, the line committed first keeps the number.
+- A mention covered by a move resolves only if the domain defines it. A symbol identifier the store no longer holds is reported as `symbol gone`.
+- It exits 2 when the tracked files cannot be listed, and 1 when a pattern runs out of time.
+
+#### `vyd check links`
+
+```bash
+vyd check links [folder] [--require FAMILY ...]
+```
+
+Fails on an `@vyd:` backlink in code that no register defines, and on a pointer of the project's own entries that names a missing file or a line past its end.
+
+| Option | Meaning |
+|---|---|
+| `--require FAMILY` | also fail on an entry of this family that no backlink names. May be given more than once |
+
+- A backlink is a comment holding `@vyd:` and identifiers separated by commas, in a tracked file that is not Markdown. Only those lines are read, since code and tests hold text that merely looks like an identifier.
+- Renumbering or withdrawing an entry shows up here, in the code that named it.
+
+#### `vyd check registers`
+
+```bash
+vyd check registers [folder]
+```
+
+Fails on a row of the project's own registers whose claim is over its limit, 200 characters by default, or whose pointer names the whole of a file longer than 200 lines, unless the baseline lists the row. The build only notes these, so this check makes them fail when the row is added.
+
+- The baseline is the file `limits.baseline` names in a `register-types.toml`, with one `ID claim` or `ID pointer` per line and a reason after `#`.
+- A baseline line that no longer matches a defect fails too, so the baseline only shrinks.
+- A domain's rows are the domain's to fix and are not counted.
+- It builds an index without vectors in a scratch folder, so it takes a few seconds. It exits 2 when the baseline cannot be read.
+
+#### `vyd check skills`
+
+```bash
+vyd check skills [folder] [--from old/SKILL.md ...] [--map map.tsv]
+```
+
+Fails where a skill committed in the checkout differs from what its sources compose to, is missing, has no source any longer or lacks a placeholder value.
+
+| Option | Meaning |
+|---|---|
+| `--from` | old skill files, each of whose lines must appear in a composed skill or in the map, so a move loses nothing |
+| `--map` | with one `--from` file, a tab-separated file with `line` and `destination` columns that gives a line a home elsewhere |
+
+- It exits 2, saying it did not run, where a domain or a read the project uses is not reviewed, a domain's sources are missing, no project claims the folder or its `vyvid.toml` is not trusted. It names each domain with the line that reviews it.
+- A fresh machine leaves every domain at `knowledge`, so this is the answer until they are reviewed.
+- After it fails, run `vyd install --project` and commit the regenerated skills with the change to their sources.
+
+#### `vyd check citations`
+
+```bash
+vyd check citations --staged [--in folder]
+vyd check citations --message <file> [--in folder]
+vyd check citations <path> ... [--in folder]
+```
+
+Refuses lines of a public project that cite an entry of a private scope, or of the project's private documents, bare or qualified.
+
+| Option | Meaning |
+|---|---|
+| `--staged` | the lines staged in the code repository, and in the documents repository when that is public |
+| `--message file` | a commit message or pull request text, every line of which is checked |
+| `paths` | files or folders whose every line is checked |
+
+- It needs at least one of the three, and exits 2 otherwise.
+- A private project may cite anything, so the check passes there at once.
+- It resolves identifiers. It does not detect a paraphrase, a copied passage or a sensitive fact, which is what the guard and a review are for.
+
+#### `vyd move check`
+
+```bash
+vyd move check [folder] [--ref <git ref>] [--json]
+```
+
+Compares the entries each move names, as the source stood at the move's commit, with the source in the working tree or at a ref, by identifier. Run it on each branch that matters before removing a project's copy of what it moved to a domain.
+
+- It exits 1 on a difference and 2 when something cannot be read.
+- A source file absent at the ref is reported as `file-absent`, which is not a difference.
+- A move with `copy_removed = true` is reported as `copy-removed` where the source at the ref matches the working tree, so the answer holds after a squash merge. Where the ref differs, an entry it changed or added is still reported.
+
+### Working with the board
+
+These commands need the project's `[project.work]` settings, described in [The work board](#the-work-board).
+
+#### `vyd board`
+
+```bash
+vyd board [folder] [--all] [--fetch] [--state word] [--measure] [--commits] [--here]
+```
+
+Where every status record and slice of the project stands, read from the tip of every local and remote branch without a checkout, with what differs from the trunk, which branches moved a slice and any slice claimed twice. Ask it before reading branches.
+
+| Option | Meaning |
+|---|---|
+| `--all` | every row, not only what differs from the trunk |
+| `--fetch` | fetch every remote first, pruning deleted branches |
+| `--state word` | only slices whose state starts with this word, such as `building` |
+| `--measure` | add each branch's share of content already on the trunk. This is the slow part |
+| `--commits` | add the commit that set each printed row |
+| `--here` | read the slice families in this one checkout |
+
+- It reads committed tips, so an edit you have not committed is not on it. Read the record itself while preparing a change.
+- A claim on another clone appears only after it was pushed and you fetched.
+- `--measure` compares content, which is what counts after a squash merge. It is not proof that the work was merged correctly.
+- Without work settings it falls back to the slice families of this checkout.
+
+#### `vyd work build`
+
+```bash
+vyd work build [--check] [--in folder]
+```
+
+Writes the generated region of the project's work index from the status records in the working tree. Text outside the region stays yours.
+
+- `--check` fails when the region is stale and writes nothing.
+- Change the status records, never the generated rows.
+- It refuses to write for a project whose `vyvid.toml` nobody has trusted.
+
+#### `vyd work roadmap`
+
+```bash
+vyd work roadmap [--check] [--fetch] [--in folder]
+```
+
+Writes the generated regions of the roadmap, with programme summaries, branches, completed work and dated charts, from every branch a remote knows, read at its remote tip.
+
+- A branch never pushed is left out, and so is a local commit not yet pushed, since the roadmap is committed. The tree being built supplies its own records, under `this checkout` when no remote knows its branch.
+- Remotes that share one URL count as one. A second, private remote can still put the names of its branches into the roadmap.
+- Use `--fetch` so remote tips are current. `--check` fails when the regions are stale and writes nothing.
+- A unit gets a chart of its own once it has five dated slices, or the number `chart_after` sets.
+
+#### `vyd work check`
+
+```bash
+vyd work check [--staged] [--in folder]
+```
+
+Holds the status records to the ladder and the identifier grammar, and the index's generated region to the records, as a hook runs it. It exits 1 when it has anything to report.
+
+- `--staged` checks only the staged status records, and the region only when a record or the index is staged.
+- It takes the names of staged records from the index but reads their text from the working tree, so an unstaged edit in a staged record is what it checks.
+
+#### `vyd work parse`
+
+```bash
+vyd work parse <record> [--in folder]
+```
+
+Prints a status record's board as `vyd` reads it. Use it when a row does not appear on the board or appears with the wrong state.
+
+#### `vyd work normalise`
+
+```bash
+vyd work normalise [--apply] [--in folder]
+```
+
+Rewrites every status record's board into the standard columns and state words, and updates a unit's rolled-up status. It reports the changes, and writes them only with `--apply`.
+
+#### `vyd work rename`
+
+```bash
+vyd work rename [--apply] [--in folder]
+```
+
+Builds the crosswalk from historic slice identifiers and sweeps every mention onto the grammar, as `[[project.work.rename]]` declares. It reports, and writes only with `--apply`.
+
+- It renames only what the project's rename rules declare. It is not a general renumbering tool.
+
+#### `vyd work adopt`
+
+```bash
+vyd work adopt [--apply] [--in folder]
+```
+
+Brings onto a record's board the slices that its other tables, a Validation Pack or a plan name and the board lacks. It reports, and writes only with `--apply`.
+
+- After applying any of the three, run `vyd work build`, `vyd work check` and `vyd check identifiers`.
+
+#### `vyd here`
+
+```bash
+vyd here [--in folder]
+vyd here --role build|review|read [--model name] [--on ID,ID] [--leave]
+```
+
+Without a role it lists the live sessions in this checkout. With `--role` it writes your presence, so a second session sees that one is already building there.
+
+| Option | Meaning |
+|---|---|
+| `--role` | write your presence with this role |
+| `--model` | the model you run on, written by hand since no client says it |
+| `--on` | the slices you are on, separated by commas |
+| `--leave` | remove your presence |
+| `--now` | the clock as an ISO timestamp, for tests |
+
+- Plain `vyd here` does not register you.
+- Presence is advisory and not a lock. It lives for twelve hours after its file was last written, and writing your role again refreshes it.
+- The session comes from `CLAUDE_CODE_SESSION_ID` or `AGENT_SESSION_ID`, else from `VYD_SESSION_ID` and `VYD_CLIENT`. Without a distinct identifier, sessions share one file and hide each other.
+- The files live in the checkout's git directory unless `presence` names a folder, so git never tracks them and each worktree has its own.
+- Writing presence is refused for a project whose `vyvid.toml` nobody has trusted.
+
+### Domains and the knowledge base
+
+#### `vyd domain new`
+
+```bash
+vyd domain new <name> [--registers <type>] [--path <folder>]
+```
+
+Writes a new domain folder with a manifest, a facet stub, one empty register and a skill stub, initialises git where the folder is not in a repository, and prints the lines that would add it to your configuration.
+
+| Option | Meaning |
+|---|---|
+| `--registers type` | the register type of its first register, `note` by default |
+| `--path folder` | the folder to write, `domains/<name>` under the knowledge base by default |
+
+- It never changes your configuration. Add the domain with `vyd domain add` next.
+- The destination must be empty.
+- Despite the plural, `--registers` takes one type.
+
+#### `vyd domain add`
+
+```bash
+vyd domain add <name> --path <folder> | --remote <url> [--trust own|reviewed|knowledge] [--commit <hash>] [--visibility public|private] [--dry-run]
+```
+
+Adds a domain to your configuration, keeping your comments and the order of your tables.
+
+| Option | Meaning |
+|---|---|
+| `--path` | the domain's folder, `domains/<name>` under the knowledge base by default |
+| `--remote` | the repository to clone it from |
+| `--trust` | what it gives an agent, `knowledge` by default |
+| `--commit` | with `--trust reviewed`, the commit you read |
+| `--visibility` | private unless this says public |
+| `--dry-run` | print the change and write nothing |
+
+- It writes `trust = "knowledge"` unless you ask for more, so a folder an agent names never gains the standing of your own.
+- `own` and `reviewed` need a person at a terminal, since they let the domain's rules and skills reach agents. `--dry-run` works without one.
+- A remote is cloned later, by `vyd kb clone`, and the command prints that line.
+- The whole new file is checked by the real loader first, and a problem writes nothing and exits 1. When `kb` is unset it says how to set it.
+
+#### `vyd domain trust`
+
+```bash
+vyd domain trust <name> own|reviewed|knowledge [--commit <hash>] [--dry-run]
+```
+
+Changes the trust of a domain already in your configuration, keeping your comments, without removing and adding it again.
+
+- Raising trust, and moving a reviewed domain to another commit, need a person at a terminal. Lowering it needs none, and moving from `own` to `reviewed` counts as lowering.
+- `reviewed` needs `--commit`, 7 to 64 hexadecimal characters, which you name and which is never taken from the clone's head. Moving to `knowledge` removes the commit.
+- A reviewed domain gives more than knowledge only while its folder is at that commit, so a pull that moves its head returns it to knowledge until you review again.
+- After a raise, run `vyd install --project` in the projects that use it. After a lowering, their skills stay until the next `vyd install --project` removes them.
+- It has no `--file`, since a repository's `vyvid.toml` may not set trust.
+
+#### `vyd domain remove`
+
+```bash
+vyd domain remove <name> [--dry-run]
+```
+
+Takes a domain out of your configuration and says where its folder was left.
+
+- It refuses while a configured project, the `vyvid.toml` of the repository you stand in, or another domain as a parent uses the domain.
+- It never deletes the folder or the clone.
+
+#### `vyd domain audit`
+
+```bash
+vyd domain audit <folder> [--json] [--allow <scope> ...]
+```
+
+Reports the links, file types, paths, command-shaped text, hidden characters and mentions of other scopes in a domain someone else wrote, and runs nothing from it. Use it with the review skill before trusting such a domain.
+
+- It exits 1 when it reports anything, which is common and not a verdict. It states facts and does not certify a domain as safe.
+- `--allow` names a scope the domain may cite, such as a parent, and may be repeated.
+
+#### `vyd domain review-path`
+
+```bash
+vyd domain review-path <domain> <commit>
+```
+
+Prints where the review of a domain at a commit is recorded, a file in Вивід's data folder. The review skill writes its report there.
+
+- A name or a commit that is not safe in a path is refused.
+
+#### `vyd kb status`
+
+```bash
+vyd kb status
+```
+
+Each managed domain, a git clone of its remote under the knowledge base, with its clone, branch, commits ahead and behind, uncommitted changes, last pull and git policy.
+
+#### `vyd kb clone`
+
+```bash
+vyd kb clone [domain ...]
+```
+
+Clones the named domains, or every managed domain whose folder is missing. Run it after `vyd domain add --remote` or on a new machine.
+
+#### `vyd kb pull`
+
+```bash
+vyd kb pull [domain ...] [--due]
+```
+
+Pulls the named domains, or all of them, fast-forward only. `--due` pulls only those whose `pull` policy, `on-start`, `daily` or `manual`, says a pull is due.
+
+- A diverged domain is never merged or stashed for you.
+- In a domain you do not own, a pull that changes its rules, skills or manifest is held until a person runs `vyd kb accept`.
+
+#### `vyd kb accept`
+
+```bash
+vyd kb accept <domain>
+```
+
+A person fast-forwards a domain whose pull was held, after reading the diff that was reported.
+
+- It needs a terminal, and refuses under a task runner that captures output.
+- It does not change the domain's trust or its reviewed commit, which stay separate decisions.
+
+#### `vyd kb record`
+
+```bash
+vyd kb record <path> ... -m <message>
+```
+
+Stages changed register files in their managed domain, then commits and pushes as the domain's `commit` and `push` policy says, `manual` or `auto`.
+
+- It stages nothing in a domain whose files hold what looks like a credential, using `gitleaks` as well where it is installed. That prevents accidents and guarantees nothing.
+- `commit_trailers` in `[framework]` are added to every message it commits.
+- Use `auto` only where an agent committing and pushing the domain is intended.
+
+#### `vyd docs record`
+
+```bash
+vyd docs record <path> ... -m <message> [--in folder]
+```
+
+Stages paths in the project's documents folder, when that is a repository apart from the code, then commits and pushes as the project's `git.docs` policy says.
+
+- The policy is set in your configuration, never in a `vyvid.toml`.
+- It never touches the code repository.
+
+### Projects and families
+
+The commands below write your own configuration, or with `--file` the `vyvid.toml` of the repository you stand in. Each checks the whole file with the real loader first, keeps your comments and the order of your tables, and with `--dry-run` prints the change and writes nothing. A `vyvid.toml` may not hold a code folder, a remote or a path outside the repository, and changing it lapses its trust until a person runs `vyd trust` again.
+
+#### `vyd project add`
+
+```bash
+vyd project add <name> [--code <folder>] [--docs <folder>] [--contract <path> ...] [--remote <url> ...] [--domain <name> ...] [--visibility public|private] [--file] [--dry-run]
+```
+
+Declares a project. Run in a git checkout, its code folder and remotes are read from it.
+
+| Option | Meaning |
+|---|---|
+| `--code` | the code folder, the checkout you are in by default |
+| `--docs` | the documents folder, when they are kept apart from the code |
+| `--contract` | a rule file, such as `docs:CONTRACT.md`. Repeat for several |
+| `--remote` | a remote that identifies the checkout. Repeat for several |
+| `--domain` | a configured domain it uses. Repeat for several |
+| `--visibility` | `private` by default, the cheaper one to loosen later |
+| `--file` | write the repository's `vyvid.toml` instead |
+
+- A remote carrying a password or a token is refused.
+- Binding a domain whose trust is `own` or `reviewed` needs a person at a terminal, since its rules and extractors then run for this project.
+- `--code` and `--remote` are refused with `--file`.
+
+#### `vyd project set`
+
+```bash
+vyd project set <name> <key> <value> ... [--file] [--dry-run]
+```
+
+Sets a plain key of a project. A list key takes several values and replaces the list.
+
+- The keys are `docs`, `code`, `visibility`, `docs_visibility`, `doc_share`, `skill_prefix`, `skill_additions`, `domains`, `contract`, `skills`, `facets`, `register_types`, `vocabulary`, `skill_targets`, `hook_clients` and `remote`.
+- `skills`, `skill_additions`, `hook_clients` and `skill_targets` change what a client loads or runs, so they need a person at a terminal.
+- `moves`, `extractors` and `recipes` are tables, edited by hand. `families` has its own commands.
+
+#### `vyd project remove`
+
+```bash
+vyd project remove <name> [--dry-run]
+```
+
+Takes a project out of your configuration. Its index store, logs, code folder and documents are left alone.
+
+- With `--file` it is refused, since a command never deletes a `vyvid.toml`. Delete the file yourself.
+
+#### `vyd project scan`
+
+```bash
+vyd project scan <name> [--apply] [--file] [--dry-run]
+```
+
+Reads the tables in the project's documents and proposes an identifier family for each register, by the signs of the register types its header carries. With `--apply` it writes the proposed families.
+
+- A table it cannot place is named with the reason and never guessed, for example one whose header fits no type or several.
+- It proposes a `pattern` only when the identifiers do not fit the default `PREFIX-1`. Read it before applying, since a pattern is what could read ordinary prose as an identifier.
+- A family the project already declares is left alone.
+
+#### `vyd family add`
+
+```bash
+vyd family add <project> <name> --defined <path> --type <type> [--pattern <regex>] [--removable] [--file] [--dry-run]
+```
+
+Declares an identifier family and the register that defines it.
+
+| Option | Meaning |
+|---|---|
+| `--defined` | the register, as `docs:` or `code:` and a path |
+| `--type` | its register type, one the project's register types declare |
+| `--pattern` | a regular expression for its identifiers where `PREFIX-1` is not their form |
+| `--removable` | its entries are meant to disappear, so an unresolved mention is reported and never failed |
+
+- A definition that leaves the project, by `..`, by a link or by a path outside, is refused.
+- The pattern must compile.
+
+#### `vyd family remove`
+
+```bash
+vyd family remove <project> <name> [--file] [--dry-run]
+```
+
+Removes a family from a project. Its register is left alone.
+
+### Reading another project
+
+A project can read another's knowledge at a pinned commit, in `[project.reads.<name>]` of its `vyvid.toml`. The guide's chapter on reads has the whole of it.
+
+#### `vyd reads status`
+
+```bash
+vyd reads status [--in folder]
+```
+
+Each read's pin against the source's default branch, whether it gives knowledge alone or was reviewed, what skills, recipes and domains it may bring, and whether its snapshot was made. It exits 1 when a read could not be made, with the reason.
+
+#### `vyd reads pin`
+
+```bash
+vyd reads pin <name> <ref> [--in folder] [--dry-run]
+```
+
+Resolves a tag, branch or abbreviated hash in your clone of the source to a full commit and writes it into the reader's `vyvid.toml`, keeping the file's comments.
+
+- The commit must be on the source's default branch.
+- The source must be a project of your configuration with a code folder.
+- The file changed, so its trust lapses, and so does any review of the read.
+
+#### `vyd reads review`
+
+```bash
+vyd reads review <name> [--in folder] [--dry-run]
+```
+
+A person records, in their own configuration, that they read what a read brings at its pin, so the skills and recipes it lists reach agents and its entries lose the `U` mark. It prints the snapshot's path for each skill, the steps of each recipe and, after an earlier review, the `git diff` command since then.
+
+- It needs a terminal, and a repository can never award itself a review.
+- A new pin lapses the review.
+- A recipe with a glue step is never carried, and a library's rules, contract, hooks and commands never come with a read.
+
+### The repository catalogue
+
+These read the catalogue that `[project.catalogue]` names, so code and agents ask for a place by name instead of writing a path. Every answer is relative to the catalogue's root unless `--absolute` joins it to the root of the checkout you run in.
+
+#### `vyd catalogue show`
+
+```bash
+vyd catalogue show [--in folder]
+```
+
+The catalogue's modules, areas and release.
+
+#### `vyd catalogue dump`
+
+```bash
+vyd catalogue dump [--in folder]
+```
+
+All of the catalogue as JSON, every path relative to the root, for a script.
+
+#### `vyd catalogue modules`
+
+```bash
+vyd catalogue modules [--kind <kind>] [--in folder]
+```
+
+The modules, one a line, optionally only those of one kind.
+
+#### `vyd catalogue area`
+
+```bash
+vyd catalogue area <name> [--absolute] [--in folder]
+```
+
+The folder of a named root or documentation area, such as `developer`.
+
+#### `vyd catalogue path`
+
+```bash
+vyd catalogue path <module> <role> [--absolute] [--in folder]
+```
+
+The folder of one role of a module, such as its `spec`.
+
+#### `vyd catalogue paths`
+
+```bash
+vyd catalogue paths <module> <role> [--absolute] [--in folder]
+```
+
+The files a module's README generates for a role, in order.
+
+### The guard
+
+The guard keeps the terms of your private lists out of public repositories, at commit and at push. It is configured with `[framework.guard]`, and `vyd install` sets git's global `core.hooksPath` to its hooks. The guide's chapter on the guard has the lists and their formats.
+
+#### `vyd guard status`
+
+```bash
+vyd guard status [--in folder]
+```
+
+The folder's class, `public`, `private`, `unclassified` or none, the lists in force and their sizes, and whether the git hooks are in place.
+
+#### `vyd guard check`
+
+```bash
+vyd guard check [--all] [--in folder]
+```
+
+Checks the lines staged for commit against the lists, or with `--all` every tracked file, which finds what a new list leaves in existing text. It exits 1 on a blocking finding.
+
+- A finding names the file, the line and the list entry's line number, and never the term, so a log you share does not repeat it.
+
+#### `vyd guard hook`
+
+```bash
+vyd guard hook pre-commit|commit-msg|pre-push [args ...]
+```
+
+What the git hooks run. `pre-commit` reads the lines and paths a commit adds, `commit-msg` reads the message and, in a public repository, requires a `Placement:` trailer on a commit touching a sensitive path, and `pre-push` reads each commit the push carries that the destination does not already hold. Call it yourself only from hooks of your own, where another `core.hooksPath` is set.
+
+- A repository under a watched owner that is in neither list stops until it is classified.
+- `--no-verify` skips the commit hooks and not the push check.
+- Only the maintainer overrides it, for one command, with `VYD_GUARD_SKIP="<reason>"`, which is logged with the reason. An agent that is stopped reports the findings by file and line and proposes a conforming change.
+- What the destination holds is read from the remote-tracking refs of every remote that names that repository, as of the last fetch or push.
+
+### Cloud environments and stores
+
+#### `vyd cloud script`
+
+```bash
+vyd cloud script --output <file> [--domain name[=~/path] ...] [--grant host/owner/repository ...] [--run path] [--dry-run]
+```
+
+Writes the setup script for a cloud environment. It installs `vyd` at the running version, embeds the files of the private domains you name, clones the public domains, writes a configuration, runs `vyd install`, and with `--run` ends by running a setup script of the project's own from the session's checkout.
+
+| Option | Meaning |
+|---|---|
+| `--output` | the file to write, readable by you alone |
+| `--domain` | a private domain to embed, and after `=` where to write it under `~/` in the cloud. Repeat for several |
+| `--grant` | a repository whose `vyvid.toml` the cloud trusts, in `trusted_repositories`. Repeat for several |
+| `--run` | a setup script inside the project's repository, run last |
+| `--dry-run` | say what would be written and write nothing |
+
+- The script holds private text, so it is written to a file and never printed. The command prints only the path, the size against the 64 KB limit of a setup script, a fingerprint and a line for each domain.
+- Only the domains you name are embedded, never every private domain. Each must be a git repository, and only the files git tracks are carried.
+- Anyone who can use the environment can read its setup script, so paste it only into an environment nobody else uses, and paste it again after a domain changes.
+- In the cloud, the skills of an embedded domain that declares no `always_rules` are always on, whatever they do on your own machine. A domain that declares `always_rules` keeps exactly those.
+- `--run` takes a plain path of letters, digits, `.`, `_`, `-` and `/`, and the script says in setup's output when no checkout holds it.
+
+#### `vyd store prune`
+
+```bash
+vyd store prune [--dry-run]
+```
+
+Removes the index stores of linked git worktrees that no longer exist. `--dry-run` lists them and removes nothing.
+
+### `vyd-hook`
+
+`vyd-hook` is the reminder hook that `vyd install --project` registers for each client in `hook_clients`, and you do not run it yourself. When an agent searches through a shell or a search tool before it has asked the index in that session, or after fifteen searches since it last asked, it reminds the agent to ask.
+
+- It reminds and never refuses, and a failure inside it says nothing, since in some clients an error in a hook would deny the tool.
+- It runs before a tool call in Claude Code and Codex, and after one in Copilot.
+- Where `vyd-hook` is not installed, the registered command does nothing.
 
 ## Setting up without editing TOML
 
-Everything the configuration holds can be written by hand, and a file edited by hand stays as it is. The commands above write it for you when you would rather not. Each checks the whole file with the real loader before it writes, keeps your comments and the order of your tables, and takes `--dry-run`, which prints the change and the file it would write and writes nothing. They write your own configuration, or with `--file` the `vyvid.toml` of the repository you are in, which may not hold a code folder, a remote or a path outside the repository.
+Everything the configuration holds can be written by hand, and a file edited by hand stays as it is. The commands in [Projects and families](#projects-and-families) and [Domains and the knowledge base](#domains-and-the-knowledge-base) write it for you when you would rather not. Each checks the whole file with the real loader before it writes, keeps your comments and the order of your tables, and takes `--dry-run`, which prints the change and the file it would write and writes nothing. They write your own configuration, or with `--file` the `vyvid.toml` of the repository you are in, which may not hold a code folder, a remote or a path outside the repository.
 
 ```bash
 cd ~/work/some-project
