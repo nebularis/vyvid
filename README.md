@@ -191,7 +191,7 @@ Entries ranked by how close their meaning is to your words, across the folder's 
 - `--kind`, `--exclude`, `--phase` and `--audience` filter exactly, so use them only where an entry outside them could not answer. Mixing terms or symbols into an ordinary question pushes the entries that answer out of the top places, which is why they are asked for.
 - A facet value no layer declares is an error, never a guess.
 - Kinds declared with `shown = "asked"`, such as `slice`, appear only when named with `--kind` or by identifier.
-- A stale or missing index is rebuilt first. When embeddings cannot be made it prints why and retries once the store is ten minutes old.
+- A stale or missing index is rebuilt first. It is stale when a file it reads is newer than its build, or a file an entry points into is gone, so a merge needs no hook to rebuild it. When embeddings cannot be made it prints why and retries once the store is ten minutes old.
 - A weak answer is logged as a miss for `vyd misses`. An empty answer never proves that nothing exists.
 
 #### `vyd node`
