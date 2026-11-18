@@ -83,7 +83,8 @@ def defined(config: Config, canonical: str) -> bool:
 
 def broken_pointers(a: ask.Asker, project: Scope) -> tuple[int, list[str]]:
     """How many pointers the project's own entries hold, and those that name a file that is not there, or a line past its end.
-    The build refuses a pointer it cannot resolve, so what is found here went missing after the index was built."""
+    The build refuses a pointer it cannot resolve, so what is found here went missing after the index was built, and the
+    caller adds what a rebuild before the check refused."""
     root, problems, read = a.root(project.name), [], 0
     for row in a.rows(ask.ALL_POINTERS):
         if row["scope"] != project.name:
@@ -122,7 +123,10 @@ def check(config: Config, project: Scope | None, folder: Path, require: list[str
     broken = [(p, n, name) for p, n, name, canonical in found if canonical is None]
     for path, number, name in broken:
         print(f"ERROR: {identifiers._name(path, roots)}:{number} backlinks {name or 'nothing'}, which no register defines")
-    read, pointers = broken_pointers(ask.open_stack(config, folder), project)
+    a = ask.open_stack(config, folder)
+    read, pointers = broken_pointers(a, project)
+    # A rebuild before the check drops a pointer it cannot resolve and says so, so a file gone since the last build is there.
+    pointers += [problem for problem in a.rebuilt if " has Pointer " in problem]
     for problem in pointers:
         print(f"ERROR: pointer {problem}")
     linked = {normalise(c.split(":", 1)[1]) for _, _, _, c in found if c is not None and c.split(":", 1)[0] == project.name}

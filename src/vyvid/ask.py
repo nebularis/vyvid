@@ -63,7 +63,7 @@ import os
 import re
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -398,6 +398,7 @@ class Asker:
     scoped: list[Scope] | None = None  # the scopes this question reads when --scope changed the stack
     named: frozenset[str] = frozenset()  # the scopes --scope names
     logging: bool = True  # false is --no-log, which skips the ask and miss logs for this call
+    rebuilt: list[str] = field(default_factory=list)  # the problems of a rebuild open_stack ran before answering
 
     def choose(self, text: str) -> None:
         """Apply ``--scope``: ``a,b`` adds scopes to the stack, ``only:a,b`` reads those alone. Raises
@@ -556,7 +557,7 @@ def pointer_files(a: Asker) -> list[Path]:
 
 def stale(a: Asker, ranking: bool = False) -> bool:
     """Whether the store is missing, was built for other scopes than the stack's, or any file the stack
-    reads is newer than the build it was made from.
+    reads is newer than the build it was made from, or a file an entry points into is gone.
 
     A pointer resolves an anchor to a line range at build time, so an edit to a document after the
     build would leave every pointer into it on the wrong lines, silently. Only the files the stack
@@ -570,12 +571,16 @@ def stale(a: Asker, ranking: bool = False) -> bool:
     built = float(stamp.read_text(encoding="utf-8").strip())
     if ranking and not (a.directory / embed.VECTORS).exists() and not (a.directory / NO_VECTORS).exists() and time.time() - stamp.stat().st_mtime > RETRY_EMBEDDING:
         return True
-    for path in [*declared_files(a.config, a.built_scopes), *pointer_files(a)]:
+    pointed = set(pointer_files(a))
+    for path in [*declared_files(a.config, a.built_scopes), *pointed]:
         try:
             if os.stat(path).st_mtime > built:
                 return True
         except FileNotFoundError:
-            continue
+            # A file an entry points into was there at the build, so its going is a change, such as a merge that only
+            # deletes. A declared file may be optional and never written, so its absence is not.
+            if path in pointed:
+                return True
     return False
 
 
@@ -604,6 +609,7 @@ def open_stack(config: Config, folder: Path, model=None, need_store: bool = True
     print("knowledge index is missing or older than the files it reads, so building it", file=sys.stderr)
     a.db = None
     built = build(config, project, embed=True, model=model, scopes=a.built_scopes)
+    a.rebuilt = built.problems
     for problem in built.problems:
         if problem.startswith("no embeddings"):
             print(f"vyd: {problem}", file=sys.stderr)

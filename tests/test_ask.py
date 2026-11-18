@@ -702,6 +702,14 @@ def test_a_built_index_is_stale_only_when_a_file_the_stack_reads_is_newer(built)
     assert ask.stale(a), "an index built for another stack is stale for this one"
 
 
+def test_a_built_index_is_stale_when_a_file_an_entry_points_into_is_deleted(built):
+    """A merge that only deletes a file changes no time the check reads, so the absence is the change."""
+    a = ask.open_stack(built.config, built.tmp / "code", model=Words())
+    assert not ask.stale(a)
+    (built.tmp / "code" / "docs" / "standards.md").unlink()
+    assert ask.stale(a)
+
+
 def test_a_stale_index_is_rebuilt_before_it_answers(built, capsys):
     register = built.tmp / "code" / "docs" / "standards.md"
     register.write_text(register.read_text(encoding="utf-8").replace("per key", "per period"), encoding="utf-8")
